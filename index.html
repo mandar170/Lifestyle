@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mandar170 — Portfolio</title>
+  <meta name="description" content="Projets personnels de mandar170." />
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <!-- Curseur personnalisé -->
+  <div id="cursor"></div>
+  <div id="cursor-dot"></div>
+
+  <!-- Particules fond -->
+  <canvas id="particles"></canvas>
+
+  <!-- NAV -->
+  <header class="nav">
+    <div class="container nav__inner">
+      <span class="nav__logo">MANDAR<span style="color:var(--text-muted)">170</span></span>
+      <ul class="nav__links">
+        <li><a href="#projects">Projets</a></li>
+        <li><a href="fitness.html">Fitness</a></li>
+        <li><a href="mailto:contact@mandar170.fr">Contact</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero__content">
+        <p class="hero__eyebrow">mandar170.fr</p>
+        <h1 class="hero__name">
+          <span>Projets</span><br>
+          &amp; expériences
+        </h1>
+        <p class="hero__sub">
+          Développeur curieux. Je construis des outils pour mieux vivre,
+          mieux apprendre et mieux performer.
+        </p>
+        <div class="hero__cta">
+          <a href="#projects" class="btn btn--primary">Voir les projets →</a>
+          <a href="fitness.html" class="btn btn--ghost">Fitness Tracker</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJECTS -->
+  <section id="projects">
+    <div class="container">
+      <div class="section__header reveal">
+        <p class="section__label">Projets</p>
+        <h2 class="section__title">Ce que je construis</h2>
+      </div>
+
+      <div class="projects__grid">
+
+        <!-- ★ FEATURED : Fitness Tracker -->
+        <a href="fitness.html" class="card card--featured reveal reveal-delay-1">
+          <div class="card__icon">🏋️</div>
+          <span class="card__tag">Featured</span>
+          <h3 class="card__title">Fitness Tracker</h3>
+          <p class="card__desc">
+            Suivi de progression musculaire (import Hevy), mensurations
+            corporelles et nutrition (calories & macros) — tout en un.
+          </p>
+          <div class="card__footer">
+            <div class="card__tech">
+              <span>Supabase</span>
+              <span>Chart.js</span>
+              <span>Hevy CSV</span>
+            </div>
+            <span class="card__link">Ouvrir →</span>
+          </div>
+        </a>
+
+        <!-- ────────────────────────────────────────────────────────
+             PROJETS PERSONNALISABLES
+             Remplaces les blocs ci-dessous avec tes vrais projets.
+             Duplique le <a class="card"> autant de fois que nécessaire.
+        ──────────────────────────────────────────────────────────── -->
+
+        <a href="#" class="card reveal reveal-delay-2">
+          <div class="card__icon">🚀</div>
+          <span class="card__tag card__tag--purple">Projet</span>
+          <h3 class="card__title">Projet 2</h3>
+          <p class="card__desc">
+            Description courte de ce projet. Remplace ce texte avec ce que
+            tu as réellement construit.
+          </p>
+          <div class="card__footer">
+            <div class="card__tech">
+              <span>Tech 1</span>
+              <span>Tech 2</span>
+            </div>
+            <span class="card__link">Voir →</span>
+          </div>
+        </a>
+
+        <a href="#" class="card reveal reveal-delay-3">
+          <div class="card__icon">💡</div>
+          <span class="card__tag">Projet</span>
+          <h3 class="card__title">Projet 3</h3>
+          <p class="card__desc">
+            Description courte de ce projet. Remplace ce texte avec ce que
+            tu as réellement construit.
+          </p>
+          <div class="card__footer">
+            <div class="card__tech">
+              <span>Tech 1</span>
+              <span>Tech 2</span>
+            </div>
+            <span class="card__link">Voir →</span>
+          </div>
+        </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="container footer">
+      <span class="footer__logo">MANDAR170</span>
+      <span>© 2026 — Tous droits réservés</span>
+    </div>
+  </footer>
+
+  <script src="assets/js/home.js"></script>
+</body>
+</html>

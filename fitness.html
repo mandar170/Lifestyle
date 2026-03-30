@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fitness Tracker — mandar170</title>
+  <meta name="description" content="Suivi musculation, mensurations et nutrition." />
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo">FITNESS TRACKER</span>
+      </div>
+      <a href="index.html" class="fit-header__back">← mandar170.fr</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top: 12px; padding-bottom: 60px;">
+
+    <!-- STATS RAPIDES -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card__label">Poids actuel</div>
+        <div class="stat-card__value" id="stat-weight">— kg</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Calories moy. 7j</div>
+        <div class="stat-card__value stat-card__value--orange" id="stat-calories">— kcal/j</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Dernière séance</div>
+        <div class="stat-card__value stat-card__value--purple" id="stat-last-workout" style="font-size:14px;">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Séances ce mois</div>
+        <div class="stat-card__value" id="stat-sessions">—</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="workouts"      role="tab">Séances</button>
+      <button class="tab-btn"        data-tab="measurements"  role="tab">Mensurations</button>
+      <button class="tab-btn"        data-tab="nutrition"     role="tab">Nutrition</button>
+      <button class="tab-btn"        data-tab="import"        role="tab">Import CSV</button>
+    </nav>
+
+    <!-- ════════════════════════════════════════════
+         TAB : SÉANCES
+    ════════════════════════════════════════════ -->
+    <div id="panel-workouts" class="tab-panel active">
+
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Progression par exercice</h2>
+          <div class="section-card__controls">
+            <select id="exercise-select" class="styled">
+              <option value="">— Choisir un exercice —</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="workout-chart"></canvas>
+          <div class="chart-nodata" id="workout-chart-nodata">
+            <div class="chart-nodata__icon">📂</div>
+            <p>Importe un CSV Hevy pour afficher les données</p>
+          </div>
+        </div>
+        <p style="margin-top:12px; font-size:12px; color:var(--text-dim);">
+          Trait plein = poids max soulevé · Pointillés = 1RM estimé (formule d'Epley : poids × (1 + reps/30))
+        </p>
+      </div>
+
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB : MENSURATIONS
+    ════════════════════════════════════════════ -->
+    <div id="panel-measurements" class="tab-panel">
+
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Évolution corporelle</h2>
+          <div class="section-card__controls">
+            <select id="measurement-select" class="styled">
+              <option value="weight_kg">Poids (kg)</option>
+              <option value="chest_cm">Poitrine (cm)</option>
+              <option value="waist_cm">Tour de taille (cm)</option>
+              <option value="hips_cm">Hanches (cm)</option>
+              <option value="left_arm_cm">Bras gauche (cm)</option>
+              <option value="right_arm_cm">Bras droit (cm)</option>
+              <option value="left_thigh_cm">Cuisse gauche (cm)</option>
+              <option value="right_thigh_cm">Cuisse droite (cm)</option>
+              <option value="neck_cm">Cou (cm)</option>
+              <option value="body_fat_pct">Masse grasse (%)</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="measurements-chart"></canvas>
+          <div class="chart-nodata" id="measurements-chart-nodata">
+            <div class="chart-nodata__icon">📏</div>
+            <p>Aucune mensuration enregistrée</p>
+          </div>
+        </div>
+
+        <!-- Formulaire ajout mensuration -->
+        <form id="measurement-form">
+          <div class="form-grid">
+            <p class="form-title">Ajouter / modifier une mensuration</p>
+
+            <div class="form-group">
+              <label for="m-date">Date</label>
+              <input type="date" id="m-date" name="date" required />
+            </div>
+            <div class="form-group">
+              <label for="m-weight">Poids (kg)</label>
+              <input type="number" id="m-weight" name="weight_kg" step="0.1" min="0" placeholder="ex: 82.5" />
+            </div>
+            <div class="form-group">
+              <label for="m-bf">Masse grasse (%)</label>
+              <input type="number" id="m-bf" name="body_fat_pct" step="0.1" min="0" max="60" placeholder="ex: 18.5" />
+            </div>
+            <div class="form-group">
+              <label for="m-chest">Poitrine (cm)</label>
+              <input type="number" id="m-chest" name="chest_cm" step="0.5" min="0" placeholder="ex: 100" />
+            </div>
+            <div class="form-group">
+              <label for="m-waist">Taille (cm)</label>
+              <input type="number" id="m-waist" name="waist_cm" step="0.5" min="0" placeholder="ex: 85" />
+            </div>
+            <div class="form-group">
+              <label for="m-hips">Hanches (cm)</label>
+              <input type="number" id="m-hips" name="hips_cm" step="0.5" min="0" placeholder="ex: 95" />
+            </div>
+            <div class="form-group">
+              <label for="m-larm">Bras gauche (cm)</label>
+              <input type="number" id="m-larm" name="left_arm_cm" step="0.5" min="0" placeholder="ex: 36" />
+            </div>
+            <div class="form-group">
+              <label for="m-rarm">Bras droit (cm)</label>
+              <input type="number" id="m-rarm" name="right_arm_cm" step="0.5" min="0" placeholder="ex: 36" />
+            </div>
+            <div class="form-group">
+              <label for="m-lthigh">Cuisse gauche (cm)</label>
+              <input type="number" id="m-lthigh" name="left_thigh_cm" step="0.5" min="0" placeholder="ex: 57" />
+            </div>
+            <div class="form-group">
+              <label for="m-rthigh">Cuisse droite (cm)</label>
+              <input type="number" id="m-rthigh" name="right_thigh_cm" step="0.5" min="0" placeholder="ex: 57" />
+            </div>
+            <div class="form-group">
+              <label for="m-neck">Cou (cm)</label>
+              <input type="number" id="m-neck" name="neck_cm" step="0.5" min="0" placeholder="ex: 38" />
+            </div>
+            <div class="form-group">
+              <label for="m-notes">Notes</label>
+              <input type="text" id="m-notes" name="notes" placeholder="Optionnel…" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB : NUTRITION
+    ════════════════════════════════════════════ -->
+    <div id="panel-nutrition" class="tab-panel">
+
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Calories &amp; Macros</h2>
+          <div class="section-card__controls">
+            <select id="nutrition-select" class="styled">
+              <option value="calories">Calories (kcal)</option>
+              <option value="protein_g">Protéines (g)</option>
+              <option value="carbs_g">Glucides (g)</option>
+              <option value="fat_g">Lipides (g)</option>
+            </select>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="nutrition-chart"></canvas>
+          <div class="chart-nodata" id="nutrition-chart-nodata">
+            <div class="chart-nodata__icon">🍽️</div>
+            <p>Aucune donnée nutritionnelle enregistrée</p>
+          </div>
+        </div>
+        <p style="margin-top:12px; font-size:12px; color:var(--text-dim);">
+          Barres = valeur journalière · Ligne = moyenne mobile 7 jours
+        </p>
+
+        <!-- Formulaire nutrition -->
+        <form id="nutrition-form">
+          <div class="form-grid">
+            <p class="form-title">Ajouter / modifier une journée</p>
+
+            <div class="form-group">
+              <label for="n-date">Date</label>
+              <input type="date" id="n-date" name="date" required />
+            </div>
+            <div class="form-group">
+              <label for="n-cal">Calories (kcal)</label>
+              <input type="number" id="n-cal" name="calories" min="0" placeholder="ex: 2400" />
+            </div>
+            <div class="form-group">
+              <label for="n-prot">Protéines (g)</label>
+              <input type="number" id="n-prot" name="protein_g" step="0.1" min="0" placeholder="ex: 180" />
+            </div>
+            <div class="form-group">
+              <label for="n-carbs">Glucides (g)</label>
+              <input type="number" id="n-carbs" name="carbs_g" step="0.1" min="0" placeholder="ex: 250" />
+            </div>
+            <div class="form-group">
+              <label for="n-fat">Lipides (g)</label>
+              <input type="number" id="n-fat" name="fat_g" step="0.1" min="0" placeholder="ex: 80" />
+            </div>
+            <div class="form-group">
+              <label for="n-notes">Notes</label>
+              <input type="text" id="n-notes" name="notes" placeholder="Optionnel…" />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn--primary btn--sm">Enregistrer</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         TAB : IMPORT CSV
+    ════════════════════════════════════════════ -->
+    <div id="panel-import" class="tab-panel">
+
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Import Hevy CSV</h2>
+        </div>
+
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="csv-file" accept=".csv" />
+          <div class="drop-zone__icon">📤</div>
+          <p class="drop-zone__title">Glisse ton fichier Hevy ici</p>
+          <p class="drop-zone__sub">
+            ou clique pour sélectionner · Format : <code>workout_data.csv</code> exporté depuis Hevy
+          </p>
+        </div>
+
+        <div class="import-status" id="import-status-wrap">
+          <p class="import-status__text" id="import-status"></p>
+          <div class="progress-bar">
+            <div class="progress-bar__fill" id="import-progress"></div>
+          </div>
+          <div class="import-result" id="import-result"></div>
+        </div>
+
+        <hr class="divider" style="margin-top:32px;" />
+
+        <div style="color:var(--text-muted); font-size:13px; line-height:1.8;">
+          <p style="font-family:var(--font-h); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-dim); margin-bottom:12px;">Comment exporter depuis Hevy</p>
+          <ol style="padding-left:20px; display:flex; flex-direction:column; gap:6px;">
+            <li>Ouvre Hevy → <strong>Profil</strong> → <strong>Paramètres</strong></li>
+            <li>Rubrique <strong>Données</strong> → <strong>Exporter les données</strong></li>
+            <li>Sélectionne <strong>CSV</strong> et partage le fichier</li>
+            <li>Glisse le fichier dans la zone ci-dessus</li>
+          </ol>
+          <p style="margin-top:12px; color:var(--text-dim);">
+            Les doublons sont automatiquement ignorés — tu peux importer plusieurs fois sans risque.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/fitness.js"></script>
+</body>
+</html>
