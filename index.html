@@ -4,16 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>mandar170 — Portfolio</title>
-  <meta name="description" content="Projets personnels de mandar170." />
+  <meta name="description" content="Projets professionnels de mandar170." />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
 
-  <!-- Curseur personnalisé -->
   <div id="cursor"></div>
   <div id="cursor-dot"></div>
-
-  <!-- Particules fond -->
   <canvas id="particles"></canvas>
 
   <!-- NAV -->
@@ -22,9 +19,11 @@
       <span class="nav__logo">MANDAR<span style="color:var(--text-muted)">170</span></span>
       <ul class="nav__links">
         <li><a href="#projects">Projets</a></li>
-        <li><a href="fitness.html">Fitness</a></li>
         <li><a href="mailto:contact@mandar170.fr">Contact</a></li>
       </ul>
+      <button id="private-lock-btn" class="lock-btn" title="Accès privé" aria-label="Accès privé">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
     </div>
   </header>
 
@@ -38,85 +37,112 @@
           &amp; expériences
         </h1>
         <p class="hero__sub">
-          Développeur curieux. Je construis des outils pour mieux vivre,
-          mieux apprendre et mieux performer.
+          Développeur curieux. Je construis des outils pour mieux apprendre,
+          mieux décider et mieux performer.
         </p>
         <div class="hero__cta">
           <a href="#projects" class="btn btn--primary">Voir les projets →</a>
-          <a href="fitness.html" class="btn btn--ghost">Fitness Tracker</a>
+          <a href="mailto:contact@mandar170.fr" class="btn btn--ghost">Me contacter</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- PROJECTS -->
+  <!-- ══════════════════════════════════════════════
+       PROJETS PROFESSIONNELS (publics)
+  ══════════════════════════════════════════════ -->
   <section id="projects">
     <div class="container">
       <div class="section__header reveal">
-        <p class="section__label">Projets</p>
+        <p class="section__label">Projets professionnels</p>
         <h2 class="section__title">Ce que je construis</h2>
       </div>
 
       <div class="projects__grid">
 
-        <!-- ★ FEATURED : Fitness Tracker -->
-        <a href="fitness.html" class="card card--featured reveal reveal-delay-1">
-          <div class="card__icon">🏋️</div>
-          <span class="card__tag">Featured</span>
-          <h3 class="card__title">Fitness Tracker</h3>
+        <!-- ── Ajoute tes projets pros ici ── -->
+        <!-- Duplique ce bloc autant que nécessaire -->
+        <a href="#" class="card reveal reveal-delay-1">
+          <div class="card__icon">🚀</div>
+          <span class="card__tag card__tag--purple">Projet pro</span>
+          <h3 class="card__title">Nom du projet</h3>
           <p class="card__desc">
-            Suivi de progression musculaire (import Hevy), mensurations
-            corporelles et nutrition (calories & macros) — tout en un.
+            Description courte du projet professionnel.
+            Remplace ce texte par la vraie description.
           </p>
           <div class="card__footer">
             <div class="card__tech">
-              <span>Supabase</span>
-              <span>Chart.js</span>
-              <span>Hevy CSV</span>
+              <span>Tech 1</span><span>Tech 2</span>
             </div>
-            <span class="card__link">Ouvrir →</span>
+            <span class="card__link">Voir →</span>
           </div>
         </a>
 
-        <!-- ────────────────────────────────────────────────────────
-             PROJETS PERSONNALISABLES
-             Remplaces les blocs ci-dessous avec tes vrais projets.
-             Duplique le <a class="card"> autant de fois que nécessaire.
-        ──────────────────────────────────────────────────────────── -->
-
         <a href="#" class="card reveal reveal-delay-2">
-          <div class="card__icon">🚀</div>
-          <span class="card__tag card__tag--purple">Projet</span>
-          <h3 class="card__title">Projet 2</h3>
+          <div class="card__icon">💡</div>
+          <span class="card__tag">Projet pro</span>
+          <h3 class="card__title">Nom du projet</h3>
           <p class="card__desc">
-            Description courte de ce projet. Remplace ce texte avec ce que
-            tu as réellement construit.
+            Description courte du projet professionnel.
+            Remplace ce texte par la vraie description.
           </p>
           <div class="card__footer">
             <div class="card__tech">
-              <span>Tech 1</span>
-              <span>Tech 2</span>
+              <span>Tech 1</span><span>Tech 2</span>
             </div>
             <span class="card__link">Voir →</span>
           </div>
         </a>
 
         <a href="#" class="card reveal reveal-delay-3">
-          <div class="card__icon">💡</div>
-          <span class="card__tag">Projet</span>
-          <h3 class="card__title">Projet 3</h3>
+          <div class="card__icon">🔧</div>
+          <span class="card__tag card__tag--purple">Projet pro</span>
+          <h3 class="card__title">Nom du projet</h3>
           <p class="card__desc">
-            Description courte de ce projet. Remplace ce texte avec ce que
-            tu as réellement construit.
+            Description courte du projet professionnel.
+            Remplace ce texte par la vraie description.
           </p>
           <div class="card__footer">
             <div class="card__tech">
-              <span>Tech 1</span>
-              <span>Tech 2</span>
+              <span>Tech 1</span><span>Tech 2</span>
             </div>
             <span class="card__link">Voir →</span>
           </div>
         </a>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════════════
+       PROJETS PERSONNELS (privés — masqués par défaut)
+  ══════════════════════════════════════════════ -->
+  <section id="private-section" class="private-section" aria-hidden="true">
+    <div class="container">
+      <div class="section__header">
+        <p class="section__label section__label--private">Espace privé</p>
+        <h2 class="section__title">Projets personnels</h2>
+      </div>
+
+      <div class="projects__grid">
+
+        <a href="fitness.html" class="card card--featured">
+          <div class="card__icon">🏋️</div>
+          <span class="card__tag">Lifestyle</span>
+          <h3 class="card__title">Fitness Tracker</h3>
+          <p class="card__desc">
+            Suivi musculation (import Hevy), course à pied,
+            mensurations, nutrition et comptage de pas.
+          </p>
+          <div class="card__footer">
+            <div class="card__tech">
+              <span>Supabase</span><span>Chart.js</span><span>Hevy CSV</span>
+            </div>
+            <span class="card__link">Ouvrir →</span>
+          </div>
+        </a>
+
+        <!-- Ajoute d'autres projets perso ici -->
 
       </div>
     </div>
@@ -130,6 +156,28 @@
     </div>
   </footer>
 
+  <!-- ══════════════════════════════════════════════
+       MODAL MOT DE PASSE
+  ══════════════════════════════════════════════ -->
+  <div id="private-modal" class="modal-overlay" aria-hidden="true" role="dialog">
+    <div class="modal-box">
+      <button id="modal-close" class="modal-close" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="modal-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h3 class="modal-title">Accès privé</h3>
+      <p class="modal-sub">Zone personnelle — accès restreint</p>
+      <div class="modal-field">
+        <input type="password" id="private-pwd" class="modal-input" placeholder="Mot de passe" autocomplete="current-password" />
+        <p id="private-error" class="modal-error" aria-live="polite"></p>
+      </div>
+      <button id="private-submit" class="btn btn--primary" style="width:100%">Accéder</button>
+    </div>
+  </div>
+
+  <script src="assets/js/config.js"></script>
   <script src="assets/js/home.js"></script>
 </body>
 </html>
