@@ -140,24 +140,29 @@
     submitBtn.textContent = '…';
     errorEl.textContent   = '';
 
-    // sha256() est synchrone (pure JS dans config.js) — fonctionne partout
-    const hash = sha256(pwd);
+    try {
+      const hash = sha256(pwd);
 
-    if (hash === PRIVATE_HASH) {
-      sessionStorage.setItem('priv_auth', '1');
-      injectPrivate();
-      closeModal();
-      setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
-    } else {
-      errorEl.textContent = 'Mot de passe incorrect';
-      pwdInput.value = '';
-      pwdInput.focus();
-      pwdInput.classList.add('shake');
-      setTimeout(() => pwdInput.classList.remove('shake'), 500);
+      if (hash === PRIVATE_HASH) {
+        sessionStorage.setItem('priv_auth', '1');
+        injectPrivate();
+        closeModal();
+        setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+      } else {
+        errorEl.textContent = 'Mot de passe incorrect';
+        pwdInput.value = '';
+        pwdInput.focus();
+        pwdInput.classList.add('shake');
+        setTimeout(() => pwdInput.classList.remove('shake'), 500);
+      }
+    } catch (e) {
+      console.error('sha256 error:', e);
+      errorEl.textContent = 'Erreur inattendue, réessaie.';
+    } finally {
+      // Toujours réactiver le bouton, quoi qu'il arrive
+      submitBtn.disabled    = false;
+      submitBtn.textContent = 'Accéder';
     }
-
-    submitBtn.disabled    = false;
-    submitBtn.textContent = 'Accéder';
   }
 
   function injectPrivate() {
