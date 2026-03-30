@@ -132,7 +132,7 @@
   });
   submitBtn?.addEventListener('click', verify);
 
-  async function verify() {
+  function verify() {
     const pwd = pwdInput?.value.trim() ?? '';
     if (!pwd) return;
 
@@ -140,28 +140,20 @@
     submitBtn.textContent = '…';
     errorEl.textContent   = '';
 
-    try {
-      // SHA-256 via Web Crypto — fonctionne uniquement en HTTPS ou localhost
-      const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
-      const hash = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    // sha256() est synchrone (pure JS dans config.js) — fonctionne partout
+    const hash = sha256(pwd);
 
-      if (hash === PRIVATE_HASH) {
-        sessionStorage.setItem('priv_auth', '1');
-        injectPrivate();
-        closeModal();
-        // Scroll vers la section privée
-        setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
-      } else {
-        errorEl.textContent = 'Mot de passe incorrect';
-        pwdInput.value = '';
-        pwdInput.focus();
-        pwdInput.classList.add('shake');
-        setTimeout(() => pwdInput.classList.remove('shake'), 500);
-      }
-    } catch (err) {
-      // Fallback si crypto.subtle indisponible (HTTP non sécurisé)
-      errorEl.textContent = 'Erreur de chiffrement — accède au site en HTTPS.';
-      console.error(err);
+    if (hash === PRIVATE_HASH) {
+      sessionStorage.setItem('priv_auth', '1');
+      injectPrivate();
+      closeModal();
+      setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
+    } else {
+      errorEl.textContent = 'Mot de passe incorrect';
+      pwdInput.value = '';
+      pwdInput.focus();
+      pwdInput.classList.add('shake');
+      setTimeout(() => pwdInput.classList.remove('shake'), 500);
     }
 
     submitBtn.disabled    = false;
