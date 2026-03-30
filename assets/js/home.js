@@ -1,7 +1,7 @@
 // ============================================================
-// HOME — animations + accès privé
+// HOME — animations + accès privé via Supabase Auth
 // Les projets perso ne sont JAMAIS dans le HTML.
-// Ils sont injectés par ce script uniquement après auth.
+// Ils sont injectés uniquement après connexion réussie.
 // ============================================================
 
 (function () {
@@ -62,24 +62,17 @@
   document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
 
   // ============================================================
-  // ACCÈS PRIVÉ
-  // Le contenu privé n'est jamais dans le HTML — il est
-  // construit ici et injecté dans #private-mount après auth.
+  // PROJETS PRIVÉS — définis ici, jamais dans le HTML
   // ============================================================
-
-  // Projets perso définis uniquement dans ce script
   const PRIVATE_PROJECTS = [
     {
-      href:  'fitness.html',
-      icon:  '🏋️',
-      tag:   'Lifestyle',
+      href: 'fitness.html', icon: '🏋️', tag: 'Lifestyle',
       title: 'Fitness Tracker',
-      desc:  'Suivi musculation (import Hevy), course à pied, mensurations, nutrition, pas quotidiens et calendrier.',
-      tech:  ['Supabase', 'Chart.js', 'Hevy CSV'],
+      desc: 'Suivi musculation (import Hevy), course à pied, mensurations, nutrition, pas quotidiens et calendrier.',
+      tech: ['Supabase', 'Chart.js', 'Hevy CSV'],
       featured: true,
     },
-    // Ajoute d'autres projets perso ici :
-    // { href: '...', icon: '...', tag: '...', title: '...', desc: '...', tech: [...] },
+    // Ajoute d'autres projets perso ici
   ];
 
   function buildPrivateSection() {
@@ -94,7 +87,6 @@
           <span class="card__link">Ouvrir →</span>
         </div>
       </a>`).join('');
-
     return `
       <section class="private-section">
         <div class="container">
@@ -116,11 +108,22 @@
   const errorEl   = document.getElementById('private-error');
   const mount     = document.getElementById('private-mount');
 
-  // Déjà auth dans cette session ?
-  if (sessionStorage.getItem('priv_auth') === '1') injectPrivate();
+  // Vérifier si déjà connecté via Supabase Auth
+  db.auth.getSession().then(({ data: { session } }) => {
+    if (session) injectPrivate();
+  });
 
-  const openModal  = () => { modal.classList.add('open'); modal.setAttribute('aria-hidden','false'); setTimeout(() => pwdInput?.focus(), 80); };
-  const closeModal = () => { modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); if (pwdInput) pwdInput.value=''; if (errorEl) errorEl.textContent=''; };
+  const openModal  = () => {
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    setTimeout(() => pwdInput?.focus(), 80);
+  };
+  const closeModal = () => {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    if (pwdInput) pwdInput.value = '';
+    if (errorEl)  errorEl.textContent = '';
+  };
 
   lockBtn?.addEventListener('click', openModal);
   closeBtn?.addEventListener('click', closeModal);
@@ -132,37 +135,34 @@
   });
   submitBtn?.addEventListener('click', verify);
 
-  function verify() {
-    const pwd = pwdInput?.value.trim() ?? '';
-    if (!pwd) return;
+  async function verify() {
+    const pwd = pwdInput?.value ?? '';
+    if (!pwd.trim()) return;
 
     submitBtn.disabled    = true;
     submitBtn.textContent = '…';
     errorEl.textContent   = '';
 
-    try {
-      const hash = sha256(pwd);
+    // Authentification via Supabase — vérification côté serveur
+    const { error } = await db.auth.signInWithPassword({
+      email:    'me@mandar170.fr',
+      password: pwd,
+    });
 
-      if (hash === PRIVATE_HASH) {
-        sessionStorage.setItem('priv_auth', '1');
-        injectPrivate();
-        closeModal();
-        setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
-      } else {
-        errorEl.textContent = 'Mot de passe incorrect';
-        pwdInput.value = '';
-        pwdInput.focus();
-        pwdInput.classList.add('shake');
-        setTimeout(() => pwdInput.classList.remove('shake'), 500);
-      }
-    } catch (e) {
-      console.error('sha256 error:', e);
-      errorEl.textContent = 'Erreur inattendue, réessaie.';
-    } finally {
-      // Toujours réactiver le bouton, quoi qu'il arrive
-      submitBtn.disabled    = false;
-      submitBtn.textContent = 'Accéder';
+    if (error) {
+      errorEl.textContent = 'Mot de passe incorrect';
+      pwdInput.value = '';
+      pwdInput.focus();
+      pwdInput.classList.add('shake');
+      setTimeout(() => pwdInput.classList.remove('shake'), 500);
+    } else {
+      injectPrivate();
+      closeModal();
+      setTimeout(() => mount?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 200);
     }
+
+    submitBtn.disabled    = false;
+    submitBtn.textContent = 'Accéder';
   }
 
   function injectPrivate() {
@@ -170,9 +170,7 @@
     mount.dataset.injected = '1';
     mount.innerHTML = buildPrivateSection();
     lockBtn?.classList.add('unlocked');
-    // Active le scroll reveal sur les nouvelles cartes
     mount.querySelectorAll('.reveal').forEach(el => obs.observe(el));
-    // Met à jour le curseur hover
     mount.querySelectorAll('a, button, .card').forEach(el => {
       el.addEventListener('mouseenter', () => cursor?.classList.add('hover'));
       el.addEventListener('mouseleave', () => cursor?.classList.remove('hover'));
