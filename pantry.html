@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Garde-manger — mandar170</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo" style="color:var(--orange);text-shadow:0 0 10px rgba(249,115,22,0.3);">GARDE-MANGER</span>
+      </div>
+      <a href="personal.html" class="fit-header__back">← Espace perso</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:12px;padding-bottom:60px;">
+
+    <!-- STATS -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card__label">Total articles</div>
+        <div class="stat-card__value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Frigo</div>
+        <div class="stat-card__value" id="stat-frigo">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Congélateur</div>
+        <div class="stat-card__value stat-card__value--purple" id="stat-congelateur">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Expirent bientôt</div>
+        <div class="stat-card__value stat-card__value--orange" id="stat-expiring">—</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="frigo">🧊 Frigo</button>
+      <button class="tab-btn" data-tab="congelateur">❄️ Congélateur</button>
+      <button class="tab-btn" data-tab="placard">🗄️ Placard</button>
+    </div>
+
+    <!-- FRIGO -->
+    <div class="tab-panel active" id="tab-frigo">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Contenu du frigo</span>
+          <button class="btn btn--primary btn--sm" onclick="openAddModal('frigo')">+ Ajouter</button>
+        </div>
+        <div class="pantry-grid" id="items-frigo"></div>
+      </div>
+    </div>
+
+    <!-- CONGÉLATEUR -->
+    <div class="tab-panel" id="tab-congelateur">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Contenu du congélateur</span>
+          <button class="btn btn--primary btn--sm" onclick="openAddModal('congelateur')">+ Ajouter</button>
+        </div>
+        <div class="pantry-grid" id="items-congelateur"></div>
+      </div>
+    </div>
+
+    <!-- PLACARD -->
+    <div class="tab-panel" id="tab-placard">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Contenu des placards</span>
+          <button class="btn btn--primary btn--sm" onclick="openAddModal('placard')">+ Ajouter</button>
+        </div>
+        <div class="pantry-grid" id="items-placard"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL AJOUT / ÉDITION -->
+  <div id="pantry-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" style="max-width:460px;">
+      <button class="modal-close" onclick="closeModal()" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 class="modal-title" id="modal-title">Ajouter un article</h3>
+      <input type="hidden" id="modal-id" />
+      <div class="form-grid" style="margin-top:24px;padding-top:0;border-top:none;">
+        <div class="form-group form-group--full">
+          <label>Nom *</label>
+          <input type="text" id="modal-name" placeholder="Ex: Yaourt nature" />
+        </div>
+        <div class="form-group">
+          <label>Emplacement</label>
+          <select id="modal-location" class="styled" style="min-width:unset;">
+            <option value="frigo">Frigo</option>
+            <option value="congelateur">Congélateur</option>
+            <option value="placard">Placard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Catégorie</label>
+          <input type="text" id="modal-category" placeholder="Laitage, Viande…" list="cat-suggestions" />
+          <datalist id="cat-suggestions">
+            <option value="Laitage" /><option value="Viande" /><option value="Légumes" />
+            <option value="Fruits" /><option value="Boissons" /><option value="Conserves" />
+            <option value="Féculents" /><option value="Condiments" /><option value="Surgelés" />
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>Quantité</label>
+          <input type="number" id="modal-qty" value="1" min="0" step="0.1" />
+        </div>
+        <div class="form-group">
+          <label>Unité</label>
+          <input type="text" id="modal-unit" placeholder="pcs, g, L…" list="unit-suggestions" />
+          <datalist id="unit-suggestions">
+            <option value="pcs" /><option value="g" /><option value="kg" />
+            <option value="L" /><option value="mL" /><option value="boîte" />
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label>Date d'expiration</label>
+          <input type="date" id="modal-expiry" />
+        </div>
+        <div class="form-group form-group--full">
+          <label>Notes</label>
+          <input type="text" id="modal-notes" placeholder="Optionnel" />
+        </div>
+        <div class="form-actions">
+          <button id="modal-save" class="btn btn--primary btn--sm" onclick="saveItem()">Sauvegarder</button>
+          <button class="btn btn--ghost btn--sm" onclick="closeModal()">Annuler</button>
+          <button id="modal-delete" class="btn btn--ghost btn--sm" style="color:var(--red, #ef4444);border-color:rgba(239,68,68,0.3);display:none;" onclick="deleteItem()">Supprimer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="assets/js/config.js?v=10"></script>
+  <script src="assets/js/pantry.js?v=1"></script>
+</body>
+</html>

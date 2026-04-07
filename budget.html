@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget — mandar170</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo" style="color:#22c55e;text-shadow:0 0 10px rgba(34,197,94,0.3);">BUDGET</span>
+      </div>
+      <a href="personal.html" class="fit-header__back">← Espace perso</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:12px;padding-bottom:60px;">
+
+    <!-- STATS -->
+    <div class="stats-row" id="budget-stats">
+      <div class="stat-card">
+        <div class="stat-card__label">Dépenses ce mois</div>
+        <div class="stat-card__value stat-card__value--orange" id="stat-depenses">— €</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Revenus ce mois</div>
+        <div class="stat-card__value" style="color:#22c55e;" id="stat-revenus">— €</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Balance nette</div>
+        <div class="stat-card__value" id="stat-balance">— €</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card__label">Transactions</div>
+        <div class="stat-card__value stat-card__value--purple" id="stat-count">—</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="apercu">Aperçu</button>
+      <button class="tab-btn" data-tab="transactions">Transactions</button>
+      <button class="tab-btn" data-tab="import">Import</button>
+      <button class="tab-btn" data-tab="budgets">Budgets</button>
+    </div>
+
+    <!-- ===== APERÇU ===== -->
+    <div class="tab-panel active" id="tab-apercu">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;">
+        <!-- Donut catégories -->
+        <div class="section-card">
+          <div class="section-card__header">
+            <span class="section-card__title">Dépenses par catégorie</span>
+            <select id="apercu-month" class="styled" style="min-width:160px;"></select>
+          </div>
+          <div class="chart-wrap" style="height:260px;">
+            <canvas id="chart-donut"></canvas>
+            <div class="chart-nodata" id="nodata-donut"><span class="chart-nodata__icon">📊</span>Aucune donnée</div>
+          </div>
+        </div>
+        <!-- Barres mensuelles -->
+        <div class="section-card">
+          <div class="section-card__header">
+            <span class="section-card__title">Évolution mensuelle</span>
+          </div>
+          <div class="chart-wrap" style="height:260px;">
+            <canvas id="chart-monthly"></canvas>
+            <div class="chart-nodata" id="nodata-monthly"><span class="chart-nodata__icon">📈</span>Aucune donnée</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top catégories avec barre de progression -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Top catégories</span>
+        </div>
+        <div id="category-bars">
+          <div style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Importez des transactions pour voir les catégories.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TRANSACTIONS ===== -->
+    <div class="tab-panel" id="tab-transactions">
+      <div class="section-card">
+        <div class="section-card__header" style="flex-wrap:wrap;gap:12px;">
+          <span class="section-card__title">Transactions</span>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <select id="filter-month" class="styled" style="min-width:140px;"></select>
+            <select id="filter-account" class="styled" style="min-width:140px;">
+              <option value="">Tous les comptes</option>
+            </select>
+            <select id="filter-cat" class="styled" style="min-width:160px;">
+              <option value="">Toutes catégories</option>
+            </select>
+            <input type="search" id="filter-search" class="auth-input" placeholder="Rechercher…" style="min-width:180px;padding:8px 13px;" />
+          </div>
+        </div>
+        <div class="tx-table-wrap">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Libellé</th>
+                <th>Catégorie</th>
+                <th>Compte</th>
+                <th class="tx-amount">Montant</th>
+              </tr>
+            </thead>
+            <tbody id="tx-body">
+              <tr><td colspan="5" class="tx-empty">Aucune transaction. Importez un fichier CSV.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="tx-pagination" class="tx-pagination"></div>
+      </div>
+    </div>
+
+    <!-- ===== IMPORT ===== -->
+    <div class="tab-panel" id="tab-import">
+      <!-- BoursoBank -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <div class="section-card__header">
+          <span class="section-card__title">BoursoBank — Import CSV</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">
+          Exportez vos opérations depuis BoursoBank → Mon espace → Mes comptes → Exporter. Format : CSV séparateur point-virgule.
+        </p>
+        <div class="drop-zone" id="drop-bourso" onclick="document.getElementById('file-bourso').click()">
+          <div class="drop-zone__icon">📂</div>
+          <p class="drop-zone__text">Glissez votre CSV BoursoBank ici<br><span>ou cliquez pour choisir un fichier</span></p>
+          <input type="file" id="file-bourso" accept=".csv" hidden />
+        </div>
+        <div id="preview-bourso" hidden>
+          <div class="import-preview-header">
+            <span id="preview-bourso-count"></span>
+            <div style="display:flex;gap:10px;">
+              <button id="confirm-bourso" class="btn btn--primary btn--sm">Importer</button>
+              <button id="cancel-bourso" class="btn btn--ghost btn--sm">Annuler</button>
+            </div>
+          </div>
+          <div class="tx-table-wrap" style="max-height:300px;">
+            <table class="tx-table"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Compte</th><th class="tx-amount">Montant</th></tr></thead>
+            <tbody id="preview-bourso-body"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crédit Agricole -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Crédit Agricole — Saisie manuelle</span>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">
+          Saisie d'une opération CA manuellement (ou importez un CSV exporté depuis votre espace CA en ligne).
+        </p>
+        <div class="form-grid" style="margin-top:0;padding-top:0;border-top:none;">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="ca-date" />
+          </div>
+          <div class="form-group" style="grid-column:span 2;">
+            <label>Libellé</label>
+            <input type="text" id="ca-label" placeholder="Ex: Virement EDF" />
+          </div>
+          <div class="form-group">
+            <label>Catégorie</label>
+            <input type="text" id="ca-category" placeholder="Ex: Logement" />
+          </div>
+          <div class="form-group">
+            <label>Montant (€)</label>
+            <input type="number" id="ca-amount" step="0.01" placeholder="-50.00 ou 1000.00" />
+          </div>
+          <div class="form-actions">
+            <button id="ca-submit" class="btn btn--primary btn--sm">Ajouter</button>
+            <span id="ca-msg" style="font-size:13px;color:var(--text-muted);"></span>
+          </div>
+        </div>
+
+        <!-- Import CSV CA -->
+        <div style="margin-top:28px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;font-family:var(--font-h);letter-spacing:0.08em;text-transform:uppercase;">Import CSV Crédit Agricole</p>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Format attendu : <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;">Date;Libellé;Débit;Crédit</code> (séparateur ;)</p>
+          <div class="drop-zone" id="drop-ca" onclick="document.getElementById('file-ca').click()" style="padding:32px;">
+            <div class="drop-zone__icon">📂</div>
+            <p class="drop-zone__text">CSV Crédit Agricole<br><span>cliquez pour choisir</span></p>
+            <input type="file" id="file-ca" accept=".csv" hidden />
+          </div>
+          <div id="preview-ca" hidden>
+            <div class="import-preview-header">
+              <span id="preview-ca-count"></span>
+              <div style="display:flex;gap:10px;">
+                <button id="confirm-ca" class="btn btn--primary btn--sm">Importer</button>
+                <button id="cancel-ca" class="btn btn--ghost btn--sm">Annuler</button>
+              </div>
+            </div>
+            <div class="tx-table-wrap" style="max-height:240px;">
+              <table class="tx-table"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Compte</th><th class="tx-amount">Montant</th></tr></thead>
+              <tbody id="preview-ca-body"></tbody></table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BUDGETS ===== -->
+    <div class="tab-panel" id="tab-budgets">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Limites mensuelles par catégorie</span>
+          <button id="save-goals" class="btn btn--primary btn--sm">Sauvegarder</button>
+        </div>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:24px;">
+          Définissez un budget mensuel pour chaque catégorie. Laissez vide pour ne pas limiter.
+        </p>
+        <div id="goals-grid" class="goals-grid"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+  <script src="assets/js/config.js?v=10"></script>
+  <script src="assets/js/budget.js?v=1"></script>
+</body>
+</html>

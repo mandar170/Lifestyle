@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Espace personnel — mandar170</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <!-- AUTH GATE -->
+  <div id="auth-gate" class="auth-gate">
+    <canvas id="particles-auth"></canvas>
+    <div class="auth-box">
+      <div class="auth-box__logo">MANDAR<span>170</span></div>
+      <h1 class="auth-box__title">Espace personnel</h1>
+      <p class="auth-box__sub">Accès restreint — identifiez-vous</p>
+      <div class="form-group" style="margin-top:28px;">
+        <label for="auth-pwd">Mot de passe</label>
+        <input type="password" id="auth-pwd" class="auth-input" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <p id="auth-error" class="auth-error"></p>
+      <button id="auth-submit" class="btn btn--primary" style="width:100%;margin-top:20px;">Accéder</button>
+    </div>
+  </div>
+
+  <!-- HUB (affiché après auth) -->
+  <div id="personal-hub" hidden>
+    <header class="fit-header">
+      <div class="container fit-header__inner">
+        <div class="fit-header__brand">
+          <span class="fit-header__logo">ESPACE PERSONNEL</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <a href="index.html" class="fit-header__back">← Portfolio</a>
+          <button id="logout-btn" class="btn btn--ghost btn--sm">Déconnexion</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container" style="padding-top:60px;padding-bottom:80px;">
+      <div class="hub-header">
+        <p class="section__label">Projets personnels</p>
+        <h2 class="section__title">Mes outils</h2>
+        <p style="color:var(--text-muted);margin-top:12px;font-size:15px;">Suivi personnel — données privées.</p>
+      </div>
+
+      <div class="hub-grid">
+
+        <a href="fitness.html" class="hub-card hub-card--cyan">
+          <div class="hub-card__icon">💪</div>
+          <div class="hub-card__content">
+            <span class="hub-card__tag">Lifestyle</span>
+            <h3 class="hub-card__title">Fitness Tracker</h3>
+            <p class="hub-card__desc">Musculation (import Hevy CSV), course à pied, mensurations, nutrition, pas quotidiens et calendrier interactif.</p>
+            <div class="hub-card__tech">
+              <span>Hevy CSV</span><span>Chart.js</span><span>Supabase</span>
+            </div>
+          </div>
+          <span class="hub-card__arrow">→</span>
+        </a>
+
+        <a href="budget.html" class="hub-card hub-card--green">
+          <div class="hub-card__icon">💰</div>
+          <div class="hub-card__content">
+            <span class="hub-card__tag">Finance</span>
+            <h3 class="hub-card__title">Budget</h3>
+            <p class="hub-card__desc">Import BoursoBank CSV, saisie Crédit Agricole, dashboard dépenses par catégorie et suivi mensuel.</p>
+            <div class="hub-card__tech">
+              <span>BoursoBank</span><span>CA</span><span>Chart.js</span>
+            </div>
+          </div>
+          <span class="hub-card__arrow">→</span>
+        </a>
+
+        <a href="pantry.html" class="hub-card hub-card--orange">
+          <div class="hub-card__icon">🥦</div>
+          <div class="hub-card__content">
+            <span class="hub-card__tag">Quotidien</span>
+            <h3 class="hub-card__title">Garde-manger</h3>
+            <p class="hub-card__desc">Inventaire frigo, congélateur et placards. Suivi des dates d'expiration avec alertes visuelles.</p>
+            <div class="hub-card__tech">
+              <span>Frigo</span><span>Congélateur</span><span>Placard</span>
+            </div>
+          </div>
+          <span class="hub-card__arrow">→</span>
+        </a>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="assets/js/config.js?v=10"></script>
+  <script src="assets/js/personal.js?v=1"></script>
+</body>
+</html>

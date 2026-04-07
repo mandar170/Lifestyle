@@ -21,9 +21,7 @@
         <li><a href="#projects">Projets</a></li>
         <li><a href="mailto:contact@mandar170.fr">Contact</a></li>
       </ul>
-      <button id="private-lock-btn" class="lock-btn" title="Accès privé" aria-label="Accès privé">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </button>
+      <a href="personal.html" class="btn btn--ghost btn--sm">Espace perso →</a>
     </div>
   </header>
 
@@ -84,9 +82,6 @@
     </div>
   </section>
 
-  <!-- Zone d'injection JS pour les projets privés — vide dans le HTML -->
-  <div id="private-mount"></div>
-
   <!-- FOOTER -->
   <footer>
     <div class="container footer">
@@ -95,27 +90,6 @@
     </div>
   </footer>
 
-  <!-- MODAL MOT DE PASSE -->
-  <div id="private-modal" class="modal-overlay" aria-hidden="true" role="dialog">
-    <div class="modal-box">
-      <button id="modal-close" class="modal-close" aria-label="Fermer">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-      <div class="modal-icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      </div>
-      <h3 class="modal-title">Accès privé</h3>
-      <p class="modal-sub">Zone personnelle — accès restreint</p>
-      <div class="modal-field">
-        <input type="password" id="private-pwd" class="modal-input" placeholder="Mot de passe" autocomplete="current-password" />
-        <p id="private-error" class="modal-error" aria-live="polite"></p>
-      </div>
-      <button id="private-submit" class="btn btn--primary" style="width:100%">Accéder</button>
-    </div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="assets/js/config.js?v=9"></script>
-  <script src="assets/js/home.js?v=9"></script>
+  <script src="assets/js/home.js?v=10"></script>
 </body>
 </html>
