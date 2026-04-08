@@ -38,7 +38,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTabs();
   await loadAll();
   initImport();
-  initCAForm();
   initFilters();
 });
 
@@ -97,22 +96,42 @@ function fmtDate(d) {
   return `${day}/${m}/${y}`;
 }
 
+const MONTH_NAMES = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+
 function getMonths() {
   const months = new Set(allTransactions.map(t => t.date?.slice(0, 7)));
   return [...months].sort().reverse();
 }
 
+function getSelectedMonth(prefix) {
+  const year  = document.getElementById(prefix + '-year')?.value  || '';
+  const month = document.getElementById(prefix + '-month-num')?.value || '';
+  if (!year) return null;
+  if (!month) return year;
+  return `${year}-${month}`;
+}
+
 function populateMonthSelectors() {
-  const months = getMonths();
-  const cur = currentMonth();
-  [document.getElementById('apercu-month'), document.getElementById('filter-month')].forEach(sel => {
-    if (!sel) return;
-    sel.innerHTML = months.map(m => {
-      const [y, mo] = m.split('-');
-      const label = new Date(y, mo - 1).toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
-      return `<option value="${m}" ${m === cur ? 'selected' : ''}>${label}</option>`;
-    }).join('') || `<option value="${cur}">Mois en cours</option>`;
-  });
+  const months  = getMonths();
+  const years   = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
+  const curYear = currentMonth().slice(0, 4);
+  const curMon  = currentMonth().slice(5, 7);
+
+  const yearOpts = years.map(y => `<option value="${y}" ${y === curYear ? 'selected' : ''}>${y}</option>`).join('');
+  const monOpts  = MONTH_NAMES.map((n, i) => {
+    const m = String(i + 1).padStart(2, '0');
+    return `<option value="${m}" ${m === curMon ? 'selected' : ''}>${n}</option>`;
+  }).join('');
+
+  const aYear = document.getElementById('apercu-year');
+  const aMon  = document.getElementById('apercu-month-num');
+  if (aYear) aYear.innerHTML = yearOpts;
+  if (aMon)  aMon.innerHTML  = monOpts;
+
+  const fYear = document.getElementById('filter-year');
+  const fMon  = document.getElementById('filter-month-num');
+  if (fYear) fYear.innerHTML = '<option value="">Toutes années</option>' + yearOpts;
+  if (fMon)  fMon.innerHTML  = '<option value="">Tous mois</option>' + monOpts;
 }
 
 function populateFilterDropdowns() {
@@ -135,7 +154,7 @@ function txForMonth(month) {
 // STATS
 // ============================================================
 function renderStats() {
-  const month = document.getElementById('apercu-month')?.value || currentMonth();
+  const month = getSelectedMonth('apercu') || currentMonth();
   const txs = txForMonth(month);
   const depenses = txs.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0);
   const revenus  = txs.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
@@ -156,7 +175,7 @@ function renderStats() {
 // DONUT CHART
 // ============================================================
 function renderDonut() {
-  const month = document.getElementById('apercu-month')?.value || currentMonth();
+  const month = getSelectedMonth('apercu') || currentMonth();
   const txs = txForMonth(month).filter(t => t.amount < 0);
 
   const bycat = {};
@@ -244,7 +263,7 @@ function renderMonthly() {
 // CATEGORY BARS
 // ============================================================
 function renderCategoryBars() {
-  const month = document.getElementById('apercu-month')?.value || currentMonth();
+  const month = getSelectedMonth('apercu') || currentMonth();
   const txs   = txForMonth(month).filter(t => t.amount < 0);
 
   const bycat = {};
@@ -288,13 +307,13 @@ function renderCategoryBars() {
 // TRANSACTIONS TABLE
 // ============================================================
 function renderTransactions() {
-  const month   = document.getElementById('filter-month')?.value || '';
+  const period  = getSelectedMonth('filter') || '';
   const account = document.getElementById('filter-account')?.value || '';
   const cat     = document.getElementById('filter-cat')?.value || '';
   const search  = (document.getElementById('filter-search')?.value || '').toLowerCase();
 
   let txs = allTransactions.filter(t => {
-    if (month && !t.date?.startsWith(month)) return false;
+    if (period && !t.date?.startsWith(period)) return false;
     if (account && t.account_label !== account && t.account !== account) return false;
     if (cat && t.category !== cat) return false;
     if (search && !t.label?.toLowerCase().includes(search)) return false;
@@ -335,12 +354,14 @@ function goPage(n) { currentPage = n; renderTransactions(); }
 window.goPage = goPage;
 
 function initFilters() {
-  ['filter-month', 'filter-account', 'filter-cat'].forEach(id => {
+  ['filter-year', 'filter-month-num', 'filter-account', 'filter-cat'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', () => { currentPage = 1; renderTransactions(); });
   });
   document.getElementById('filter-search')?.addEventListener('input', () => { currentPage = 1; renderTransactions(); });
-  document.getElementById('apercu-month')?.addEventListener('change', () => {
-    renderStats(); renderDonut(); renderCategoryBars();
+  ['apercu-year', 'apercu-month-num'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => {
+      renderStats(); renderDonut(); renderCategoryBars();
+    });
   });
 }
 
@@ -510,35 +531,6 @@ function initImport() {
   });
   document.getElementById('cancel-ca').addEventListener('click', () => {
     document.getElementById('preview-ca').hidden = true; pendingCA = [];
-  });
-}
-
-// ============================================================
-// CA MANUAL FORM
-// ============================================================
-function initCAForm() {
-  document.getElementById('ca-date').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('ca-submit').addEventListener('click', async () => {
-    const date     = document.getElementById('ca-date').value;
-    const label    = document.getElementById('ca-label').value.trim();
-    const category = document.getElementById('ca-category').value.trim() || 'Non catégorisé';
-    const amount   = parseFloat(document.getElementById('ca-amount').value);
-    const msg      = document.getElementById('ca-msg');
-
-    if (!date || !label || isNaN(amount)) { msg.textContent = 'Remplis tous les champs.'; return; }
-
-    const { data: { user } } = await db.auth.getUser();
-    await db.from('budget_transactions').insert({
-      date, label, category, amount,
-      account: '23071108341', account_label: 'Crédit Agricole', source: 'ca', user_id: user.id,
-    });
-
-    msg.textContent = '✓ Ajouté.';
-    document.getElementById('ca-label').value = '';
-    document.getElementById('ca-amount').value = '';
-    document.getElementById('ca-category').value = '';
-    setTimeout(() => { msg.textContent = ''; }, 2000);
-    await loadAll();
   });
 }
 

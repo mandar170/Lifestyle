@@ -54,7 +54,8 @@
         <div class="section-card">
           <div class="section-card__header">
             <span class="section-card__title">Dépenses par catégorie</span>
-            <select id="apercu-month" class="styled" style="min-width:160px;"></select>
+            <select id="apercu-year" class="styled" style="min-width:90px;"></select>
+            <select id="apercu-month-num" class="styled" style="min-width:80px;"></select>
           </div>
           <div class="chart-wrap" style="height:260px;">
             <canvas id="chart-donut"></canvas>
@@ -90,7 +91,8 @@
         <div class="section-card__header" style="flex-wrap:wrap;gap:12px;">
           <span class="section-card__title">Transactions</span>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-            <select id="filter-month" class="styled" style="min-width:140px;"></select>
+            <select id="filter-year" class="styled" style="min-width:90px;"></select>
+            <select id="filter-month-num" class="styled" style="min-width:80px;"></select>
             <select id="filter-account" class="styled" style="min-width:140px;">
               <option value="">Tous les comptes</option>
             </select>
@@ -153,38 +155,12 @@
       <!-- Crédit Agricole -->
       <div class="section-card">
         <div class="section-card__header">
-          <span class="section-card__title">Crédit Agricole — Saisie manuelle</span>
+          <span class="section-card__title">Crédit Agricole — Import CSV</span>
         </div>
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">
-          Saisie d'une opération CA manuellement (ou importez un CSV exporté depuis votre espace CA en ligne).
+          Exportez vos opérations depuis votre espace CA en ligne. Format : <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;">Date;Libellé;Débit;Crédit</code> (séparateur ;)
         </p>
-        <div class="form-grid" style="margin-top:0;padding-top:0;border-top:none;">
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="ca-date" />
-          </div>
-          <div class="form-group" style="grid-column:span 2;">
-            <label>Libellé</label>
-            <input type="text" id="ca-label" placeholder="Ex: Virement EDF" />
-          </div>
-          <div class="form-group">
-            <label>Catégorie</label>
-            <input type="text" id="ca-category" placeholder="Ex: Logement" />
-          </div>
-          <div class="form-group">
-            <label>Montant (€)</label>
-            <input type="number" id="ca-amount" step="0.01" placeholder="-50.00 ou 1000.00" />
-          </div>
-          <div class="form-actions">
-            <button id="ca-submit" class="btn btn--primary btn--sm">Ajouter</button>
-            <span id="ca-msg" style="font-size:13px;color:var(--text-muted);"></span>
-          </div>
-        </div>
-
-        <!-- Import CSV CA -->
-        <div style="margin-top:28px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.06);">
-          <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px;font-family:var(--font-h);letter-spacing:0.08em;text-transform:uppercase;">Import CSV Crédit Agricole</p>
-          <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">Format attendu : <code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;">Date;Libellé;Débit;Crédit</code> (séparateur ;)</p>
+        <div>
           <div class="drop-zone" id="drop-ca" onclick="document.getElementById('file-ca').click()" style="padding:32px;">
             <div class="drop-zone__icon">📂</div>
             <p class="drop-zone__text">CSV Crédit Agricole<br><span>cliquez pour choisir</span></p>
