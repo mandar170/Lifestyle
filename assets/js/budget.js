@@ -369,21 +369,51 @@ function parseBoursoCSV(text) {
   }).filter(Boolean);
 }
 
+function parseCAAmount(s) {
+  if (!s || !s.trim()) return 0;
+  // Remove everything that isn't a digit or comma (spaces, apostrophes, nbsp, etc.)
+  const clean = s.trim().replace(/[^\d,]/g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+}
+
 function parseCACSV(text) {
-  const lines = text.trim().split('\n').slice(1); // skip header
-  return lines.map(line => {
-    const parts = line.split(';');
-    if (parts.length < 3) return null;
-    const [rawDate, label, rawDebit, rawCredit] = parts;
-    const debit  = parseFloat((rawDebit  || '').replace(',', '.').replace(/\s/g, '')) || 0;
-    const credit = parseFloat((rawCredit || '').replace(',', '.').replace(/\s/g, '')) || 0;
-    const amount = credit > 0 ? credit : -Math.abs(debit);
+  // The CA file has metadata at the top — find the actual header line
+  const lines = text.split('\n');
+  const headerIdx = lines.findIndex(l => l.trim().match(/^Date\s*;/i));
+  if (headerIdx === -1) return [];
+
+  // Feed PapaParse from the header onwards so it handles multi-line quoted labels
+  const csvPart = lines.slice(headerIdx).join('\n');
+  const result = Papa.parse(csvPart, {
+    delimiter: ';',
+    header: true,
+    skipEmptyLines: 'greedy',
+    quoteChar: '"',
+  });
+
+  return result.data.map(row => {
+    const keys = Object.keys(row);
+    // Column names may be garbled depending on encoding — match by position/keyword
+    const dateKey   = keys.find(k => /date/i.test(k))   || keys[0];
+    const labelKey  = keys.find(k => /lib/i.test(k))    || keys[1];
+    const debitKey  = keys.find(k => /d.?bit/i.test(k)) || keys[2];
+    const creditKey = keys.find(k => /cr.?dit/i.test(k))|| keys[3];
+
+    const rawDate = (row[dateKey]  || '').trim();
+    const label   = (row[labelKey] || '').replace(/\s+/g, ' ').trim();
+    const debit   = parseCAAmount(row[debitKey]);
+    const credit  = parseCAAmount(row[creditKey]);
+
     if (!rawDate || (!debit && !credit)) return null;
-    // Normalize date: DD/MM/YYYY or DD.MM.YYYY → YYYY-MM-DD
-    const dp = rawDate.trim().split(/[\/\.]/).map(s => s.trim());
-    const date = dp.length === 3 ? `${dp[2]}-${dp[1].padStart(2,'0')}-${dp[0].padStart(2,'0')}` : rawDate.trim();
+
+    const dp = rawDate.split('/');
+    const date = dp.length === 3
+      ? `${dp[2]}-${dp[1].padStart(2,'0')}-${dp[0].padStart(2,'0')}`
+      : rawDate;
+    const amount = credit > 0 ? credit : -Math.abs(debit);
+
     return {
-      date, label: label?.trim() || '',
+      date, label,
       category: 'Non catégorisé', category_parent: '',
       amount, account: '23071108341', account_label: 'Crédit Agricole', source: 'ca',
     };
@@ -459,7 +489,7 @@ function initImport() {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = ev => { pendingCA = parseCACSV(ev.target.result); showPreview(pendingCA, 'preview-ca-body', 'preview-ca-count', 'preview-ca'); };
-    r.readAsText(f, 'UTF-8');
+    r.readAsText(f, 'ISO-8859-1');
   });
 
   ['dragover','dragenter'].forEach(ev => dropCA.addEventListener(ev, e => { e.preventDefault(); dropCA.classList.add('drop-zone--active'); }));
@@ -468,7 +498,7 @@ function initImport() {
     const f = e.dataTransfer.files[0]; if (!f) return;
     const r = new FileReader();
     r.onload = ev => { pendingCA = parseCACSV(ev.target.result); showPreview(pendingCA, 'preview-ca-body', 'preview-ca-count', 'preview-ca'); };
-    r.readAsText(f, 'UTF-8');
+    r.readAsText(f, 'ISO-8859-1');
   });
 
   document.getElementById('confirm-ca').addEventListener('click', async () => {
