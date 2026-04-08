@@ -8,6 +8,7 @@ let donutChart = null;
 let monthlyChart = null;
 let currentPage = 1;
 const PAGE_SIZE = 50;
+let monthlyOffset = 0; // how many months back from latest
 
 const C = {
   green:  '#22c55e', orange: '#f97316', cyan: '#64dcff',
@@ -106,9 +107,9 @@ function getMonths() {
 function getSelectedMonth(prefix) {
   const year  = document.getElementById(prefix + '-year')?.value  || '';
   const month = document.getElementById(prefix + '-month-num')?.value || '';
-  if (!year) return null;
-  if (!month) return year;
-  return `${year}-${month}`;
+  if (!year) return '';          // no filter
+  if (!month) return year;       // filter by year only
+  return `${year}-${month}`;    // filter by year+month
 }
 
 function populateMonthSelectors() {
@@ -117,21 +118,29 @@ function populateMonthSelectors() {
   const curYear = currentMonth().slice(0, 4);
   const curMon  = currentMonth().slice(5, 7);
 
-  const yearOpts = years.map(y => `<option value="${y}" ${y === curYear ? 'selected' : ''}>${y}</option>`).join('');
-  const monOpts  = MONTH_NAMES.map((n, i) => {
+  // Aperçu: default to current year+month
+  const aYearOpts = years.map(y => `<option value="${y}" ${y === curYear ? 'selected' : ''}>${y}</option>`).join('');
+  const aMonOpts  = MONTH_NAMES.map((n, i) => {
     const m = String(i + 1).padStart(2, '0');
     return `<option value="${m}" ${m === curMon ? 'selected' : ''}>${n}</option>`;
   }).join('');
 
   const aYear = document.getElementById('apercu-year');
   const aMon  = document.getElementById('apercu-month-num');
-  if (aYear) aYear.innerHTML = yearOpts;
-  if (aMon)  aMon.innerHTML  = monOpts;
+  if (aYear) aYear.innerHTML = aYearOpts;
+  if (aMon)  aMon.innerHTML  = aMonOpts;
+
+  // Filter: no pre-selection → show all by default
+  const fYearOpts = years.map(y => `<option value="${y}">${y}</option>`).join('');
+  const fMonOpts  = MONTH_NAMES.map((n, i) => {
+    const m = String(i + 1).padStart(2, '0');
+    return `<option value="${m}">${n}</option>`;
+  }).join('');
 
   const fYear = document.getElementById('filter-year');
   const fMon  = document.getElementById('filter-month-num');
-  if (fYear) fYear.innerHTML = '<option value="">Toutes années</option>' + yearOpts;
-  if (fMon)  fMon.innerHTML  = '<option value="">Tous mois</option>' + monOpts;
+  if (fYear) fYear.innerHTML = '<option value="">Toutes années</option>' + fYearOpts;
+  if (fMon)  fMon.innerHTML  = '<option value="">Tous mois</option>' + fMonOpts;
 }
 
 function populateFilterDropdowns() {
@@ -204,9 +213,15 @@ function renderDonut() {
       datasets: [{ data: values, backgroundColor: labels.map(catColor), borderWidth: 2, borderColor: '#07070e' }],
     },
     options: {
-      cutout: '65%',
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: { padding: 10 },
+      cutout: '62%',
       plugins: {
-        legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 }, padding: 12 } },
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, font: { size: 11 }, padding: 14, color: '#94a3b8' },
+        },
         tooltip: {
           callbacks: {
             label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`,
@@ -221,21 +236,35 @@ function renderDonut() {
 // MONTHLY BAR CHART
 // ============================================================
 function renderMonthly() {
-  const months = getMonths().slice(0, 6).reverse();
+  const allMonths = getMonths(); // sorted desc
   const nodata = document.getElementById('nodata-monthly');
 
-  if (!months.length) {
+  if (!allMonths.length) {
     nodata.style.display = 'flex';
     if (monthlyChart) { monthlyChart.destroy(); monthlyChart = null; }
     return;
   }
   nodata.style.display = 'none';
 
+  const WINDOW = 6;
+  const maxOffset = Math.max(0, allMonths.length - WINDOW);
+  monthlyOffset = Math.min(Math.max(monthlyOffset, 0), maxOffset);
+
+  // allMonths is desc; slice from monthlyOffset
+  const slice = allMonths.slice(monthlyOffset, monthlyOffset + WINDOW).reverse(); // asc for display
+
+  // Update nav buttons
+  const prevBtn = document.getElementById('monthly-prev');
+  const nextBtn = document.getElementById('monthly-next');
+  if (prevBtn) prevBtn.disabled = monthlyOffset >= maxOffset;
+  if (nextBtn) nextBtn.disabled = monthlyOffset <= 0;
+
+  const months  = slice;
   const depenses = months.map(m => Math.abs(txForMonth(m).filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0)));
   const revenus  = months.map(m => txForMonth(m).filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0));
   const labels   = months.map(m => {
     const [y, mo] = m.split('-');
-    return new Date(y, mo - 1).toLocaleString('fr-FR', { month: 'short' });
+    return new Date(y, mo - 1).toLocaleString('fr-FR', { month: 'short' }) + ' ' + y.slice(2);
   });
 
   const ctx = document.getElementById('chart-monthly').getContext('2d');
@@ -313,7 +342,7 @@ function renderTransactions() {
   const search  = (document.getElementById('filter-search')?.value || '').toLowerCase();
 
   let txs = allTransactions.filter(t => {
-    if (period && !t.date?.startsWith(period)) return false;
+    if (period !== '' && !t.date?.startsWith(period)) return false;
     if (account && t.account_label !== account && t.account !== account) return false;
     if (cat && t.category !== cat) return false;
     if (search && !t.label?.toLowerCase().includes(search)) return false;
@@ -363,6 +392,8 @@ function initFilters() {
       renderStats(); renderDonut(); renderCategoryBars();
     });
   });
+  document.getElementById('monthly-prev')?.addEventListener('click', () => { monthlyOffset++; renderMonthly(); });
+  document.getElementById('monthly-next')?.addEventListener('click', () => { monthlyOffset = Math.max(0, monthlyOffset - 1); renderMonthly(); });
 }
 
 // ============================================================

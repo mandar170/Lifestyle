@@ -57,7 +57,7 @@
             <select id="apercu-year" class="styled" style="min-width:90px;"></select>
             <select id="apercu-month-num" class="styled" style="min-width:80px;"></select>
           </div>
-          <div class="chart-wrap" style="height:260px;">
+          <div class="chart-wrap" style="height:320px;">
             <canvas id="chart-donut"></canvas>
             <div class="chart-nodata" id="nodata-donut"><span class="chart-nodata__icon">📊</span>Aucune donnée</div>
           </div>
@@ -66,6 +66,10 @@
         <div class="section-card">
           <div class="section-card__header">
             <span class="section-card__title">Évolution mensuelle</span>
+            <div style="display:flex;gap:6px;">
+              <button id="monthly-prev" class="btn btn--ghost btn--sm">←</button>
+              <button id="monthly-next" class="btn btn--ghost btn--sm">→</button>
+            </div>
           </div>
           <div class="chart-wrap" style="height:260px;">
             <canvas id="chart-monthly"></canvas>
@@ -203,6 +207,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/budget.js?v=1"></script>
+  <script src="assets/js/budget.js?v=2"></script>
 </body>
 </html>
