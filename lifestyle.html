@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lifestyle — mandar170</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    /* ---- Lifestyle-specific additions ---- */
+    .week-grid-wrap {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    .week-col {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 10px 8px;
+      min-width: 0;
+    }
+    .week-col--today {
+      background: rgba(100,220,255,0.05);
+      border-color: rgba(100,220,255,0.3);
+    }
+    .week-col__label {
+      font-family: var(--font-h);
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      text-align: center;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .week-col--today .week-col__label { color: var(--primary); }
+    .week-col__date {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .week-col--today .week-col__date { color: var(--primary); }
+    .habit-dot-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 3px;
+      min-width: 0;
+    }
+    .habit-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .habit-dot--done {
+      box-shadow: 0 0 5px currentColor;
+    }
+    .habit-dot--empty {
+      background: transparent !important;
+      border: 1.5px solid;
+      opacity: .5;
+    }
+    .habit-dot-name {
+      font-size: 8px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    /* Habit list rows */
+    .habit-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 11px 16px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: background var(--tr), border-color var(--tr);
+      user-select: none;
+    }
+    .habit-row:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+    .habit-row--done {
+      background: rgba(100,220,255,0.04);
+      border-color: rgba(100,220,255,0.18);
+    }
+    .habit-row--done .habit-row__name {
+      text-decoration: line-through;
+      color: var(--text-dim);
+    }
+    .habit-check {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      border: 2px solid;
+      background: transparent;
+      transition: all var(--tr);
+    }
+    .habit-check--done {
+      border-color: transparent;
+      color: #07070e;
+      font-weight: 700;
+    }
+    .habit-row__name {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text);
+      transition: color var(--tr);
+    }
+    .habit-color-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      opacity: .7;
+    }
+
+    /* Week plan */
+    .week-plan-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+    }
+    .plan-col {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      min-width: 0;
+    }
+    .plan-col--today {
+      background: rgba(100,220,255,0.04);
+      border-color: rgba(100,220,255,0.25);
+    }
+    .plan-col__day {
+      font-family: var(--font-h);
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 3px;
+    }
+    .plan-col--today .plan-col__day { color: var(--primary); }
+    .plan-col__date {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .plan-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .plan-status {
+      margin-top: 6px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .05em;
+    }
+    .plan-status--done {
+      background: rgba(34,197,94,0.15);
+      border: 1px solid rgba(34,197,94,0.35);
+      color: #22c55e;
+    }
+    .plan-status--missed {
+      background: rgba(249,115,22,0.12);
+      border: 1px solid rgba(249,115,22,0.3);
+      color: var(--orange);
+    }
+    .plan-title {
+      margin-top: 4px;
+      font-size: 8px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Top exercises sparkline */
+    .exercise-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 13px 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+    }
+    .exercise-row__info { flex: 1; min-width: 0; }
+    .exercise-row__name {
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .exercise-row__sub {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .exercise-row__trend {
+      font-size: 20px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 900px) {
+      .week-grid-wrap { grid-template-columns: repeat(4, 1fr); }
+      .week-plan-grid  { grid-template-columns: repeat(4, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .week-grid-wrap { grid-template-columns: repeat(2, 1fr); }
+      .week-plan-grid  { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo">LIFESTYLE</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <a href="personal.html" class="fit-header__back">← Hub personnel</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:40px;padding-bottom:80px;">
+
+    <!-- TABS -->
+    <nav class="tabs" style="margin-bottom:32px;">
+      <button class="tab-btn active" data-tab="habits">Habits &amp; Routine</button>
+      <button class="tab-btn" data-tab="workouts">Entraînements</button>
+    </nav>
+
+    <!-- ====================================================
+         TAB — HABITS & ROUTINE
+         ==================================================== -->
+    <div id="panel-habits" class="tab-panel active">
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card__label">Streak actuel</div>
+          <div class="stat-card__value" id="h-streak">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">Complétés aujourd'hui</div>
+          <div class="stat-card__value" id="h-today">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">Taux 30 jours</div>
+          <div class="stat-card__value stat-card__value--purple" id="h-rate">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">Meilleur streak</div>
+          <div class="stat-card__value stat-card__value--orange" id="h-best">—</div>
+        </div>
+      </div>
+
+      <!-- Week calendar grid -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Semaine en cours</h2>
+        </div>
+        <div class="week-grid-wrap" id="week-grid">
+          <p style="color:var(--text-dim);font-size:13px;grid-column:1/-1;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- 30-day trend chart -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Tendance 30 jours</h2>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="habit-trend-chart"></canvas>
+          <div class="chart-nodata" id="habit-chart-nodata">
+            <div class="chart-nodata__icon">📊</div>
+            <span>Importez un fichier HabitKit pour voir les données</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Habit list for today -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Habits du jour</h2>
+          <span id="h-today-detail" style="color:var(--text-muted);font-size:13px;"></span>
+        </div>
+        <div id="habit-list">
+          <p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- HabitKit import -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Import HabitKit</h2>
+        </div>
+        <div id="habit-drop-zone" class="drop-zone">
+          <input type="file" id="habit-file" accept=".json" />
+          <div class="drop-zone__icon">📤</div>
+          <p class="drop-zone__title">Glisse ton fichier ici</p>
+          <p class="drop-zone__sub">habitkit_export.json · ou clique pour sélectionner</p>
+        </div>
+        <div class="import-status">
+          <p id="habit-import-status" class="import-status__text"></p>
+          <div class="progress-bar">
+            <div class="progress-bar__fill" id="habit-import-progress"></div>
+          </div>
+          <div class="import-result" id="habit-import-result"></div>
+        </div>
+      </div>
+
+    </div><!-- /panel-habits -->
+
+    <!-- ====================================================
+         TAB — ENTRAÎNEMENTS
+         ==================================================== -->
+    <div id="panel-workouts" class="tab-panel">
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card__label">Séances ce mois</div>
+          <div class="stat-card__value" id="w-sessions">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">Volume ce mois</div>
+          <div class="stat-card__value" id="w-volume">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">+ Progressé</div>
+          <div class="stat-card__value stat-card__value--purple" id="w-top-exercise" style="font-size:13px;word-break:break-word;">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card__label">Prochain entraînement</div>
+          <div class="stat-card__value stat-card__value--orange" id="w-next">—</div>
+        </div>
+      </div>
+
+      <!-- Week plan -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Planning de la semaine</h2>
+        </div>
+        <div class="week-plan-grid" id="week-plan">
+          <p style="color:var(--text-dim);font-size:13px;grid-column:1/-1;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- Volume chart (8 weeks) -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Volume hebdomadaire</h2>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="volume-chart"></canvas>
+          <div class="chart-nodata" id="volume-chart-nodata">
+            <div class="chart-nodata__icon">📊</div>
+            <span>Importez un CSV Hevy pour voir le volume</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top 5 exercises -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Top 5 exercices — progression</h2>
+        </div>
+        <div id="top-exercises">
+          <p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Chargement…</p>
+        </div>
+      </div>
+
+      <!-- Hevy CSV import -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Import Hevy CSV</h2>
+        </div>
+        <div id="workout-drop-zone" class="drop-zone">
+          <input type="file" id="workout-file" accept=".csv" />
+          <div class="drop-zone__icon">📤</div>
+          <p class="drop-zone__title">Glisse ton fichier ici</p>
+          <p class="drop-zone__sub">workout_data.csv · Format Hevy · ou clique pour sélectionner</p>
+        </div>
+        <div class="import-status">
+          <p id="workout-import-status" class="import-status__text"></p>
+          <div class="progress-bar">
+            <div class="progress-bar__fill" id="workout-import-progress"></div>
+          </div>
+          <div class="import-result" id="workout-import-result"></div>
+        </div>
+      </div>
+
+    </div><!-- /panel-workouts -->
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+  <script src="assets/js/config.js?v=10"></script>
+  <script src="assets/js/lifestyle.js?v=1"></script>
+</body>
+</html>
