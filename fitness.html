@@ -5,6 +5,248 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fitness Tracker — mandar170</title>
   <link rel="stylesheet" href="assets/css/main.css" />
+  <style>
+    /* ── Journal ─────────────────────────────── */
+    .journal-date-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .journal-date-nav input[type="date"] {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+      padding: 7px 12px;
+      flex: 1;
+    }
+    .daily-totals {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .daily-totals__item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      min-width: 60px;
+    }
+    .daily-totals__val {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    .daily-totals__val--orange { color: var(--orange); }
+    .daily-totals__val--purple { color: var(--purple, #a855f7); }
+    .daily-totals__val--yellow { color: #facc15; }
+    .daily-totals__val--green  { color: #22d3ee; }
+    .daily-totals__lbl {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-top: 2px;
+    }
+    /* Meals grid */
+    .meals-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 700px) { .meals-grid { grid-template-columns: 1fr; } }
+    .meal-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color .2s, background .2s;
+    }
+    .meal-card--done {
+      border-color: rgba(100,220,255,0.28);
+      background: rgba(100,220,255,0.03);
+    }
+    .meal-card__header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .meal-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid rgba(100,220,255,0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: all .2s;
+      color: transparent;
+    }
+    .meal-check--done {
+      background: #64dcff;
+      border-color: #64dcff;
+      color: #07070e;
+    }
+    .meal-label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      flex: 1;
+      color: var(--text-muted, #94a3b8);
+    }
+    .meal-card--done .meal-label { color: var(--primary); }
+    .meal-kcal-tag {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--orange);
+      opacity: 0;
+      transition: opacity .2s;
+    }
+    .meal-card--done .meal-kcal-tag { opacity: 1; }
+    .meal-card__body {
+      padding: 0 14px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .meal-desc {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 7px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      resize: none;
+    }
+    .meal-desc:focus { outline: none; border-color: rgba(100,220,255,0.35); }
+    .meal-macros {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+    }
+    .meal-macros input {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 6px;
+      padding: 6px 4px;
+      color: var(--text);
+      font-size: 12px;
+      text-align: center;
+      width: 100%;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .meal-macros input:focus { outline: none; border-color: rgba(100,220,255,0.35); }
+    .meal-macros-labels {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 5px;
+    }
+    .meal-macros-labels span {
+      font-size: 9px;
+      text-align: center;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    /* Activity */
+    .act-type-btns {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .act-type-btn {
+      flex: 1;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.03);
+      color: var(--text-dim);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: all .2s;
+      text-transform: uppercase;
+    }
+    .act-type-btn--active {
+      border-color: rgba(100,220,255,0.4);
+      background: rgba(100,220,255,0.08);
+      color: var(--primary);
+    }
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+    .activity-item__icon { font-size: 18px; flex-shrink: 0; }
+    .activity-item__info { flex: 1; min-width: 0; }
+    .activity-item__title { font-size: 13px; font-weight: 600; }
+    .activity-item__sub { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .activity-item__del {
+      background: none;
+      border: none;
+      color: rgba(248,113,113,0.5);
+      cursor: pointer;
+      font-size: 16px;
+      flex-shrink: 0;
+      padding: 4px;
+      transition: color .2s;
+    }
+    .activity-item__del:hover { color: #f87171; }
+    /* Steps inline */
+    .steps-inline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      margin-top: 16px;
+    }
+    .steps-inline label {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 10px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .steps-inline input {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 7px;
+      padding: 8px 10px;
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 14px;
+    }
+    .steps-inline input:focus { outline: none; border-color: rgba(168,85,247,0.4); }
+  </style>
 </head>
 <body>
 
@@ -35,13 +277,117 @@
 
     <!-- TABS -->
     <nav class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="running"      role="tab">Pas</button>
+      <button class="tab-btn active" data-tab="journal"      role="tab">Journal</button>
+      <button class="tab-btn"        data-tab="running"      role="tab">Pas</button>
       <button class="tab-btn"        data-tab="measurements" role="tab">Mensurations</button>
       <button class="tab-btn"        data-tab="nutrition"    role="tab">Nutrition</button>
     </nav>
 
+    <!-- ════════ JOURNAL ════════ -->
+    <div id="panel-journal" class="tab-panel active">
+
+      <!-- Date navigation -->
+      <div class="journal-date-nav">
+        <button class="btn btn--ghost btn--sm" id="j-prev">←</button>
+        <input type="date" id="j-date" />
+        <button class="btn btn--ghost btn--sm" id="j-next">→</button>
+        <button class="btn btn--ghost btn--sm" id="j-today" style="margin-left:auto;">Aujourd'hui</button>
+      </div>
+
+      <!-- Daily totals -->
+      <div class="daily-totals">
+        <div class="daily-totals__item">
+          <div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div>
+          <div class="daily-totals__lbl">kcal</div>
+        </div>
+        <div class="daily-totals__item">
+          <div class="daily-totals__val" id="j-total-prot">—</div>
+          <div class="daily-totals__lbl">Prot (g)</div>
+        </div>
+        <div class="daily-totals__item">
+          <div class="daily-totals__val daily-totals__val--yellow" id="j-total-gluc">—</div>
+          <div class="daily-totals__lbl">Gluc (g)</div>
+        </div>
+        <div class="daily-totals__item">
+          <div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div>
+          <div class="daily-totals__lbl">Lip (g)</div>
+        </div>
+        <div class="daily-totals__item">
+          <div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div>
+          <div class="daily-totals__lbl">Fibres (g)</div>
+        </div>
+      </div>
+
+      <!-- 6 Meal cards -->
+      <div class="meals-grid" id="meals-grid">
+        <!-- generated by JS -->
+      </div>
+
+      <!-- Activité physique -->
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Activité physique</h2>
+        </div>
+
+        <div class="act-type-btns">
+          <button class="act-type-btn act-type-btn--active" data-type="walk">🚶 Marche</button>
+          <button class="act-type-btn" data-type="run">🏃 Course</button>
+          <button class="act-type-btn" data-type="gym">🏋️ Muscu</button>
+        </div>
+
+        <form id="activity-form">
+          <input type="hidden" id="act-type-val" value="walk" />
+          <div class="form-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="form-group">
+              <label>Durée (min)</label>
+              <input type="number" name="duration_min" id="act-duration" min="0" placeholder="45" />
+            </div>
+
+            <!-- Walk + Run : pas -->
+            <div class="form-group" id="act-steps-group">
+              <label>Nombre de pas</label>
+              <input type="number" name="steps" id="act-steps" min="0" placeholder="5000" />
+            </div>
+
+            <!-- Run : description libre -->
+            <div class="form-group form-group--full" id="act-desc-group" style="display:none;">
+              <label>Description</label>
+              <input type="text" name="description" id="act-desc" placeholder="Footing matinal, 5km…" />
+            </div>
+
+            <!-- Gym : type de séance -->
+            <div class="form-group" id="act-gym-group" style="display:none;">
+              <label>Type de séance</label>
+              <select name="session_type" id="act-session-type" class="styled">
+                <option value="push">Push</option>
+                <option value="pull">Pull</option>
+                <option value="legs">Legs</option>
+                <option value="upper">Upper</option>
+                <option value="lower">Lower</option>
+                <option value="full_body">Full Body</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-actions" style="margin-top:4px;">
+            <button type="submit" class="btn btn--primary btn--sm">+ Ajouter l'activité</button>
+          </div>
+        </form>
+
+        <div id="activity-list"></div>
+      </div>
+
+      <!-- Pas du jour -->
+      <div class="steps-inline">
+        <label>👣 Pas du jour</label>
+        <input type="number" id="j-steps" min="0" placeholder="ex: 9 500" />
+        <button class="btn btn--primary btn--sm" id="j-steps-save">Enregistrer</button>
+      </div>
+
+    </div><!-- /panel-journal -->
+
     <!-- ════════ PAS ════════ -->
-    <div id="panel-running" class="tab-panel active">
+    <div id="panel-running" class="tab-panel">
       <div class="section-card">
         <div class="section-card__header">
           <h2 class="section-card__title">Pas journaliers</h2>
@@ -51,14 +397,6 @@
           <canvas id="steps-chart"></canvas>
           <div class="chart-nodata" id="steps-chart-nodata"><div class="chart-nodata__icon">👣</div><p>Aucune donnée de pas</p></div>
         </div>
-        <form id="steps-form">
-          <div class="form-grid" style="grid-template-columns:repeat(3,1fr);">
-            <p class="form-title">Ajouter / modifier</p>
-            <div class="form-group"><label>Date</label><input type="date" id="s-date" name="date" required /></div>
-            <div class="form-group"><label>Nombre de pas</label><input type="number" id="s-steps" name="steps" min="0" placeholder="ex: 9500" required /></div>
-            <div class="form-actions" style="align-self:flex-end;"><button type="submit" class="btn btn--primary btn--sm">Enregistrer</button></div>
-          </div>
-        </form>
       </div>
     </div>
 
@@ -71,12 +409,16 @@
             <select id="measurement-select" class="styled">
               <option value="weight_kg">Poids (kg)</option>
               <option value="chest_cm">Poitrine (cm)</option>
+              <option value="shoulder_cm">Épaules (cm)</option>
               <option value="waist_cm">Tour de taille (cm)</option>
               <option value="hips_cm">Hanches (cm)</option>
+              <option value="glutes_cm">Fesses (cm)</option>
               <option value="left_arm_cm">Bras gauche (cm)</option>
               <option value="right_arm_cm">Bras droit (cm)</option>
+              <option value="forearm_cm">Avant-bras (cm)</option>
               <option value="left_thigh_cm">Cuisse gauche (cm)</option>
               <option value="right_thigh_cm">Cuisse droite (cm)</option>
+              <option value="calf_cm">Mollet (cm)</option>
               <option value="neck_cm">Cou (cm)</option>
               <option value="body_fat_pct">Masse grasse (%)</option>
             </select>
@@ -92,15 +434,18 @@
             <div class="form-group"><label>Date</label><input type="date" name="date" required /></div>
             <div class="form-group"><label>Poids (kg)</label><input type="number" name="weight_kg" step="0.1" min="0" placeholder="82.5" /></div>
             <div class="form-group"><label>Masse grasse (%)</label><input type="number" name="body_fat_pct" step="0.1" min="0" max="60" placeholder="18.5" /></div>
+            <div class="form-group"><label>Cou (cm)</label><input type="number" name="neck_cm" step="0.5" min="0" placeholder="38" /></div>
+            <div class="form-group"><label>Épaules (cm)</label><input type="number" name="shoulder_cm" step="0.5" min="0" placeholder="120" /></div>
             <div class="form-group"><label>Poitrine (cm)</label><input type="number" name="chest_cm" step="0.5" min="0" placeholder="100" /></div>
             <div class="form-group"><label>Taille (cm)</label><input type="number" name="waist_cm" step="0.5" min="0" placeholder="85" /></div>
             <div class="form-group"><label>Hanches (cm)</label><input type="number" name="hips_cm" step="0.5" min="0" placeholder="95" /></div>
+            <div class="form-group"><label>Fesses (cm)</label><input type="number" name="glutes_cm" step="0.5" min="0" placeholder="98" /></div>
             <div class="form-group"><label>Bras gauche (cm)</label><input type="number" name="left_arm_cm" step="0.5" min="0" placeholder="36" /></div>
             <div class="form-group"><label>Bras droit (cm)</label><input type="number" name="right_arm_cm" step="0.5" min="0" placeholder="36" /></div>
+            <div class="form-group"><label>Avant-bras (cm)</label><input type="number" name="forearm_cm" step="0.5" min="0" placeholder="28" /></div>
             <div class="form-group"><label>Cuisse gauche (cm)</label><input type="number" name="left_thigh_cm" step="0.5" min="0" placeholder="57" /></div>
             <div class="form-group"><label>Cuisse droite (cm)</label><input type="number" name="right_thigh_cm" step="0.5" min="0" placeholder="57" /></div>
-            <div class="form-group"><label>Cou (cm)</label><input type="number" name="neck_cm" step="0.5" min="0" placeholder="38" /></div>
-            <div class="form-group"><label>Notes</label><input type="text" name="notes" placeholder="Optionnel…" /></div>
+            <div class="form-group"><label>Mollet (cm)</label><input type="number" name="calf_cm" step="0.5" min="0" placeholder="38" /></div>
             <div class="form-actions"><button type="submit" class="btn btn--primary btn--sm">Enregistrer</button></div>
           </div>
         </form>
@@ -111,13 +456,14 @@
     <div id="panel-nutrition" class="tab-panel">
       <div class="section-card">
         <div class="section-card__header">
-          <h2 class="section-card__title">Calories &amp; Macros</h2>
+          <h2 class="section-card__title">Évolution Calories &amp; Macros</h2>
           <div class="section-card__controls">
             <select id="nutrition-select" class="styled">
               <option value="calories">Calories (kcal)</option>
               <option value="protein_g">Protéines (g)</option>
               <option value="carbs_g">Glucides (g)</option>
               <option value="fat_g">Lipides (g)</option>
+              <option value="fiber_g">Fibres (g)</option>
             </select>
           </div>
         </div>
@@ -125,19 +471,7 @@
           <canvas id="nutrition-chart"></canvas>
           <div class="chart-nodata" id="nutrition-chart-nodata"><div class="chart-nodata__icon">🍽️</div><p>Aucune donnée nutritionnelle</p></div>
         </div>
-        <p style="margin-top:12px;font-size:12px;color:var(--text-dim);">Barres = valeur journalière · Ligne = moyenne mobile 7 jours</p>
-        <form id="nutrition-form">
-          <div class="form-grid">
-            <p class="form-title">Ajouter / modifier</p>
-            <div class="form-group"><label>Date</label><input type="date" name="date" required /></div>
-            <div class="form-group"><label>Calories (kcal)</label><input type="number" name="calories" min="0" placeholder="2400" /></div>
-            <div class="form-group"><label>Protéines (g)</label><input type="number" name="protein_g" step="0.1" min="0" placeholder="180" /></div>
-            <div class="form-group"><label>Glucides (g)</label><input type="number" name="carbs_g" step="0.1" min="0" placeholder="250" /></div>
-            <div class="form-group"><label>Lipides (g)</label><input type="number" name="fat_g" step="0.1" min="0" placeholder="80" /></div>
-            <div class="form-group"><label>Notes</label><input type="text" name="notes" placeholder="Optionnel…" /></div>
-            <div class="form-actions"><button type="submit" class="btn btn--primary btn--sm">Enregistrer</button></div>
-          </div>
-        </form>
+        <p style="margin-top:12px;font-size:12px;color:var(--text-dim);">Barres = total journalier (repas cochés) · Ligne = moyenne mobile 7 jours</p>
       </div>
     </div>
 
@@ -146,6 +480,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <script src="assets/js/config.js?v=8"></script>
-  <script src="assets/js/fitness.js?v=9"></script>
+  <script src="assets/js/fitness.js?v=10"></script>
 </body>
 </html>
