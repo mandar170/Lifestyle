@@ -52,6 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initJournal();
   initMeasurementForm();
   initActivityForm();
+  initExportTab();
 
   await loadDashboard();
   await Promise.all([
@@ -491,6 +492,234 @@ function initMeasurementForm() {
       await Promise.all([loadMeasurementsChart(), loadDashboard()]);
     });
   }
+}
+
+// ============================================================
+// EXPORT PDF
+// ============================================================
+function initExportTab() {
+  const toDate   = today();
+  const fromDate = daysAgo(6);
+  document.getElementById('export-from').value = fromDate;
+  document.getElementById('export-to').value   = toDate;
+
+  document.getElementById('export-btn').addEventListener('click', async () => {
+    const from    = document.getElementById('export-from').value;
+    const to      = document.getElementById('export-to').value;
+    const withAct = document.getElementById('export-activities').checked;
+    const withStp = document.getElementById('export-steps').checked;
+    const status  = document.getElementById('export-status');
+    const btn     = document.getElementById('export-btn');
+
+    if (!from || !to || from > to) { showToast('Période invalide', 'error'); return; }
+
+    btn.disabled = true; btn.textContent = 'Génération…';
+    status.textContent = 'Chargement des données…';
+    try {
+      await generateNutritionPDF(from, to, withAct, withStp);
+      status.textContent = 'PDF généré avec succes.';
+    } catch (err) {
+      status.textContent = 'Erreur : ' + err.message;
+      showToast('Erreur lors de la génération', 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Générer le PDF';
+    }
+  });
+}
+
+function setExportRange(days) {
+  document.getElementById('export-from').value = daysAgo(days - 1);
+  document.getElementById('export-to').value   = today();
+}
+
+async function generateNutritionPDF(from, to, withAct, withStp) {
+  const [mealsRes, actsRes, stepsRes] = await Promise.all([
+    db.from('meals').select('*').gte('date', from).lte('date', to).order('date'),
+    withAct ? db.from('activities').select('*').gte('date', from).lte('date', to).order('date').order('created_at') : Promise.resolve({ data: [] }),
+    withStp ? db.from('daily_steps').select('*').gte('date', from).lte('date', to).order('date') : Promise.resolve({ data: [] }),
+  ]);
+  const meals      = mealsRes.data  || [];
+  const activities = actsRes.data   || [];
+  const stepsData  = stepsRes.data  || [];
+
+  const days = getDaysInRange(from, to);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  // ── Header banner ──
+  doc.setFillColor(14, 22, 50);
+  doc.rect(0, 0, 210, 42, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(100, 220, 255);
+  doc.text('Journal Nutritionnel', 105, 17, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(170, 200, 230);
+  doc.text(`${formatDateFull(from)}  ->  ${formatDateFull(to)}`, 105, 27, { align: 'center' });
+  doc.text(`Genere le ${formatDateFull(today())}`, 105, 34, { align: 'center' });
+  doc.setTextColor(0);
+
+  let y = 50;
+  const totals = { kcal: 0, prot: 0, gluc: 0, lip: 0, fib: 0, n: 0 };
+
+  for (const date of days) {
+    const dayMeals = meals.filter(m => m.date === date);
+    const dayActs  = activities.filter(a => a.date === date);
+    const daySteps = stepsData.find(s => s.date === date);
+    if (!dayMeals.length && !dayActs.length && !daySteps) continue;
+
+    // Page break guard
+    if (y + 22 > 272) { doc.addPage(); y = 15; }
+
+    // Day header
+    doc.setFillColor(22, 44, 80);
+    doc.roundedRect(10, y, 190, 8, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 220, 255);
+    doc.text(formatDateFull(date), 14, y + 5.5);
+    if (daySteps) {
+      doc.setTextColor(180, 210, 240);
+      doc.text(`${daySteps.steps.toLocaleString('fr-FR')} pas`, 196, y + 5.5, { align: 'right' });
+    }
+    doc.setTextColor(0);
+    y += 11;
+
+    // Meals table
+    if (dayMeals.length) {
+      const body = [];
+      let dKcal = 0, dProt = 0, dGluc = 0, dLip = 0, dFib = 0, hasDone = false;
+
+      MEAL_TYPES.forEach(({ key, label }) => {
+        const m = dayMeals.find(x => x.meal_type === key);
+        if (!m) return;
+        const done = m.done;
+        body.push([
+          { content: label, styles: { textColor: done ? [0, 120, 160] : [140, 140, 140], fontStyle: done ? 'bold' : 'normal' } },
+          { content: m.description || '', styles: { textColor: done ? [30, 30, 30] : [160, 160, 160], fontStyle: done ? 'normal' : 'italic' } },
+          { content: done && m.calories   != null ? String(m.calories)            : '', styles: { halign: 'right' } },
+          { content: done && m.protein_g  != null ? m.protein_g.toFixed(1)        : '', styles: { halign: 'right' } },
+          { content: done && m.carbs_g    != null ? m.carbs_g.toFixed(1)          : '', styles: { halign: 'right' } },
+          { content: done && m.fat_g      != null ? m.fat_g.toFixed(1)            : '', styles: { halign: 'right' } },
+          { content: done && m.fiber_g    != null ? m.fiber_g.toFixed(1)          : '', styles: { halign: 'right' } },
+        ]);
+        if (done) {
+          hasDone = true;
+          dKcal += m.calories   || 0; dProt += m.protein_g || 0;
+          dGluc += m.carbs_g    || 0; dLip  += m.fat_g     || 0; dFib  += m.fiber_g  || 0;
+        }
+      });
+
+      if (hasDone) {
+        const tot = { fillColor: [235, 244, 255] };
+        body.push([
+          { content: 'TOTAL', styles: { ...tot, fontStyle: 'bold', textColor: [20, 60, 110] } },
+          { content: '',       styles: tot },
+          { content: Math.round(dKcal).toString(), styles: { ...tot, halign: 'right', fontStyle: 'bold', textColor: [20, 60, 110] } },
+          { content: dProt.toFixed(1), styles: { ...tot, halign: 'right', fontStyle: 'bold', textColor: [20, 60, 110] } },
+          { content: dGluc.toFixed(1), styles: { ...tot, halign: 'right', fontStyle: 'bold', textColor: [20, 60, 110] } },
+          { content: dLip.toFixed(1),  styles: { ...tot, halign: 'right', fontStyle: 'bold', textColor: [20, 60, 110] } },
+          { content: dFib.toFixed(1),  styles: { ...tot, halign: 'right', fontStyle: 'bold', textColor: [20, 60, 110] } },
+        ]);
+        totals.kcal += dKcal; totals.prot += dProt; totals.gluc += dGluc;
+        totals.lip  += dLip;  totals.fib  += dFib;  totals.n++;
+      }
+
+      doc.autoTable({
+        startY: y,
+        head: [['Repas','Contenu','kcal','Prot (g)','Gluc (g)','Lip (g)','Fib (g)']],
+        body,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 60, 110], textColor: 255, fontSize: 8, fontStyle: 'bold', cellPadding: 2.5 },
+        bodyStyles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 33 }, 1: { cellWidth: 63 },
+          2: { cellWidth: 16, halign: 'right' }, 3: { cellWidth: 19, halign: 'right' },
+          4: { cellWidth: 19, halign: 'right' }, 5: { cellWidth: 19, halign: 'right' },
+          6: { cellWidth: 21, halign: 'right' },
+        },
+        margin: { left: 10, right: 10 },
+      });
+      y = doc.lastAutoTable.finalY + 3;
+    }
+
+    // Activities
+    if (withAct && dayActs.length) {
+      if (y > 268) { doc.addPage(); y = 15; }
+      const actStr = dayActs.map(a => {
+        const p = [ACT_LABELS[a.type] || a.type];
+        if (a.duration_min) p.push(`${a.duration_min} min`);
+        if (a.session_type) p.push(GYM_LABELS[a.session_type] || a.session_type);
+        if (a.steps)        p.push(`${a.steps.toLocaleString('fr-FR')} pas`);
+        if (a.description)  p.push(a.description);
+        return p.join(' · ');
+      }).join('   |   ');
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8);
+      doc.setTextColor(80, 90, 130);
+      doc.text(`Activite : ${actStr}`, 12, y, { maxWidth: 186 });
+      doc.setTextColor(0);
+      doc.setFont('helvetica', 'normal');
+      y += 7;
+    }
+
+    y += 5;
+  }
+
+  // ── Summary ──
+  if (totals.n > 0) {
+    if (y + 55 > 272) { doc.addPage(); y = 15; }
+    doc.setFillColor(14, 22, 50);
+    doc.rect(0, y, 210, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(100, 220, 255);
+    doc.text('Resume de la periode', 105, y + 7, { align: 'center' });
+    doc.setTextColor(0);
+    y += 14;
+
+    const n = totals.n;
+    const summaryRows = [
+      ['Calories moyennes / jour',  `${Math.round(totals.kcal / n)} kcal`],
+      ['Proteines moyennes / jour', `${(totals.prot / n).toFixed(1)} g`],
+      ['Glucides moyens / jour',    `${(totals.gluc / n).toFixed(1)} g`],
+      ['Lipides moyens / jour',     `${(totals.lip  / n).toFixed(1)} g`],
+      ['Fibres moyennes / jour',    `${(totals.fib  / n).toFixed(1)} g`],
+      ['Jours avec donnees',        `${n} / ${days.length}`],
+    ];
+    if (stepsData.length) {
+      const avgStp = Math.round(stepsData.reduce((s, d) => s + d.steps, 0) / stepsData.length);
+      summaryRows.push(['Pas moyens / jour', `${avgStp.toLocaleString('fr-FR')} pas`]);
+    }
+
+    doc.autoTable({
+      startY: y,
+      body: summaryRows,
+      theme: 'striped',
+      bodyStyles: { fontSize: 9 },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 130 },
+        1: { halign: 'right',   cellWidth: 60 },
+      },
+      margin: { left: 10, right: 10 },
+    });
+  }
+
+  doc.save(`journal-nutritionnel-${from}-au-${to}.pdf`);
+}
+
+function getDaysInRange(from, to) {
+  const days = [];
+  const d = new Date(from + 'T12:00:00');
+  const end = new Date(to + 'T12:00:00');
+  while (d <= end) { days.push(d.toISOString().split('T')[0]); d.setDate(d.getDate() + 1); }
+  return days;
+}
+
+function formatDateFull(str) {
+  const d = new Date(str + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 // ============================================================
