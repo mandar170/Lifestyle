@@ -281,6 +281,7 @@
       <button class="tab-btn"        data-tab="running"      role="tab">Pas</button>
       <button class="tab-btn"        data-tab="measurements" role="tab">Mensurations</button>
       <button class="tab-btn"        data-tab="nutrition"    role="tab">Nutrition</button>
+      <button class="tab-btn"        data-tab="export"       role="tab">Export PDF</button>
     </nav>
 
     <!-- ════════ JOURNAL ════════ -->
@@ -475,11 +476,54 @@
       </div>
     </div>
 
+    <!-- ════════ EXPORT PDF ════════ -->
+    <div id="panel-export" class="tab-panel">
+      <div class="section-card">
+        <div class="section-card__header">
+          <h2 class="section-card__title">Export Journal Nutritionnel</h2>
+        </div>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;">
+          Génère un PDF de tes repas et macros sur la période choisie, à partager avec ta nutritionniste.
+        </p>
+
+        <div class="form-grid" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">
+          <div class="form-group">
+            <label>Du</label>
+            <input type="date" id="export-from" />
+          </div>
+          <div class="form-group">
+            <label>Au</label>
+            <input type="date" id="export-to" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <button class="btn btn--ghost btn--sm" onclick="setExportRange(7)">7 derniers jours</button>
+          <button class="btn btn--ghost btn--sm" onclick="setExportRange(14)">14 derniers jours</button>
+          <button class="btn btn--ghost btn--sm" onclick="setExportRange(30)">30 derniers jours</button>
+        </div>
+
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-muted);">
+            <input type="checkbox" id="export-activities" checked /> Inclure les activités physiques
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;color:var(--text-muted);">
+            <input type="checkbox" id="export-steps" checked /> Inclure les pas quotidiens
+          </label>
+        </div>
+
+        <button class="btn btn--primary" id="export-btn">Générer le PDF</button>
+        <p id="export-status" style="margin-top:12px;font-size:13px;color:var(--text-dim);min-height:20px;"></p>
+      </div>
+    </div>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="assets/js/config.js?v=8"></script>
-  <script src="assets/js/fitness.js?v=10"></script>
+  <script src="assets/js/fitness.js?v=11"></script>
 </body>
 </html>
