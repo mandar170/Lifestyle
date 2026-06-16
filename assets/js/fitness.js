@@ -2,18 +2,9 @@
 // FITNESS TRACKER — logique principale
 // ============================================================
 
-let workoutChart      = null;
-let runningChart      = null;
 let stepsChart        = null;
 let measurementsChart = null;
 let nutritionChart    = null;
-let allExercises      = [];
-
-const FR_MONTHS = {
-  'janv.':'01','févr.':'02','mars':'03','avr.':'04',
-  'mai':'05','juin':'06','juil.':'07','août':'08',
-  'sept.':'09','oct.':'10','nov.':'11','déc.':'12',
-};
 
 const MEASURE_LABELS = {
   weight_kg:'Poids (kg)', chest_cm:'Poitrine (cm)', waist_cm:'Tour de taille (cm)',
@@ -25,11 +16,6 @@ const MEASURE_LABELS = {
 const NUTRITION_LABELS = {
   calories:'Calories (kcal)', protein_g:'Protéines (g)',
   carbs_g:'Glucides (g)', fat_g:'Lipides (g)',
-};
-
-const SESSION_TYPE_LABELS = {
-  footing:'Footing', tempo:'Tempo', fractionne:'Fractionné',
-  long:'Sortie longue', course:'Course',
 };
 
 const C = {
@@ -46,18 +32,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   Chart.defaults.font.family = 'Space Grotesk';
 
   initTabs();
-  initImport();
   initForms();
-  initPacePreview();
 
+  await loadDashboard();
   await Promise.all([
-    loadDashboard(),
-    loadExerciseList(),
-    loadRunningStats(),
-  ]);
-  await Promise.all([
-    loadWorkoutChart(),
-    loadRunningChart(),
     loadStepsChart(),
     loadMeasurementsChart(),
     loadNutritionChart(),
@@ -77,11 +55,8 @@ function initTabs() {
     });
   });
 
-  // Listeners selects
-  bindSelect('exercise-select',   v => loadWorkoutChart(v));
-  bindSelect('running-select',    v => loadRunningChart(v));
-  bindSelect('measurement-select',v => loadMeasurementsChart(v));
-  bindSelect('nutrition-select',  v => loadNutritionChart(v));
+  bindSelect('measurement-select', v => loadMeasurementsChart(v));
+  bindSelect('nutrition-select',   v => loadNutritionChart(v));
 }
 
 function bindSelect(id, fn) {
@@ -93,250 +68,15 @@ function bindSelect(id, fn) {
 // DASHBOARD
 // ============================================================
 async function loadDashboard() {
-  const [mRes, nRes, stepsRes, runRes] = await Promise.all([
+  const [mRes, nRes, stepsRes] = await Promise.all([
     db.from('measurements').select('weight_kg').not('weight_kg','is',null).order('date',{ascending:false}).limit(1),
     db.from('nutrition').select('calories').gte('date', daysAgo(7)),
     db.from('daily_steps').select('steps').gte('date', daysAgo(7)),
-    db.from('running_sessions').select('distance_km').gte('date', firstOfMonth()),
   ]);
 
-  if (mRes.data?.length)   setEl('stat-weight',  `${mRes.data[0].weight_kg} kg`);
-  if (nRes.data?.length)   setEl('stat-calories', `${Math.round(avg(nRes.data.map(d => d.calories)))} kcal/j`);
-  if (stepsRes.data?.length) setEl('stat-steps', `${Math.round(avg(stepsRes.data.map(d => d.steps))).toLocaleString('fr-FR')} pas`);
-  if (runRes.data?.length) setEl('stat-run-km',  `${runRes.data.reduce((s,d) => s + d.distance_km, 0).toFixed(1)} km`);
-}
-
-// ============================================================
-// RUNNING STATS (mini-stats dans le tab Course)
-// ============================================================
-async function loadRunningStats() {
-  const { data } = await db
-    .from('running_sessions')
-    .select('date, distance_km, avg_pace_seconds')
-    .gte('date', firstOfMonth())
-    .order('date');
-
-  if (!data || !data.length) return;
-
-  const totalKm    = data.reduce((s,d) => s + d.distance_km, 0);
-  const sessions   = data.length;
-  const avgDist    = totalKm / sessions;
-  const paces      = data.filter(d => d.avg_pace_seconds).map(d => d.avg_pace_seconds);
-  const avgPace    = paces.length ? Math.round(avg(paces)) : null;
-
-  setEl('run-total-km',  totalKm.toFixed(1) + ' km');
-  setEl('run-sessions',  sessions + ' sortie' + (sessions > 1 ? 's' : ''));
-  setEl('run-avg-dist',  avgDist.toFixed(1) + ' km');
-  setEl('run-avg-pace',  avgPace ? formatPace(avgPace) : '—');
-}
-
-// ============================================================
-// CSV IMPORT (Hevy)
-// ============================================================
-function initImport() {
-  const fileInput = document.getElementById('csv-file');
-  const dropZone  = document.getElementById('drop-zone');
-  if (!dropZone) return;
-
-  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0]; if (f) processCSV(f);
-  });
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', e => { if (e.target.files[0]) processCSV(e.target.files[0]); });
-}
-
-function parseHevyDate(str) {
-  if (!str?.trim()) return null;
-  const m = str.trim().match(/^(\d{1,2})\s+(\S+)\s+(\d{4}),\s+(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const [,day,mon,year,h,min] = m;
-  const mm = FR_MONTHS[mon]; if (!mm) return null;
-  return new Date(`${year}-${mm}-${day.padStart(2,'0')}T${h.padStart(2,'0')}:${min}:00`);
-}
-
-async function processCSV(file) {
-  const statusEl   = document.getElementById('import-status');
-  const progressEl = document.getElementById('import-progress');
-  const resultEl   = document.getElementById('import-result');
-
-  statusEl.textContent = 'Analyse du fichier…';
-  progressEl.style.width = '5%';
-  resultEl.textContent = '';
-
-  Papa.parse(file, {
-    header: true, skipEmptyLines: true,
-    complete: async res => {
-      const rows = res.data;
-      const sets = rows.map(row => {
-        const st = parseHevyDate(row['start_time']);
-        const et = parseHevyDate(row['end_time']);
-        if (!st || !row['exercise_title']) return null;
-        return {
-          workout_title:    (row['title']||'').trim(),
-          workout_date:     st.toISOString().split('T')[0],
-          start_time:       st.toISOString(),
-          end_time:         et?.toISOString() || null,
-          exercise_title:   (row['exercise_title']||'').trim(),
-          set_index:        parseInt(row['set_index'])||0,
-          set_type:         (row['set_type']||'normal').trim(),
-          weight_kg:        row['weight_kg']       ? parseFloat(row['weight_kg'])       : null,
-          reps:             row['reps']             ? parseInt(row['reps'])              : null,
-          distance_km:      row['distance_km']      ? parseFloat(row['distance_km'])     : null,
-          duration_seconds: row['duration_seconds'] ? parseInt(row['duration_seconds'])  : null,
-          rpe:              row['rpe']              ? parseFloat(row['rpe'])             : null,
-        };
-      }).filter(Boolean);
-
-      if (!sets.length) { statusEl.textContent = 'Aucune ligne valide.'; progressEl.style.width = '0%'; return; }
-
-      const CHUNK = 200; let done = 0, errors = 0;
-      for (let i = 0; i < sets.length; i += CHUNK) {
-        const { error } = await db.from('workout_sets').upsert(sets.slice(i, i+CHUNK), { onConflict: 'start_time,exercise_title,set_index', ignoreDuplicates: false });
-        if (error) { console.error(error); errors++; }
-        done += Math.min(CHUNK, sets.length - i);
-        progressEl.style.width = `${Math.round(done/sets.length*100)}%`;
-        statusEl.textContent   = `Import : ${done}/${sets.length}…`;
-      }
-
-      progressEl.style.width = '100%';
-      resultEl.innerHTML = errors === 0
-        ? `<span class="ok">✓ Import terminé — ${sets.length} séries.</span>`
-        : `<span class="warn">Import terminé avec ${errors} erreur(s).</span>`;
-      showToast(`${sets.length} séries importées`, 'success');
-      await loadExerciseList(); await loadWorkoutChart(); await loadDashboard();
-    },
-    error: err => { showToast('Erreur CSV', 'error'); statusEl.textContent = err.message; },
-  });
-}
-
-// ============================================================
-// WORKOUT CHART
-// ============================================================
-async function loadExerciseList() {
-  const { data } = await db.from('workout_sets').select('exercise_title').eq('set_type','normal').order('exercise_title');
-  if (!data) return;
-  allExercises = [...new Set(data.map(d => d.exercise_title))].sort();
-  const sel = document.getElementById('exercise-select');
-  const cur = sel?.value;
-  sel.innerHTML = '<option value="">— Choisir un exercice —</option>' +
-    allExercises.map(ex => `<option value="${ex}">${ex}</option>`).join('');
-  if (cur && allExercises.includes(cur)) sel.value = cur;
-}
-
-async function loadWorkoutChart(exercise) {
-  const sel = document.getElementById('exercise-select');
-  const ex  = exercise || sel?.value || allExercises[0] || null;
-  const noData = document.getElementById('workout-chart-nodata');
-  if (!ex) { noData && (noData.style.display = 'flex'); return; }
-
-  const { data } = await db.from('workout_sets')
-    .select('workout_date, weight_kg, reps')
-    .eq('exercise_title', ex).eq('set_type','normal')
-    .not('weight_kg','is',null).not('reps','is',null).order('workout_date');
-
-  if (!data?.length) { noData && (noData.style.display = 'flex'); return; }
-  noData && (noData.style.display = 'none');
-
-  const byDate = {};
-  data.forEach(r => {
-    const e1rm = r.weight_kg * (1 + r.reps / 30);
-    if (!byDate[r.workout_date]) byDate[r.workout_date] = { maxWeight: 0, maxE1RM: 0 };
-    byDate[r.workout_date].maxWeight = Math.max(byDate[r.workout_date].maxWeight, r.weight_kg);
-    byDate[r.workout_date].maxE1RM   = Math.max(byDate[r.workout_date].maxE1RM, e1rm);
-  });
-
-  const labels = Object.keys(byDate).sort();
-  const ctx = document.getElementById('workout-chart').getContext('2d');
-  if (workoutChart) workoutChart.destroy();
-  workoutChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels.map(formatDate),
-      datasets: [
-        { label:'Poids max (kg)', data: labels.map(d => byDate[d].maxWeight),
-          borderColor: C.primary, backgroundColor: hexA(C.primary,0.08),
-          borderWidth:2, pointBackgroundColor:C.primary, pointRadius:4, pointHoverRadius:7, tension:0.35, fill:true },
-        { label:'1RM estimé · Epley (kg)', data: labels.map(d => +byDate[d].maxE1RM.toFixed(1)),
-          borderColor: C.purple, backgroundColor:'transparent',
-          borderWidth:2, borderDash:[6,4], pointBackgroundColor:C.purple, pointRadius:3, tension:0.35, fill:false },
-      ],
-    },
-    options: chartOpts(),
-  });
-}
-
-// ============================================================
-// RUNNING CHART
-// ============================================================
-async function loadRunningChart(metric) {
-  const sel   = document.getElementById('running-select');
-  const field = metric || sel?.value || 'distance_km';
-  const noData = document.getElementById('running-chart-nodata');
-
-  const { data } = await db.from('running_sessions')
-    .select('date, distance_km, avg_pace_seconds, session_type')
-    .order('date');
-
-  if (!data?.length) { noData && (noData.style.display = 'flex'); return; }
-  noData && (noData.style.display = 'none');
-
-  const isPace   = field === 'avg_pace_seconds';
-  const labels   = data.map(d => formatDate(d.date));
-  const values   = data.map(d => isPace ? (d.avg_pace_seconds || null) : d.distance_km);
-  const color    = isPace ? C.orange : C.green;
-
-  const ctx = document.getElementById('running-chart').getContext('2d');
-  if (runningChart) runningChart.destroy();
-
-  runningChart = new Chart(ctx, {
-    type: isPace ? 'line' : 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: isPace ? 'Allure (min/km)' : 'Distance (km)',
-        data: values,
-        borderColor: color,
-        backgroundColor: isPace ? 'transparent' : hexA(color, 0.3),
-        borderWidth: 2,
-        borderRadius: isPace ? 0 : 5,
-        pointBackgroundColor: color,
-        pointRadius: isPace ? 5 : 0,
-        pointHoverRadius: 8,
-        tension: 0.35,
-        fill: !isPace,
-        // Pour l'allure : inverser l'axe Y (plus petit = plus rapide)
-      }],
-    },
-    options: {
-      ...chartOpts(),
-      scales: {
-        ...chartOpts().scales,
-        y: {
-          ...chartOpts().scales.y,
-          reverse: isPace,  // allure plus rapide = valeur plus basse = haut du graphe
-          ticks: {
-            color: '#475569',
-            font: { family: 'Space Grotesk', size: 11 },
-            callback: isPace ? v => formatPace(v) : undefined,
-          },
-        },
-      },
-      plugins: {
-        ...chartOpts().plugins,
-        tooltip: {
-          ...chartOpts().plugins.tooltip,
-          callbacks: {
-            label: ctx => isPace
-              ? `Allure : ${formatPace(ctx.parsed.y)}/km`
-              : `Distance : ${ctx.parsed.y} km`,
-          },
-        },
-      },
-    },
-  });
+  if (mRes.data?.length)     setEl('stat-weight',  `${mRes.data[0].weight_kg} kg`);
+  if (nRes.data?.length)     setEl('stat-calories', `${Math.round(avg(nRes.data.map(d => d.calories)))} kcal/j`);
+  if (stepsRes.data?.length) setEl('stat-steps',    `${Math.round(avg(stepsRes.data.map(d => d.steps))).toLocaleString('fr-FR')} pas`);
 }
 
 // ============================================================
@@ -453,65 +193,11 @@ async function loadNutritionChart(macro) {
 // ============================================================
 // FORMS
 // ============================================================
-function initPacePreview() {
-  const distInput = document.getElementById('r-dist');
-  const minInput  = document.getElementById('r-min');
-  const secInput  = document.getElementById('r-sec');
-  const preview   = document.getElementById('r-pace-preview');
-  if (!distInput || !minInput || !preview) return;
-
-  function update() {
-    const dist = parseFloat(distInput.value);
-    const mins = parseInt(minInput.value) || 0;
-    const secs = parseInt(secInput?.value) || 0;
-    const totalSec = mins * 60 + secs;
-    if (dist > 0 && totalSec > 0) {
-      preview.textContent = formatPace(Math.round(totalSec / dist)) + ' /km';
-      preview.classList.add('pace-preview--active');
-    } else {
-      preview.textContent = '—';
-      preview.classList.remove('pace-preview--active');
-    }
-  }
-  [distInput, minInput, secInput].forEach(el => el?.addEventListener('input', update));
-}
-
 function initForms() {
-  // --- Dates d'aujourd'hui ---
-  ['r-date','s-date'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.value = today();
-  });
+  const sDateEl = document.getElementById('s-date');
+  if (sDateEl) sDateEl.value = today();
   document.querySelectorAll('#measurement-form [name="date"], #nutrition-form [name="date"]')
     .forEach(el => { el.value = today(); });
-
-  // --- Course à pied ---
-  const rForm = document.getElementById('running-form');
-  if (rForm) {
-    rForm.addEventListener('submit', async e => {
-      e.preventDefault();
-      const fd   = Object.fromEntries(new FormData(e.target));
-      const dist = parseFloat(fd.distance_km);
-      const secs = (parseInt(fd.duration_min)||0)*60 + (parseInt(fd.duration_sec)||0);
-      if (!dist || !secs) { showToast('Distance et durée requises', 'error'); return; }
-
-      const entry = {
-        date:            fd.date,
-        distance_km:     dist,
-        duration_seconds:secs,
-        avg_pace_seconds:Math.round(secs / dist),
-        session_type:    fd.session_type || 'footing',
-        avg_heart_rate:  fd.avg_heart_rate ? parseInt(fd.avg_heart_rate) : null,
-        notes:           fd.notes || null,
-      };
-      const { error } = await db.from('running_sessions').insert(entry);
-      if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-      showToast('Séance enregistrée', 'success');
-      e.target.reset();
-      document.getElementById('r-date').value = today();
-      document.getElementById('r-pace-preview').textContent = '—';
-      await Promise.all([loadRunningChart(), loadRunningStats(), loadDashboard()]);
-    });
-  }
 
   // --- Pas ---
   const sForm = document.getElementById('steps-form');
@@ -557,7 +243,7 @@ function initForms() {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(e.target));
       const entry = {
-        date: fd.date,
+        date:      fd.date,
         calories:  fd.calories  ? parseInt(fd.calories)    : null,
         protein_g: fd.protein_g ? parseFloat(fd.protein_g) : null,
         carbs_g:   fd.carbs_g   ? parseFloat(fd.carbs_g)   : null,
@@ -604,18 +290,10 @@ function formatDate(str) {
   return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'2-digit' });
 }
 
-function formatPace(totalSeconds) {
-  if (!totalSeconds) return '—';
-  const m = Math.floor(totalSeconds / 60);
-  const s = Math.round(totalSeconds % 60);
-  return `${m}'${s.toString().padStart(2,'0')}"`;
-}
-
-function today() { return new Date().toISOString().split('T')[0]; }
+function today()    { return new Date().toISOString().split('T')[0]; }
 function daysAgo(n) { const d = new Date(); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; }
-function firstOfMonth() { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; }
-function num(v) { return v && v.trim() !== '' ? parseFloat(v) : null; }
-function avg(arr) { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
+function num(v)     { return v && v.trim() !== '' ? parseFloat(v) : null; }
+function avg(arr)   { return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0; }
 function hexA(hex, a) {
   const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
   return `rgba(${r},${g},${b},${a})`;

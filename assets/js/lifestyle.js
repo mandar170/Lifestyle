@@ -1,12 +1,6 @@
 // ============================================================
-// LIFESTYLE — Habits & Entraînements
+// LIFESTYLE — Habits & Routine
 // ============================================================
-
-const FR_MONTHS_LS = {
-  'janv.':'01','févr.':'02','mars':'03','avr.':'04',
-  'mai':'05','juin':'06','juil.':'07','août':'08',
-  'sept.':'09','oct.':'10','nov.':'11','déc.':'12',
-};
 
 const HABIT_COLORS = {
   red:   '#64dcff',
@@ -16,17 +10,6 @@ const HABIT_COLORS = {
   slate: '#64748b',
 };
 
-// Day-of-week → planned session (0=Sun, 1=Mon, …, 6=Sat)
-const WEEK_PLAN = {
-  1: { label:'Push',   color:'#64dcff' },
-  2: { label:'Course', color:'#22d3ee' },
-  3: { label:'Pull',   color:'#a855f7' },
-  4: { label:'Course', color:'#22d3ee' },
-  5: { label:'Legs',   color:'#f97316' },
-  6: { label:'Full',   color:'#facc15' },
-  0: { label:'Repos',  color:'#64748b' },
-};
-
 const C = {
   primary:'#64dcff', purple:'#a855f7', orange:'#f97316',
   yellow:'#facc15',  green:'#22d3ee',
@@ -34,10 +17,8 @@ const C = {
 
 // ---- State ----
 let habits      = [];
-let completions = {};   // { habitId: Set<dateStr> }  (only amounts > 0)
-let workoutSets = [];
+let completions = {};
 let habitTrendChart = null;
-let volumeChart     = null;
 const todayStr = new Date().toISOString().split('T')[0];
 
 // ============================================================
@@ -49,10 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   Chart.defaults.font.family = 'Space Grotesk';
 
   initTabs();
-
-  // Load both tabs in parallel (non-blocking — each renders independently)
-  initHabitsTab();
-  initWorkoutsTab();
+  await loadHabits();
+  initHabitImport();
 });
 
 // ============================================================
@@ -70,13 +49,8 @@ function initTabs() {
 }
 
 // ============================================================
-// ── HABITS TAB ──────────────────────────────────────────────
+// HABITS
 // ============================================================
-async function initHabitsTab() {
-  await loadHabits();
-  initHabitImport();
-}
-
 async function loadHabits() {
   const [habitsRes, compsRes] = await Promise.all([
     db.from('habits').select('*').order('order_index'),
@@ -85,7 +59,6 @@ async function loadHabits() {
 
   habits = habitsRes.data || [];
 
-  // Index completions (only positive amounts count as "done")
   completions = {};
   (compsRes.data || []).forEach(c => {
     if (c.amount_of_completions > 0) {
@@ -267,7 +240,6 @@ async function toggleCompletion(habitId) {
   const isDone = completions[habitId]?.has(todayStr);
   const newAmount = isDone ? 0 : 1;
 
-  // Synthetic deterministic id = habit_id + date (unique per constraint)
   const compId = `${habitId.slice(0, 32)}_${todayStr}`;
 
   const { error } = await db.from('habit_completions').upsert(
@@ -385,319 +357,7 @@ async function parseHabitKitJSON(file) {
 }
 
 // ============================================================
-// ── WORKOUTS TAB ─────────────────────────────────────────────
-// ============================================================
-async function initWorkoutsTab() {
-  await loadWorkouts();
-  initWorkoutImport();
-}
-
-async function loadWorkouts() {
-  const { data, error } = await db
-    .from('workout_sets')
-    .select('workout_date, workout_title, exercise_title, weight_kg, reps')
-    .not('weight_kg', 'is', null)
-    .not('reps', 'is', null)
-    .order('workout_date');
-
-  workoutSets = data || [];
-  renderWorkoutStats();
-  renderWeekPlan();
-  renderVolumeChart();
-  renderTopExercises();
-}
-
-// ---- Workout stats ----
-function renderWorkoutStats() {
-  const fomStr = firstOfMonth();
-  const monthSets = workoutSets.filter(s => s.workout_date >= fomStr);
-
-  const sessions = new Set(monthSets.map(s => s.workout_date)).size;
-  setEl('w-sessions', sessions + ' séance' + (sessions !== 1 ? 's' : ''));
-
-  const volume = monthSets.reduce((sum, s) => sum + (s.weight_kg || 0) * (s.reps || 0), 0);
-  setEl('w-volume', Math.round(volume).toLocaleString('fr-FR') + ' kg');
-
-  const topEx = findTopExercise(monthSets);
-  setEl('w-top-exercise', topEx || '—');
-
-  const dow  = new Date().getDay();
-  const next = WEEK_PLAN[dow];
-  setEl('w-next', next?.label || '—');
-}
-
-function findTopExercise(sets) {
-  if (!sets.length) return null;
-  const byEx = {};
-  sets.forEach(s => {
-    const e1rm = (s.weight_kg || 0) * (1 + (s.reps || 0) / 30);
-    if (!byEx[s.exercise_title]) byEx[s.exercise_title] = [];
-    byEx[s.exercise_title].push(e1rm);
-  });
-  let best = null, bestProg = -Infinity;
-  Object.entries(byEx).forEach(([ex, e1rms]) => {
-    if (e1rms.length < 2) return;
-    const prog = e1rms[e1rms.length - 1] - e1rms[0];
-    if (prog > bestProg) { bestProg = prog; best = ex; }
-  });
-  return best;
-}
-
-// ---- Week plan ----
-function renderWeekPlan() {
-  const container = document.getElementById('week-plan');
-  if (!container) return;
-
-  const DAY_LABELS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-
-  // date → Set of workout titles
-  const workoutByDate = {};
-  workoutSets.forEach(s => {
-    if (!workoutByDate[s.workout_date]) workoutByDate[s.workout_date] = new Set();
-    workoutByDate[s.workout_date].add(s.workout_title);
-  });
-
-  const weekDays = getCurrentWeekDays();
-
-  container.innerHTML = weekDays.map(({ label, date }) => {
-    const d      = new Date(date + 'T12:00:00');
-    const dow    = d.getDay();
-    const plan   = WEEK_PLAN[dow];
-    const isToday = date === todayStr;
-    const isPast  = date < todayStr;
-    const titles  = workoutByDate[date];
-
-    let statusHtml = '';
-    if (titles) {
-      const titleStr = [...titles].join(', ');
-      statusHtml = `<div class="plan-status plan-status--done">✓ FAIT</div>
-        <div class="plan-title">${titleStr}</div>`;
-    } else if (isPast && plan.label !== 'Repos') {
-      statusHtml = `<div class="plan-status plan-status--missed">MANQUÉ</div>`;
-    }
-
-    return `<div class="plan-col${isToday ? ' plan-col--today' : ''}">
-      <div class="plan-col__day">${label}</div>
-      <div class="plan-col__date">${formatDateShort(date)}</div>
-      <div class="plan-badge"
-           style="background:${plan.color}22;border:1px solid ${plan.color}44;color:${plan.color};">
-        ${plan.label}
-      </div>
-      ${statusHtml}
-    </div>`;
-  }).join('');
-}
-
-// ---- Volume chart (8 weeks) ----
-function renderVolumeChart() {
-  const noData = document.getElementById('volume-chart-nodata');
-
-  if (!workoutSets.length) { noData && (noData.style.display = 'flex'); return; }
-
-  const weekMap = {};
-  workoutSets.forEach(s => {
-    const w = getWeekStart(s.workout_date);
-    weekMap[w] = (weekMap[w] || 0) + (s.weight_kg || 0) * (s.reps || 0);
-  });
-
-  const weeks = Object.keys(weekMap).sort().slice(-8);
-  if (!weeks.length) { noData && (noData.style.display = 'flex'); return; }
-  noData && (noData.style.display = 'none');
-
-  const ctx = document.getElementById('volume-chart').getContext('2d');
-  if (volumeChart) volumeChart.destroy();
-
-  volumeChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: weeks.map(w => 'S' + getWeekNumber(new Date(w + 'T12:00:00'))),
-      datasets: [{
-        label: 'Volume (kg×reps)',
-        data:  weeks.map(w => Math.round(weekMap[w])),
-        backgroundColor: hexA(C.purple, 0.35),
-        borderColor:     C.purple,
-        borderWidth: 1, borderRadius: 5,
-      }],
-    },
-    options: chartOpts(),
-  });
-}
-
-// ---- Top 5 exercises with sparklines ----
-function renderTopExercises() {
-  const container = document.getElementById('top-exercises');
-  if (!container) return;
-
-  if (!workoutSets.length) {
-    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Aucune donnée d\'entraînement. Importez un CSV Hevy.</p>';
-    return;
-  }
-
-  // Group by exercise → date → max e1RM
-  const byEx = {};
-  workoutSets.forEach(s => {
-    const e1rm = (s.weight_kg || 0) * (1 + (s.reps || 0) / 30);
-    if (!byEx[s.exercise_title]) byEx[s.exercise_title] = {};
-    byEx[s.exercise_title][s.workout_date] =
-      Math.max(byEx[s.exercise_title][s.workout_date] || 0, e1rm);
-  });
-
-  const top5 = Object.entries(byEx)
-    .map(([name, byDate]) => {
-      const dates  = Object.keys(byDate).sort();
-      const e1rms  = dates.map(d => byDate[d]);
-      return { name, e1rms, maxE1RM: Math.max(...e1rms) };
-    })
-    .sort((a, b) => b.maxE1RM - a.maxE1RM)
-    .slice(0, 5);
-
-  container.innerHTML = top5.map(ex => {
-    const last8   = ex.e1rms.slice(-8);
-    const first   = last8[0];
-    const last    = last8[last8.length - 1];
-    const up      = last > first + 0.1;
-    const down    = last < first - 0.1;
-    const trend   = up ? '↑' : down ? '↓' : '→';
-    const tColor  = up ? '#22c55e' : down ? '#f87171' : '#94a3b8';
-
-    return `<div class="exercise-row">
-      <div class="exercise-row__info">
-        <div class="exercise-row__name">${ex.name}</div>
-        <div class="exercise-row__sub">1RM estimé max : ${ex.maxE1RM.toFixed(1)} kg</div>
-      </div>
-      ${generateSparkline(last8)}
-      <div class="exercise-row__trend" style="color:${tColor};">${trend}</div>
-    </div>`;
-  }).join('') || '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Aucun exercice.</p>';
-}
-
-function generateSparkline(values) {
-  if (!values || values.length < 2) {
-    return `<svg width="80" height="32" viewBox="0 0 80 32">
-      <line x1="0" y1="16" x2="80" y2="16" stroke="#475569" stroke-width="1" stroke-dasharray="4,4"/>
-    </svg>`;
-  }
-  const W = 80, H = 32;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * W;
-    const y = H - ((v - min) / range) * (H - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const color = values[values.length - 1] > values[0] + 0.1 ? '#22c55e' : '#f87171';
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
-}
-
-// ============================================================
-// HEVY CSV IMPORT
-// ============================================================
-function initWorkoutImport() {
-  const dropZone  = document.getElementById('workout-drop-zone');
-  const fileInput = document.getElementById('workout-file');
-  if (!dropZone) return;
-
-  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0]; if (f) processWorkoutCSV(f);
-  });
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', e => { if (e.target.files[0]) processWorkoutCSV(e.target.files[0]); });
-}
-
-function parseFrenchDate(str) {
-  if (!str?.trim()) return null;
-  const m = str.trim().match(/^(\d{1,2})\s+(\S+)\s+(\d{4}),\s+(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const [,day, mon, year, h, min] = m;
-  const mm = FR_MONTHS_LS[mon];
-  if (!mm) return null;
-  return new Date(`${year}-${mm}-${day.padStart(2,'0')}T${h.padStart(2,'0')}:${min}:00`);
-}
-
-function detectSessionType(title) {
-  const t = (title || '').toLowerCase();
-  if (/legs|jambes/.test(t))    return 'legs';
-  if (/push|poitrine/.test(t))  return 'push';
-  if (/pull|dos/.test(t))       return 'pull';
-  if (/full/.test(t))           return 'full';
-  return 'other';
-}
-
-async function processWorkoutCSV(file) {
-  const statusEl   = document.getElementById('workout-import-status');
-  const progressEl = document.getElementById('workout-import-progress');
-  const resultEl   = document.getElementById('workout-import-result');
-
-  statusEl.textContent = 'Analyse du fichier CSV…';
-  progressEl.style.width = '5%';
-  resultEl.textContent = '';
-
-  Papa.parse(file, {
-    header: true, skipEmptyLines: true,
-    complete: async res => {
-      const sets = res.data.map(row => {
-        const st = parseFrenchDate(row['start_time']);
-        const et = parseFrenchDate(row['end_time']);
-        if (!st || !row['exercise_title']) return null;
-        const title = (row['title'] || '').trim();
-        return {
-          workout_title:    title,
-          workout_date:     st.toISOString().split('T')[0],
-          start_time:       st.toISOString(),
-          end_time:         et?.toISOString() || null,
-          exercise_title:   (row['exercise_title'] || '').trim(),
-          set_index:        parseInt(row['set_index'])    || 0,
-          set_type:         (row['set_type']   || 'normal').trim(),
-          weight_kg:        row['weight_kg']        ? parseFloat(row['weight_kg'])        : null,
-          reps:             row['reps']              ? parseInt(row['reps'])               : null,
-          distance_km:      row['distance_km']       ? parseFloat(row['distance_km'])      : null,
-          duration_seconds: row['duration_seconds']  ? parseInt(row['duration_seconds'])   : null,
-          rpe:              row['rpe']               ? parseFloat(row['rpe'])              : null,
-        };
-      }).filter(Boolean);
-
-      if (!sets.length) {
-        statusEl.textContent = 'Aucune ligne valide.';
-        progressEl.style.width = '0%';
-        return;
-      }
-
-      const CHUNK = 200; let done = 0, errors = 0;
-      for (let i = 0; i < sets.length; i += CHUNK) {
-        const { error } = await db.from('workout_sets').upsert(
-          sets.slice(i, i + CHUNK),
-          { onConflict: 'start_time,exercise_title,set_index', ignoreDuplicates: false }
-        );
-        if (error) { console.error(error); errors++; }
-        done += Math.min(CHUNK, sets.length - i);
-        progressEl.style.width = `${Math.round(done / sets.length * 100)}%`;
-        statusEl.textContent = `Import : ${done}/${sets.length}…`;
-      }
-
-      progressEl.style.width = '100%';
-      resultEl.innerHTML = errors === 0
-        ? `<span class="ok">✓ Import terminé — ${sets.length} séries.</span>`
-        : `<span class="warn">Import terminé avec ${errors} erreur(s).</span>`;
-      showToast(`${sets.length} séries importées`, 'success');
-
-      await loadWorkouts();
-    },
-    error: err => {
-      showToast('Erreur CSV', 'error');
-      statusEl.textContent = err.message;
-    },
-  });
-}
-
-// ============================================================
-// CHART OPTIONS (shared)
+// CHART OPTIONS
 // ============================================================
 function chartOpts() {
   return {
@@ -739,24 +399,7 @@ function formatDateShort(str) {
   return d.toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' });
 }
 
-function today()        { return new Date().toISOString().split('T')[0]; }
-function daysAgo(n)     { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; }
-function firstOfMonth() { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; }
-
-function getWeekStart(dateStr) {
-  const d   = new Date(dateStr + 'T12:00:00');
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d.toISOString().split('T')[0];
-}
-
-function getWeekNumber(d) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
-}
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; }
 
 function hexA(hex, a) {
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);

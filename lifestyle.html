@@ -251,7 +251,6 @@
     <!-- TABS -->
     <nav class="tabs" style="margin-bottom:32px;">
       <button class="tab-btn active" data-tab="habits">Habits &amp; Routine</button>
-      <button class="tab-btn" data-tab="workouts">Entraînements</button>
     </nav>
 
     <!-- ====================================================
@@ -336,93 +335,11 @@
 
     </div><!-- /panel-habits -->
 
-    <!-- ====================================================
-         TAB — ENTRAÎNEMENTS
-         ==================================================== -->
-    <div id="panel-workouts" class="tab-panel">
-
-      <!-- Stats row -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-card__label">Séances ce mois</div>
-          <div class="stat-card__value" id="w-sessions">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card__label">Volume ce mois</div>
-          <div class="stat-card__value" id="w-volume">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card__label">+ Progressé</div>
-          <div class="stat-card__value stat-card__value--purple" id="w-top-exercise" style="font-size:13px;word-break:break-word;">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-card__label">Prochain entraînement</div>
-          <div class="stat-card__value stat-card__value--orange" id="w-next">—</div>
-        </div>
-      </div>
-
-      <!-- Week plan -->
-      <div class="section-card">
-        <div class="section-card__header">
-          <h2 class="section-card__title">Planning de la semaine</h2>
-        </div>
-        <div class="week-plan-grid" id="week-plan">
-          <p style="color:var(--text-dim);font-size:13px;grid-column:1/-1;">Chargement…</p>
-        </div>
-      </div>
-
-      <!-- Volume chart (8 weeks) -->
-      <div class="section-card">
-        <div class="section-card__header">
-          <h2 class="section-card__title">Volume hebdomadaire</h2>
-        </div>
-        <div class="chart-wrap">
-          <canvas id="volume-chart"></canvas>
-          <div class="chart-nodata" id="volume-chart-nodata">
-            <div class="chart-nodata__icon">📊</div>
-            <span>Importez un CSV Hevy pour voir le volume</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Top 5 exercises -->
-      <div class="section-card">
-        <div class="section-card__header">
-          <h2 class="section-card__title">Top 5 exercices — progression</h2>
-        </div>
-        <div id="top-exercises">
-          <p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px;">Chargement…</p>
-        </div>
-      </div>
-
-      <!-- Hevy CSV import -->
-      <div class="section-card">
-        <div class="section-card__header">
-          <h2 class="section-card__title">Import Hevy CSV</h2>
-        </div>
-        <div id="workout-drop-zone" class="drop-zone">
-          <input type="file" id="workout-file" accept=".csv" />
-          <div class="drop-zone__icon">📤</div>
-          <p class="drop-zone__title">Glisse ton fichier ici</p>
-          <p class="drop-zone__sub">workout_data.csv · Format Hevy · ou clique pour sélectionner</p>
-        </div>
-        <div class="import-status">
-          <p id="workout-import-status" class="import-status__text"></p>
-          <div class="progress-bar">
-            <div class="progress-bar__fill" id="workout-import-progress"></div>
-          </div>
-          <div class="import-result" id="workout-import-result"></div>
-        </div>
-      </div>
-
-    </div><!-- /panel-workouts -->
-
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=1"></script>
+  <script src="assets/js/lifestyle.js?v=2"></script>
 </body>
 </html>
