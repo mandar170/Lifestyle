@@ -333,6 +333,7 @@
         <div class="act-type-btns">
           <button class="act-type-btn act-type-btn--active" data-type="walk">🚶 Marche</button>
           <button class="act-type-btn" data-type="run">🏃 Course</button>
+          <button class="act-type-btn" data-type="bike">🚴 Vélo</button>
           <button class="act-type-btn" data-type="gym">🏋️ Muscu</button>
         </div>
 
@@ -350,10 +351,10 @@
               <input type="number" name="steps" id="act-steps" min="0" placeholder="5000" />
             </div>
 
-            <!-- Run : description libre -->
+            <!-- Run / Bike : type de séance -->
             <div class="form-group form-group--full" id="act-desc-group" style="display:none;">
-              <label>Description</label>
-              <input type="text" name="description" id="act-desc" placeholder="Footing matinal, 5km…" />
+              <label id="act-desc-label">Type de séance</label>
+              <input type="text" name="description" id="act-desc" placeholder="Footing facile, fractionné 10×400m…" />
             </div>
 
             <!-- Gym : type de séance -->

@@ -31,8 +31,8 @@ const NUTRITION_LABELS = {
   carbs_g:'Glucides (g)', fat_g:'Lipides (g)', fiber_g:'Fibres (g)',
 };
 
-const ACT_ICONS = { walk:'🚶', run:'🏃', gym:'🏋️' };
-const ACT_LABELS = { walk:'Marche', run:'Course à pied', gym:'Musculation' };
+const ACT_ICONS = { walk:'🚶', run:'🏃', bike:'🚴', gym:'🏋️' };
+const ACT_LABELS = { walk:'Marche', run:'Course à pied', bike:'Vélo', gym:'Musculation' };
 const GYM_LABELS = { push:'Push', pull:'Pull', legs:'Legs', upper:'Upper', lower:'Lower', full_body:'Full Body' };
 
 const C = {
@@ -301,8 +301,10 @@ function initActivityForm() {
       document.getElementById('act-type-val').value = type;
 
       document.getElementById('act-steps-group').style.display = (type === 'walk' || type === 'run') ? '' : 'none';
-      document.getElementById('act-desc-group').style.display  = type === 'run' ? '' : 'none';
+      document.getElementById('act-desc-group').style.display  = (type === 'run' || type === 'bike') ? '' : 'none';
       document.getElementById('act-gym-group').style.display   = type === 'gym' ? '' : 'none';
+      const placeholders = { run: 'Footing facile, fractionné 10×400m…', bike: 'Sortie endurance, intervalles…' };
+      if (placeholders[type]) document.getElementById('act-desc').placeholder = placeholders[type];
     });
   });
 
@@ -319,7 +321,7 @@ function initActivityForm() {
       type,
       duration_min: dur,
       steps:        (type === 'walk' || type === 'run') ? steps : null,
-      description:  type === 'run' ? desc : (type === 'gym' ? null : null),
+      description:  (type === 'run' || type === 'bike') ? desc : null,
       session_type: type === 'gym' ? session : null,
     };
 
