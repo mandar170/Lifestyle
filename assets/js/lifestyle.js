@@ -767,6 +767,18 @@ async function loadNutritionChart(macro) {
 
 // ── Export PDF ─────────────────────────────────────────────
 function initExportTab() {
+  // ICS calendar URL
+  const icsInput = document.getElementById('ics-url');
+  if (icsInput) {
+    icsInput.value = `${window.location.origin}/.netlify/functions/calendar`;
+  }
+  const icsCopy = document.getElementById('ics-copy');
+  if (icsCopy) {
+    icsCopy.addEventListener('click', () => {
+      navigator.clipboard.writeText(icsInput.value).then(() => showToast('Lien copié !', 'success'));
+    });
+  }
+
   document.getElementById('export-from').value = daysAgo(6);
   document.getElementById('export-to').value   = today();
   document.getElementById('export-btn').addEventListener('click', async () => {
