@@ -16,6 +16,11 @@ const MEAL_COLORS = {
   afternoon_snack:'#facc15', dinner:'#f97316', evening_snack:'#22d3ee',
 };
 
+const ACT_COLORS  = { walk:'#22c55e', run:'#ef4444', bike:'#f97316', gym:'#a855f7' };
+const ACT_ICONS   = { walk:'🚶', run:'🏃', bike:'🚴', gym:'🏋️' };
+const ACT_LABELS  = { walk:'Marche', run:'Course à pied', bike:'Vélo', gym:'Musculation' };
+const GYM_LABELS  = { push:'Push', pull:'Pull', legs:'Legs', upper:'Upper', lower:'Lower', full_body:'Full Body' };
+
 const MEASURE_LABELS = {
   weight_kg:'Poids (kg)', chest_cm:'Poitrine (cm)', shoulder_cm:'Épaules (cm)',
   waist_cm:'Tour de taille (cm)', hips_cm:'Hanches (cm)', glutes_cm:'Fesses (cm)',
@@ -29,12 +34,10 @@ const NUTRITION_LABELS = {
   carbs_g:'Glucides (g)', fat_g:'Lipides (g)', fiber_g:'Fibres (g)',
 };
 
-const ACT_ICONS  = { walk:'🚶', run:'🏃', bike:'🚴', gym:'🏋️' };
-const ACT_LABELS = { walk:'Marche', run:'Course à pied', bike:'Vélo', gym:'Musculation' };
-const GYM_LABELS = { push:'Push', pull:'Pull', legs:'Legs', upper:'Upper', lower:'Lower', full_body:'Full Body' };
-
 const HABIT_COLORS = {
-  red:'#64dcff', blue:'#3b82f6', green:'#22c55e', yellow:'#facc15', slate:'#64748b',
+  red:'#ef4444', blue:'#3b82f6', green:'#22c55e', yellow:'#facc15',
+  slate:'#64748b', purple:'#a855f7', orange:'#f97316', pink:'#ec4899',
+  teal:'#14b8a6', cyan:'#64dcff',
 };
 
 const C = {
@@ -44,6 +47,7 @@ const C = {
 // ── State ──────────────────────────────────────────────────
 let stepsChart = null, measurementsChart = null, nutritionChart = null, habitTrendChart = null;
 let journalDate = today();
+let actDate = today();
 let habits = [], completions = {};
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 
@@ -57,6 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initJournal();
   initMeasurementForm();
   initActivityForm();
+  initMovementTab();
   initExportTab();
   initCalendar();
   initHabitImport();
@@ -78,6 +83,10 @@ function initTabs() {
       setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
       if (btn.dataset.tab === 'calendrier') loadCalendar();
       if (btn.dataset.tab === 'habitudes')  renderTrendChart();
+      if (btn.dataset.tab === 'suivi') {
+        const activeSuivi = document.querySelector('.suivi-btn.active')?.dataset.suivi;
+        if (activeSuivi === 'mouvement') loadMovementData();
+      }
     });
   });
 
@@ -88,6 +97,7 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(`suivi-${btn.dataset.suivi}`).style.display = '';
       setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      if (btn.dataset.suivi === 'mouvement') loadMovementData();
     });
   });
 
@@ -109,7 +119,7 @@ async function loadDashboard() {
   if (sRes.data?.length) setEl('stat-steps',    `${Math.round(avg(sRes.data.map(d => d.steps))).toLocaleString('fr-FR')} pas`);
 }
 
-// ── Journal ────────────────────────────────────────────────
+// ── Journal (nutrition only) ───────────────────────────────
 function initJournal() {
   const dateInput = document.getElementById('j-date');
   dateInput.value = journalDate;
@@ -119,14 +129,6 @@ function initJournal() {
     journalDate = today(); dateInput.value = journalDate; loadJournalData();
   });
   dateInput.addEventListener('change', () => { journalDate = dateInput.value; loadJournalData(); });
-  document.getElementById('j-steps-save').addEventListener('click', async () => {
-    const val = parseInt(document.getElementById('j-steps').value);
-    if (!val || val < 0) return;
-    const { error } = await db.from('daily_steps').upsert({ date: journalDate, steps: val }, { onConflict: 'date' });
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    showToast('Pas enregistrés', 'success');
-    loadStepsChart(); loadDashboard();
-  });
   buildMealCards();
   loadJournalData();
 }
@@ -163,14 +165,8 @@ function buildMealCards() {
 }
 
 async function loadJournalData() {
-  const [mealsRes, actsRes, stepsRes] = await Promise.all([
-    db.from('meals').select('*').eq('date', journalDate),
-    db.from('activities').select('*').eq('date', journalDate).order('created_at'),
-    db.from('daily_steps').select('steps').eq('date', journalDate).maybeSingle(),
-  ]);
-  renderMealCards(mealsRes.data || []);
-  renderActivities(actsRes.data || []);
-  document.getElementById('j-steps').value = stepsRes.data?.steps ?? '';
+  const { data: meals } = await db.from('meals').select('*').eq('date', journalDate);
+  renderMealCards(meals || []);
 }
 
 function renderMealCards(meals) {
@@ -273,11 +269,14 @@ async function loadCalendar() {
   const first = `${calYear}-${String(calMonth+1).padStart(2,'0')}-01`;
   const last  = new Date(calYear, calMonth+1, 0).toISOString().split('T')[0];
   setEl('cal-month-label', new Date(calYear, calMonth).toLocaleDateString('fr-FR', { month:'long', year:'numeric' }).toUpperCase());
-  const { data } = await db.from('meals').select('date, done, calories, meal_type').gte('date', first).lte('date', last);
-  renderCalendar(data || []);
+  const [mealsRes, actsRes] = await Promise.all([
+    db.from('meals').select('date, done, calories, meal_type').gte('date', first).lte('date', last),
+    db.from('activities').select('date, type').gte('date', first).lte('date', last),
+  ]);
+  renderCalendar(mealsRes.data || [], actsRes.data || []);
 }
 
-function renderCalendar(meals) {
+function renderCalendar(meals, acts) {
   const DAY_HDRS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
   const todayStr = today();
   let html = DAY_HDRS.map(d => `<div class="cal-day-hdr">${d}</div>`).join('');
@@ -288,11 +287,14 @@ function renderCalendar(meals) {
     const dateStr   = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
     const isToday   = dateStr === todayStr;
     const dayMeals  = meals.filter(m => m.date === dateStr && m.done);
+    const dayActs   = acts.filter(a => a.date === dateStr);
     const totalKcal = dayMeals.reduce((s, m) => s + (m.calories || 0), 0);
-    const dots      = dayMeals.map(m => `<div class="cal-dot" style="background:${MEAL_COLORS[m.meal_type]||C.primary};"></div>`).join('');
+    const mealDots  = dayMeals.map(m => `<div class="cal-dot" style="background:${MEAL_COLORS[m.meal_type]||C.primary};"></div>`).join('');
+    const actDots   = dayActs.map(a => `<div class="cal-dot cal-dot--act" style="background:${ACT_COLORS[a.type]||'#888'};"></div>`).join('');
     html += `<div class="cal-cell${isToday ? ' cal-cell--today' : ''}" onclick="goToJournalDate('${dateStr}')">
       <div class="cal-cell__day">${day}</div>
-      ${dots ? `<div class="cal-cell__dots">${dots}</div>` : ''}
+      ${mealDots ? `<div class="cal-cell__dots">${mealDots}</div>` : ''}
+      ${actDots  ? `<div class="cal-cell__dots" style="margin-top:1px;">${actDots}</div>` : ''}
       ${totalKcal > 0 ? `<div class="cal-cell__kcal">${Math.round(totalKcal)} kcal</div>` : ''}
     </div>`;
   }
@@ -323,7 +325,8 @@ async function loadHabits() {
       completions[c.habit_id].add(c.date);
     }
   });
-  renderHabitStats(); renderWeekGrid(); renderHabitList();
+  renderHabitStats();
+  renderHabitGrid();
 }
 
 function renderHabitStats() {
@@ -336,6 +339,70 @@ function renderHabitStats() {
   const days = getLast30Days(), possible = days.length * active.length;
   const done = days.reduce((s, d) => s + active.filter(h => completions[h.id]?.has(d)).length, 0);
   setEl('h-rate', possible > 0 ? Math.round(done / possible * 100) + '%' : '—');
+}
+
+// ── HabitKit-style grid ────────────────────────────────────
+function renderHabitGrid() {
+  const container = document.getElementById('habit-grid');
+  if (!container) return;
+  const active   = habits.filter(h => !h.archived);
+  const todayStr = today();
+
+  if (!active.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px 0;">Aucun habit actif — importez un fichier HabitKit.</p>';
+    setEl('h-today-detail', '');
+    return;
+  }
+
+  const N = 7;
+  const days = [];
+  for (let i = N - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  const DAY_FR = ['Di','Lu','Ma','Me','Je','Ve','Sa'];
+
+  // Header row
+  let html = '<div class="hk-inner"><div class="hk-hdr"><div class="hk-hdr__spacer"></div><div class="hk-hdr__days">';
+  days.forEach((d, i) => {
+    const dt = new Date(d + 'T12:00:00');
+    const isToday  = d === todayStr;
+    const isOlder  = i < N - 4;
+    html += `<div class="hk-hdr__day${isToday ? ' hk-hdr__day--today' : ''}${isOlder ? ' hk-day--older' : ''}">
+      <div>${DAY_FR[dt.getDay()]}</div>
+      <div class="hk-hdr__num">${dt.getDate()}</div>
+    </div>`;
+  });
+  html += '</div></div>';
+
+  // Habit rows
+  active.forEach(h => {
+    const color = HABIT_COLORS[h.color] || C.primary;
+    const initials = h.name.slice(0, 1).toUpperCase();
+    html += `<div class="hk-row">
+      <div class="hk-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};">${initials}</div>
+      <div class="hk-name" title="${h.name}">${h.name}</div>
+      <div class="hk-days">`;
+    days.forEach((d, i) => {
+      const done    = completions[h.id]?.has(d);
+      const isToday = d === todayStr;
+      const isOlder = i < N - 4;
+      html += `<div class="hk-cell${done ? ' hk-cell--done' : ' hk-cell--empty'}${isToday ? ' hk-cell--today' : ''}${isOlder ? ' hk-day--older' : ''}"
+        style="${done
+          ? `background:${hexA(color,0.4)};border-color:${color};color:${color};`
+          : `background:rgba(255,255,255,0.02);border-color:${hexA(color,0.2)};`}"
+        onclick="toggleCompletion('${h.id}','${d}')"
+        title="${h.name} · ${formatDateShort(d)}">${done ? '✓' : ''}</div>`;
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  container.innerHTML = html;
+
+  const done = active.filter(h => completions[h.id]?.has(todayStr)).length;
+  setEl('h-today-detail', `${done}/${active.length} aujourd'hui`);
+  setEl('h-today', `${done}/${active.length}`);
 }
 
 function calcStreak(active) {
@@ -367,36 +434,6 @@ function getLast30Days() {
   return days;
 }
 
-function renderWeekGrid() {
-  const container = document.getElementById('week-grid');
-  if (!container) return;
-  const active   = habits.filter(h => !h.archived);
-  const todayStr = today();
-  const DAY_LABELS = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-  const todayD = new Date(); const dow = todayD.getDay();
-  const monday = new Date(todayD); monday.setDate(todayD.getDate() - (dow === 0 ? 6 : dow - 1));
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday); d.setDate(monday.getDate() + i);
-    return { label: DAY_LABELS[d.getDay()], date: d.toISOString().split('T')[0] };
-  });
-  container.innerHTML = weekDays.map(({ label, date }) => {
-    const isToday = date === todayStr;
-    const dots = active.map(h => {
-      const done = completions[h.id]?.has(date);
-      const color = HABIT_COLORS[h.color] || C.primary;
-      return `<div class="habit-dot-row">
-        <div class="habit-dot habit-dot--${done ? 'done' : 'empty'}" style="background:${done ? color : 'transparent'};border-color:${color};color:${color};"></div>
-        <div class="habit-dot-name">${h.name}</div>
-      </div>`;
-    }).join('');
-    return `<div class="week-col${isToday ? ' week-col--today' : ''}">
-      <div class="week-col__label">${label}</div>
-      <div class="week-col__date">${formatDateShort(date)}</div>
-      ${dots || '<div style="color:var(--text-dim);font-size:9px;text-align:center;">—</div>'}
-    </div>`;
-  }).join('');
-}
-
 function renderTrendChart() {
   const noData = document.getElementById('habit-chart-nodata');
   const active = habits.filter(h => !h.archived);
@@ -420,41 +457,19 @@ function renderTrendChart() {
   });
 }
 
-function renderHabitList() {
-  const container = document.getElementById('habit-list');
-  if (!container) return;
-  const active   = habits.filter(h => !h.archived);
-  const todayStr = today();
-  if (!active.length) {
-    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:40px;">Aucun habit actif — importez un fichier HabitKit.</p>';
-    setEl('h-today-detail', ''); return;
-  }
-  container.innerHTML = active.map(h => {
-    const done  = completions[h.id]?.has(todayStr);
-    const color = HABIT_COLORS[h.color] || C.primary;
-    return `<div class="habit-row${done?' habit-row--done':''}" onclick="toggleCompletion('${h.id}')">
-      <div class="habit-check${done?' habit-check--done':''}" style="${done?`background:${color};border-color:${color};`:`border-color:${color}55;`}">${done?'✓':''}</div>
-      <div class="habit-row__name">${h.name}</div>
-      <div class="habit-color-dot" style="background:${color};"></div>
-    </div>`;
-  }).join('');
-  const done = active.filter(h => completions[h.id]?.has(todayStr)).length;
-  setEl('h-today-detail', `${done}/${active.length} aujourd'hui`);
-  setEl('h-today', `${done}/${active.length}`);
-}
-
-async function toggleCompletion(habitId) {
-  const todayStr = today();
-  const isDone   = completions[habitId]?.has(todayStr);
-  const compId   = `${habitId.slice(0,32)}_${todayStr}`;
+async function toggleCompletion(habitId, date) {
+  date = date || today();
+  const isDone  = completions[habitId]?.has(date);
+  const compId  = `${habitId.slice(0,32)}_${date}`;
   const { error } = await db.from('habit_completions').upsert(
-    { id:compId, habit_id:habitId, date:todayStr, amount_of_completions: isDone ? 0 : 1 },
+    { id:compId, habit_id:habitId, date, amount_of_completions: isDone ? 0 : 1 },
     { onConflict:'habit_id,date' }
   );
   if (error) { showToast('Erreur mise à jour', 'error'); return; }
-  if (isDone) completions[habitId]?.delete(todayStr);
-  else { if (!completions[habitId]) completions[habitId] = new Set(); completions[habitId].add(todayStr); }
-  renderHabitList(); renderHabitStats();
+  if (isDone) completions[habitId]?.delete(date);
+  else { if (!completions[habitId]) completions[habitId] = new Set(); completions[habitId].add(date); }
+  renderHabitGrid();
+  renderHabitStats();
 }
 
 function initHabitImport() {
@@ -504,6 +519,49 @@ async function parseHabitKitJSON(file) {
   }
 }
 
+// ── Mouvement tab (activities + steps) ────────────────────
+function initMovementTab() {
+  actDate = today();
+  const dateInput = document.getElementById('act-date');
+  if (!dateInput) return;
+  dateInput.value = actDate;
+
+  document.getElementById('act-prev').addEventListener('click', () => changeActDate(-1));
+  document.getElementById('act-next').addEventListener('click', () => changeActDate(1));
+  document.getElementById('act-today-btn').addEventListener('click', () => {
+    actDate = today(); dateInput.value = actDate; loadMovementData();
+  });
+  dateInput.addEventListener('change', () => { actDate = dateInput.value; loadMovementData(); });
+
+  document.getElementById('j-steps-save').addEventListener('click', async () => {
+    const val = parseInt(document.getElementById('j-steps').value);
+    if (!val || val < 0) return;
+    const { error } = await db.from('daily_steps').upsert({ date: actDate, steps: val }, { onConflict: 'date' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Pas enregistrés', 'success');
+    loadStepsChart(); loadDashboard();
+  });
+
+  loadMovementData();
+}
+
+function changeActDate(delta) {
+  const d = new Date(actDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  actDate = d.toISOString().split('T')[0];
+  document.getElementById('act-date').value = actDate;
+  loadMovementData();
+}
+
+async function loadMovementData() {
+  const [actsRes, stepsRes] = await Promise.all([
+    db.from('activities').select('*').eq('date', actDate).order('created_at'),
+    db.from('daily_steps').select('steps').eq('date', actDate).maybeSingle(),
+  ]);
+  renderActivities(actsRes.data || []);
+  document.getElementById('j-steps').value = stepsRes.data?.steps ?? '';
+}
+
 // ── Activity form ──────────────────────────────────────────
 const ACT_FIELDS = {
   walk: ['ag-distance','ag-steps','ag-hr'],
@@ -551,16 +609,17 @@ function initActivityForm() {
     e.preventDefault();
     const type = document.getElementById('act-type-val').value;
     const entry = {
-      date:         journalDate, type,
-      duration_min: numI(document.getElementById('act-duration').value),
-      distance_km:  type !== 'gym' ? numF(document.getElementById('act-distance')?.value) : null,
-      steps:        (type === 'walk' || type === 'run') ? numI(document.getElementById('act-steps').value) : null,
-      avg_hr_bpm:   type !== 'gym' ? numI(document.getElementById('act-hr')?.value)    : null,
-      elevation_m:  (type === 'run' || type === 'bike') ? numI(document.getElementById('act-elev')?.value)  : null,
-      avg_speed_kmh:type === 'bike' ? numF(document.getElementById('act-speed')?.value) : null,
-      avg_power_w:  type === 'bike' ? numI(document.getElementById('act-power')?.value) : null,
-      description:  (type === 'run' || type === 'bike') ? (document.getElementById('act-desc').value.trim() || null) : null,
-      session_type: type === 'gym' ? document.getElementById('act-session-type').value : null,
+      date:          actDate,
+      type,
+      duration_min:  numI(document.getElementById('act-duration').value),
+      distance_km:   type !== 'gym' ? numF(document.getElementById('act-distance')?.value) : null,
+      steps:         (type === 'walk' || type === 'run') ? numI(document.getElementById('act-steps').value) : null,
+      avg_hr_bpm:    type !== 'gym' ? numI(document.getElementById('act-hr')?.value)    : null,
+      elevation_m:   (type === 'run' || type === 'bike') ? numI(document.getElementById('act-elev')?.value)  : null,
+      avg_speed_kmh: type === 'bike' ? numF(document.getElementById('act-speed')?.value) : null,
+      avg_power_w:   type === 'bike' ? numI(document.getElementById('act-power')?.value) : null,
+      description:   (type === 'run' || type === 'bike') ? (document.getElementById('act-desc').value.trim() || null) : null,
+      session_type:  type === 'gym' ? document.getElementById('act-session-type').value : null,
     };
     const { error } = await db.from('activities').insert(entry);
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -571,12 +630,13 @@ function initActivityForm() {
     setActivityFields('walk');
     document.querySelectorAll('.act-type-btn').forEach(b => b.classList.toggle('act-type-btn--active', b.dataset.type === 'walk'));
     setEl('act-pace-display', '—');
-    await loadJournalData();
+    await loadMovementData();
   });
 }
 
 function renderActivities(activities) {
   const list = document.getElementById('activity-list');
+  if (!list) return;
   if (!activities.length) { list.innerHTML = ''; return; }
   list.innerHTML = activities.map(a => {
     const icon  = ACT_ICONS[a.type] || '•';
@@ -611,7 +671,7 @@ async function deleteActivity(id) {
   const { error } = await db.from('activities').delete().eq('id', id);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   showToast('Activité supprimée', 'success');
-  await loadJournalData();
+  await loadMovementData();
 }
 
 // ── Measurement form ───────────────────────────────────────
