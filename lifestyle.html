@@ -355,6 +355,27 @@
         <button class="btn btn--primary" id="export-btn">Générer le PDF</button>
         <p id="export-status" style="margin-top:12px;font-size:13px;color:var(--text-dim);min-height:20px;"></p>
       </div>
+
+      <div class="section-card" style="margin-top:20px;">
+        <div class="section-card__header"><h2 class="section-card__title">Calendrier Apple</h2></div>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px;">
+          Abonne-toi à ce lien dans <strong style="color:var(--text);">Apple Calendrier</strong> pour voir tes séances et pas sur iPhone, iPad et Mac. Le calendrier se met à jour automatiquement (~toutes les heures).
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+          <input id="ics-url" readonly
+            style="flex:1;min-width:200px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 12px;color:var(--text-dim);font-family:'Space Grotesk',sans-serif;font-size:12px;"
+            value="" />
+          <button class="btn btn--ghost btn--sm" id="ics-copy" style="white-space:nowrap;">Copier le lien</button>
+        </div>
+        <details style="font-size:12px;color:var(--text-dim);">
+          <summary style="cursor:pointer;color:var(--text-muted);margin-bottom:8px;">Comment s'abonner ?</summary>
+          <ol style="padding-left:16px;line-height:2;margin-top:4px;">
+            <li><strong style="color:var(--text);">iPhone / iPad</strong> → Réglages → Calendrier → Comptes → Ajouter un compte → Autre → Ajouter un cal. avec abonnement → colle le lien</li>
+            <li><strong style="color:var(--text);">Mac</strong> → Calendrier → Fichier → Nouvel abonnement au calendrier → colle le lien</li>
+          </ol>
+          <p style="margin-top:8px;">Le calendrier contient tes activités sport et tes pas. Il est en lecture seule dans Apple Calendrier (tu modifies tout depuis cette page).</p>
+        </details>
+      </div>
     </div>
 
   </main>
