@@ -103,6 +103,17 @@
     .cal-legend__dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; }
     .cal-legend__sq { display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:4px; vertical-align:middle; }
     .cal-legend__sep { width:100%; height:0; border-top:1px solid rgba(255,255,255,0.06); margin:4px 0; }
+    /* Habit manager */
+    .color-picker { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .cp-color { width:22px; height:22px; border-radius:50%; cursor:pointer; transition:transform .15s,box-shadow .15s; border:2px solid transparent; flex-shrink:0; }
+    .cp-color:hover { transform:scale(1.15); }
+    .cp-color--active { border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,0.25); }
+    .habit-manage-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.05); }
+    .habit-manage-row:last-child { border-bottom:none; }
+    .habit-manage-icon { width:30px; height:30px; border-radius:8px; border:1px solid; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; font-family:'Orbitron',sans-serif; flex-shrink:0; }
+    .habit-manage-name { flex:1; font-size:13px; color:var(--text); }
+    .habit-manage-del { background:none; border:none; color:rgba(248,113,113,0.45); cursor:pointer; font-size:15px; padding:4px 6px; transition:color .2s; flex-shrink:0; }
+    .habit-manage-del:hover { color:#f87171; }
   </style>
 </head>
 <body>
@@ -196,24 +207,33 @@
         </div>
       </div>
       <div class="section-card">
+        <div class="section-card__header"><h2 class="section-card__title">Mes habitudes</h2></div>
+        <!-- Add habit form -->
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+          <input type="text" id="new-habit-name" placeholder="Nom de l'habitude…" maxlength="60"
+            style="flex:1;min-width:160px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:14px;" />
+          <div class="color-picker" id="habit-color-picker">
+            <div class="cp-color cp-color--active" data-color="cyan"   style="background:#64dcff;" title="Cyan"></div>
+            <div class="cp-color" data-color="blue"   style="background:#3b82f6;" title="Bleu"></div>
+            <div class="cp-color" data-color="green"  style="background:#22c55e;" title="Vert"></div>
+            <div class="cp-color" data-color="yellow" style="background:#facc15;" title="Jaune"></div>
+            <div class="cp-color" data-color="orange" style="background:#f97316;" title="Orange"></div>
+            <div class="cp-color" data-color="red"    style="background:#ef4444;" title="Rouge"></div>
+            <div class="cp-color" data-color="purple" style="background:#a855f7;" title="Violet"></div>
+            <div class="cp-color" data-color="pink"   style="background:#ec4899;" title="Rose"></div>
+            <div class="cp-color" data-color="teal"   style="background:#14b8a6;" title="Teal"></div>
+            <div class="cp-color" data-color="slate"  style="background:#64748b;" title="Gris"></div>
+          </div>
+          <button class="btn btn--primary btn--sm" id="add-habit-btn">+ Ajouter</button>
+        </div>
+        <!-- Habit list -->
+        <div id="habit-manage-list"></div>
+      </div>
+      <div class="section-card">
         <div class="section-card__header"><h2 class="section-card__title">Tendance 30 jours</h2></div>
         <div class="chart-wrap">
           <canvas id="habit-trend-chart"></canvas>
-          <div class="chart-nodata" id="habit-chart-nodata"><div class="chart-nodata__icon">📊</div><span>Importez un fichier HabitKit pour voir les données</span></div>
-        </div>
-      </div>
-      <div class="section-card">
-        <div class="section-card__header"><h2 class="section-card__title">Import HabitKit</h2></div>
-        <div id="habit-drop-zone" class="drop-zone">
-          <input type="file" id="habit-file" accept=".json" />
-          <div class="drop-zone__icon">📤</div>
-          <p class="drop-zone__title">Glisse ton fichier ici</p>
-          <p class="drop-zone__sub">habitkit_export.json · ou clique pour sélectionner</p>
-        </div>
-        <div class="import-status">
-          <p id="habit-import-status" class="import-status__text"></p>
-          <div class="progress-bar"><div class="progress-bar__fill" id="habit-import-progress"></div></div>
-          <div class="import-result" id="habit-import-result"></div>
+          <div class="chart-nodata" id="habit-chart-nodata"><div class="chart-nodata__icon">📊</div><span>Aucune habitude — ajoutes-en ci-dessus</span></div>
         </div>
       </div>
     </div>
