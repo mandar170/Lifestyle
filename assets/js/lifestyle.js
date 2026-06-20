@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMovementTab();
   initExportTab();
   initCalendar();
-  initHabitImport();
+  initHabitManager();
 
   await Promise.all([loadDashboard(), loadHabits()]);
   loadStepsChart();
@@ -327,6 +327,7 @@ async function loadHabits() {
   });
   renderHabitStats();
   renderHabitGrid();
+  renderHabitManageList();
 }
 
 function renderHabitStats() {
@@ -472,51 +473,74 @@ async function toggleCompletion(habitId, date) {
   renderHabitStats();
 }
 
-function initHabitImport() {
-  const dropZone  = document.getElementById('habit-drop-zone');
-  const fileInput = document.getElementById('habit-file');
-  if (!dropZone) return;
-  dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.classList.remove('drag-over');
-    const f = e.dataTransfer.files[0]; if (f) parseHabitKitJSON(f);
+// ── Habit manager (add / delete / list) ───────────────────
+let selectedHabitColor = 'cyan';
+
+function initHabitManager() {
+  // Color picker
+  document.querySelectorAll('.cp-color').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.cp-color').forEach(e => e.classList.remove('cp-color--active'));
+      el.classList.add('cp-color--active');
+      selectedHabitColor = el.dataset.color;
+    });
   });
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', e => { if (e.target.files[0]) parseHabitKitJSON(e.target.files[0]); });
+
+  // Add button
+  const addBtn  = document.getElementById('add-habit-btn');
+  const nameEl  = document.getElementById('new-habit-name');
+  if (!addBtn) return;
+
+  addBtn.addEventListener('click', () => addHabit());
+  nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') addHabit(); });
 }
 
-async function parseHabitKitJSON(file) {
-  const statusEl   = document.getElementById('habit-import-status');
-  const progressEl = document.getElementById('habit-import-progress');
-  const resultEl   = document.getElementById('habit-import-result');
-  statusEl.textContent = 'Lecture du fichier…'; progressEl.style.width = '5%'; resultEl.textContent = '';
-  try {
-    const json       = JSON.parse(await file.text());
-    const habitsData = (json.habits || []).map(h => ({ id:h.id, name:h.name, color:h.color||null, icon:h.icon||null, archived:h.archived||false, order_index:h.orderIndex||0, created_at:h.createdAt||null }));
-    const catsData   = (json.categories || []).map(c => ({ id:c.id, name:c.name, icon:c.icon||null, order_index:c.orderIndex||0 }));
-    const compsData  = (json.completions || []).map(c => ({ id:c.id, habit_id:c.habitId, date:new Date(c.date).toISOString().split('T')[0], amount_of_completions:c.amountOfCompletions||1 }));
-    progressEl.style.width = '15%'; statusEl.textContent = `Import de ${habitsData.length} habits…`;
-    for (let i = 0; i < habitsData.length; i += 100) await db.from('habits').upsert(habitsData.slice(i,i+100), { onConflict:'id' });
-    progressEl.style.width = '35%'; statusEl.textContent = `Import de ${catsData.length} catégories…`;
-    if (catsData.length) await db.from('habit_categories').upsert(catsData, { onConflict:'id' });
-    progressEl.style.width = '45%'; statusEl.textContent = `Import de ${compsData.length} completions…`;
-    let done = 0;
-    for (let i = 0; i < compsData.length; i += 200) {
-      await db.from('habit_completions').upsert(compsData.slice(i,i+200), { onConflict:'habit_id,date' });
-      done += Math.min(200, compsData.length - i);
-      progressEl.style.width = `${45 + Math.round(done/(compsData.length||1)*50)}%`;
-      statusEl.textContent = `Completions : ${done}/${compsData.length}…`;
-    }
-    progressEl.style.width = '100%';
-    resultEl.innerHTML = `<span class="ok">✓ Import terminé — ${habitsData.length} habits · ${compsData.length} completions</span>`;
-    showToast(`Import réussi : ${habitsData.length} habits`, 'success');
-    await loadHabits();
-  } catch (err) {
-    statusEl.textContent = 'Erreur : ' + err.message; progressEl.style.width = '0%';
-    resultEl.innerHTML = `<span class="warn">Echec : ${err.message}</span>`;
-    showToast('Erreur import JSON', 'error');
+async function addHabit() {
+  const nameEl = document.getElementById('new-habit-name');
+  const name   = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+
+  const maxOrder = habits.length ? Math.max(...habits.map(h => h.order_index || 0)) + 1 : 0;
+  const entry = {
+    id:          crypto.randomUUID(),
+    name,
+    color:       selectedHabitColor,
+    archived:    false,
+    order_index: maxOrder,
+  };
+  const { error } = await db.from('habits').insert(entry);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Habitude ajoutée', 'success');
+  nameEl.value = '';
+  await loadHabits();
+}
+
+async function deleteHabit(id) {
+  // Also delete completions to avoid orphans
+  await db.from('habit_completions').delete().eq('habit_id', id);
+  const { error } = await db.from('habits').delete().eq('id', id);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Habitude supprimée', 'success');
+  await loadHabits();
+}
+
+function renderHabitManageList() {
+  const container = document.getElementById('habit-manage-list');
+  if (!container) return;
+  const active = habits.filter(h => !h.archived);
+  if (!active.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;">Aucune habitude — ajoutes-en une ci-dessus.</p>';
+    return;
   }
+  container.innerHTML = active.map(h => {
+    const color   = HABIT_COLORS[h.color] || C.primary;
+    const initial = h.name.slice(0, 1).toUpperCase();
+    return `<div class="habit-manage-row">
+      <div class="habit-manage-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};">${initial}</div>
+      <div class="habit-manage-name">${h.name}</div>
+      <button class="habit-manage-del" onclick="deleteHabit('${h.id}')" title="Supprimer">✕</button>
+    </div>`;
+  }).join('');
 }
 
 // ── Mouvement tab (activities + steps) ────────────────────
