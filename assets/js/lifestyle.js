@@ -49,6 +49,7 @@ let stepsChart = null, measurementsChart = null, nutritionChart = null, habitTre
 let journalDate = today();
 let actDate = today();
 let habits = [], completions = {};
+let mealPresets = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let dragSrcId = null;
@@ -133,6 +134,7 @@ function initJournal() {
   dateInput.addEventListener('change', () => { journalDate = dateInput.value; loadJournalData(); });
   buildMealCards();
   loadJournalData();
+  loadMealPresets();
 }
 
 function changeJournalDate(delta) {
@@ -152,6 +154,8 @@ function buildMealCards() {
         <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
       </div>
       <div class="meal-card__body">
+        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Choisir un modèle</button>
+        <div class="preset-picker" id="pp-${key}"></div>
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
@@ -229,6 +233,102 @@ async function saveMeal(mealType) {
   await loadJournalData();
   syncNutritionTable(journalDate);
   loadNutritionChart(); loadDashboard();
+}
+
+// ── Meal presets ───────────────────────────────────────────
+const PRESET_TYPE_LABELS = {
+  breakfast:'Petit déj.', morning_snack:'Collation mat.', lunch:'Déjeuner',
+  afternoon_snack:'Collation a-m', dinner:'Dîner', evening_snack:'Collation soir',
+};
+
+async function loadMealPresets() {
+  const { data } = await db.from('meal_presets').select('*').order('name');
+  mealPresets = data || [];
+  renderPresetList();
+}
+
+function togglePresetPicker(mealType) {
+  const picker = document.getElementById(`pp-${mealType}`);
+  if (!picker) return;
+  const isOpen = picker.classList.contains('preset-picker--open');
+  document.querySelectorAll('.preset-picker').forEach(p => p.classList.remove('preset-picker--open'));
+  if (isOpen) return;
+  const matches = mealPresets.filter(p => !p.meal_type || p.meal_type === mealType);
+  picker.innerHTML = matches.length
+    ? matches.map(p => `
+        <div class="preset-item" onclick="applyPreset('${p.id}','${mealType}')">
+          <span class="preset-item__name">${p.name}</span>
+          <span class="preset-item__meta">${[p.calories ? p.calories+'kcal' : null, p.protein_g ? p.protein_g+'g prot' : null].filter(Boolean).join(' · ')}</span>
+        </div>`).join('')
+    : '<p class="preset-list-empty">Aucun modèle pour ce repas.</p>';
+  picker.classList.add('preset-picker--open');
+}
+
+function applyPreset(presetId, mealType) {
+  const p = mealPresets.find(x => x.id === presetId);
+  if (!p) return;
+  if (p.description != null) document.getElementById(`desc-${mealType}`).value = p.description;
+  if (p.calories   != null) document.getElementById(`kcal-${mealType}`).value = p.calories;
+  if (p.protein_g  != null) document.getElementById(`prot-${mealType}`).value = p.protein_g;
+  if (p.carbs_g    != null) document.getElementById(`gluc-${mealType}`).value = p.carbs_g;
+  if (p.fat_g      != null) document.getElementById(`lip-${mealType}`).value  = p.fat_g;
+  if (p.fiber_g    != null) document.getElementById(`fib-${mealType}`).value  = p.fiber_g;
+  document.getElementById(`pp-${mealType}`).classList.remove('preset-picker--open');
+}
+
+async function saveMealPreset() {
+  const name = document.getElementById('np-name').value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  const entry = {
+    name,
+    meal_type:   document.getElementById('np-type').value || null,
+    description: document.getElementById('np-desc').value.trim() || null,
+    calories:    numI(document.getElementById('np-kcal').value),
+    protein_g:   numF(document.getElementById('np-prot').value),
+    carbs_g:     numF(document.getElementById('np-gluc').value),
+    fat_g:       numF(document.getElementById('np-lip').value),
+    fiber_g:     numF(document.getElementById('np-fib').value),
+  };
+  const { error } = await db.from('meal_presets').insert(entry);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Modèle enregistré', 'success');
+  ['np-name','np-desc','np-kcal','np-prot','np-gluc','np-lip','np-fib'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('np-type').value = '';
+  await loadMealPresets();
+}
+
+async function deleteMealPreset(id) {
+  if (!confirm('Supprimer ce modèle ?')) return;
+  const { error } = await db.from('meal_presets').delete().eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  showToast('Modèle supprimé', 'success');
+  await loadMealPresets();
+}
+
+function renderPresetList() {
+  const container = document.getElementById('preset-list');
+  if (!container) return;
+  if (!mealPresets.length) {
+    container.innerHTML = '<p class="preset-list-empty">Aucun modèle enregistré.</p>';
+    return;
+  }
+  container.innerHTML = mealPresets.map(p => {
+    const macros = [
+      p.calories  ? p.calories+'kcal'    : null,
+      p.protein_g ? p.protein_g+'g prot' : null,
+      p.carbs_g   ? p.carbs_g+'g gluc'   : null,
+      p.fat_g     ? p.fat_g+'g lip'      : null,
+      p.fiber_g   ? p.fiber_g+'g fib'    : null,
+    ].filter(Boolean).join(' · ');
+    return `<div class="preset-item">
+      <div style="flex:1;min-width:0;">
+        <div class="preset-item__name">${p.name}${p.meal_type ? ` <span style="font-size:10px;color:var(--text-dim);">(${PRESET_TYPE_LABELS[p.meal_type]||p.meal_type})</span>` : ''}</div>
+        ${p.description ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${p.description}</div>` : ''}
+        ${macros ? `<div class="preset-item__meta" style="margin-top:3px;">${macros}</div>` : ''}
+      </div>
+      <button class="preset-item__del" onclick="deleteMealPreset('${p.id}')" title="Supprimer">✕</button>
+    </div>`;
+  }).join('');
 }
 
 function updateDailyTotals(meals) {
