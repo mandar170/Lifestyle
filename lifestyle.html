@@ -81,6 +81,7 @@
     .hk-hdr__day { width:34px; text-align:center; font-family:'Orbitron',sans-serif; letter-spacing:.04em; color:var(--text-dim); flex-shrink:0; }
     .hk-hdr__day > div:first-child { font-size:8px; text-transform:uppercase; }
     .hk-hdr__num { font-size:12px; font-weight:700; margin-top:2px; }
+    .hk-day-toggle { display:block; margin:4px auto 0; width:13px; height:13px; cursor:pointer; accent-color:var(--primary); }
     .hk-hdr__day--today .hk-hdr__num { color:var(--primary); }
     .hk-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
     .hk-row:last-child { border-bottom:none; }
@@ -209,10 +210,7 @@
       <div class="section-card">
         <div class="section-card__header">
           <h2 class="section-card__title">Suivi des habitudes</h2>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span id="h-today-detail" style="color:var(--text-muted);font-size:13px;"></span>
-            <button id="habit-toggle-all-btn" class="btn btn--ghost btn--sm" onclick="toggleAllToday()" style="white-space:nowrap;">Tout cocher</button>
-          </div>
+          <span id="h-today-detail" style="color:var(--text-muted);font-size:13px;"></span>
         </div>
         <div class="hk-scroll">
           <div id="habit-grid"><p style="color:var(--text-dim);font-size:13px;padding:24px 0;">Chargement…</p></div>
@@ -422,6 +420,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=6"></script>
+  <script src="assets/js/lifestyle.js?v=7"></script>
 </body>
 </html>

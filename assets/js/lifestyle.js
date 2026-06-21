@@ -397,9 +397,11 @@ function renderHabitGrid() {
     const dt = new Date(d + 'T12:00:00');
     const isToday  = d === todayStr;
     const isOlder  = i < N - 4;
+    const allDoneDay = active.length > 0 && active.every(h => completions[h.id]?.has(d));
     html += `<div class="hk-hdr__day${isToday ? ' hk-hdr__day--today' : ''}${isOlder ? ' hk-day--older' : ''}">
       <div>${DAY_FR[dt.getDay()]}</div>
       <div class="hk-hdr__num">${dt.getDate()}</div>
+      <input type="checkbox" class="hk-day-toggle" ${allDoneDay ? 'checked' : ''} onclick="toggleAllDay('${d}',event)" title="Tout cocher / décocher">
     </div>`;
   });
   html += '</div></div>';
@@ -431,9 +433,6 @@ function renderHabitGrid() {
   const done = active.filter(h => completions[h.id]?.has(todayStr)).length;
   setEl('h-today-detail', `${done}/${active.length} aujourd'hui`);
   setEl('h-today', `${done}/${active.length}`);
-
-  const toggleBtn = document.getElementById('habit-toggle-all-btn');
-  if (toggleBtn) toggleBtn.textContent = (done === active.length && active.length > 0) ? 'Tout décocher' : 'Tout cocher';
 }
 
 function calcStreak(active) {
@@ -503,24 +502,24 @@ async function toggleCompletion(habitId, date) {
   renderHabitStats();
 }
 
-async function toggleAllToday() {
-  const active = habits.filter(h => h.is_active !== false);
-  const d = today();
-  const allDone = active.every(h => completions[h.id]?.has(d));
-  const toToggle = active.filter(h => allDone ? completions[h.id]?.has(d) : !completions[h.id]?.has(d));
-  if (!toToggle.length) return;
+async function toggleAllDay(date, event) {
+  if (event) event.preventDefault();
+  const active = habits.filter(h => !h.archived);
+  const allDone = active.every(h => completions[h.id]?.has(date));
+  const toToggle = active.filter(h => allDone ? completions[h.id]?.has(date) : !completions[h.id]?.has(date));
+  if (!toToggle.length) { renderHabitGrid(); return; }
 
   const upserts = toToggle.map(h => ({
-    id: `${h.id.slice(0, 32)}_${d}`,
+    id: `${h.id.slice(0, 32)}_${date}`,
     habit_id: h.id,
-    date: d,
+    date,
     amount_of_completions: allDone ? 0 : 1,
   }));
   const { error } = await db.from('habit_completions').upsert(upserts, { onConflict: 'habit_id,date' });
   if (error) { showToast('Erreur', 'error'); return; }
   for (const h of toToggle) {
-    if (allDone) completions[h.id]?.delete(d);
-    else { if (!completions[h.id]) completions[h.id] = new Set(); completions[h.id].add(d); }
+    if (allDone) completions[h.id]?.delete(date);
+    else { if (!completions[h.id]) completions[h.id] = new Set(); completions[h.id].add(date); }
   }
   renderHabitGrid();
   renderHabitStats();
