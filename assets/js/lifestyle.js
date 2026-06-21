@@ -724,16 +724,22 @@ async function loadStepsChart() {
   const { data } = await db.from('daily_steps').select('date, steps').order('date').limit(60);
   if (!data?.length) { if (noData) noData.style.display = 'flex'; return; }
   if (noData) noData.style.display = 'none';
-  const GOAL = 10000;
-  const ctx  = document.getElementById('steps-chart').getContext('2d');
+  const GOAL   = 10000;
+  const values = data.map(d => d.steps);
+  const movAvg = values.map((_, i) => {
+    const w = values.slice(Math.max(0, i - 6), i + 1);
+    return Math.round(w.reduce((a, b) => a + b, 0) / w.length);
+  });
+  const ctx = document.getElementById('steps-chart').getContext('2d');
   if (stepsChart) stepsChart.destroy();
   stepsChart = new Chart(ctx, {
-    type:'bar',
+    type: 'bar',
     data: {
       labels: data.map(d => formatDate(d.date)),
       datasets: [
-        { label:'Pas', data:data.map(d => d.steps), backgroundColor:data.map(d => d.steps>=GOAL?hexA(C.green,0.45):hexA(C.purple,0.35)), borderColor:data.map(d => d.steps>=GOAL?C.green:C.purple), borderWidth:1, borderRadius:4 },
-        { label:`Objectif ${GOAL.toLocaleString('fr-FR')}`, data:Array(data.length).fill(GOAL), type:'line', borderColor:hexA(C.orange,0.6), borderWidth:1.5, borderDash:[6,4], pointRadius:0, fill:false },
+        { label:'Pas', data:values, backgroundColor:values.map(v => v>=GOAL?hexA(C.green,0.45):hexA(C.purple,0.35)), borderColor:values.map(v => v>=GOAL?C.green:C.purple), borderWidth:1, borderRadius:4, order:2 },
+        { label:'Moy. 7 jours', data:movAvg, type:'line', borderColor:hexA(C.primary,0.85), backgroundColor:'transparent', borderWidth:2.5, pointRadius:0, tension:0.4, fill:false, order:1 },
+        { label:`Objectif ${GOAL.toLocaleString('fr-FR')}`, data:Array(data.length).fill(GOAL), type:'line', borderColor:hexA(C.orange,0.6), borderWidth:1.5, borderDash:[6,4], pointRadius:0, fill:false, order:0 },
       ],
     },
     options: chartOpts(),
