@@ -475,18 +475,39 @@ function renderTrendChart() {
   const active = habits.filter(h => !h.archived);
   if (!active.length) { if (noData) noData.style.display = 'flex'; return; }
   if (noData) noData.style.display = 'none';
-  const days  = getLast30Days();
-  const data  = days.map(d => active.filter(h => completions[h.id]?.has(d)).length);
-  const total = active.length;
-  const ctx   = document.getElementById('habit-trend-chart').getContext('2d');
-  if (habitTrendChart) habitTrendChart.destroy();
+
+  const days   = getLast30Days();
+  const data   = days.map(d => active.filter(h => completions[h.id]?.has(d)).length);
+  const total  = active.length;
+  const labels = days.map(d => formatDateShort(d));
+  const movAvg = data.map((_, i) => {
+    const w = data.slice(Math.max(0, i - 6), i + 1);
+    return Math.round(w.reduce((a, b) => a + b, 0) / w.length * 10) / 10;
+  });
+  const bgColors = data.map(v => hexA(C.primary, v >= total ? 0.55 : 0.25));
+  const bdColors = data.map(v => v >= total ? C.primary : hexA(C.primary, 0.45));
+
+  if (habitTrendChart) {
+    habitTrendChart.data.labels = labels;
+    habitTrendChart.data.datasets[0].data = data;
+    habitTrendChart.data.datasets[0].backgroundColor = bgColors;
+    habitTrendChart.data.datasets[0].borderColor = bdColors;
+    habitTrendChart.data.datasets[1].data = Array(days.length).fill(total);
+    habitTrendChart.data.datasets[1].label = `Objectif (${total})`;
+    habitTrendChart.data.datasets[2].data = movAvg;
+    habitTrendChart.update('none');
+    return;
+  }
+
+  const ctx = document.getElementById('habit-trend-chart').getContext('2d');
   habitTrendChart = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: days.map(d => formatDateShort(d)),
+      labels,
       datasets: [
-        { label:'Habits complétés', data, backgroundColor:data.map(v => hexA(C.primary, v>=total?0.55:0.25)), borderColor:data.map(v => v>=total?C.primary:hexA(C.primary,0.45)), borderWidth:1, borderRadius:4, order:2 },
-        { label:`Objectif (${total})`, data:Array(days.length).fill(total), type:'line', borderColor:hexA(C.purple,0.65), borderWidth:1.5, borderDash:[6,4], pointRadius:0, fill:false, order:1 },
+        { label: 'Habits complétés', data, backgroundColor: bgColors, borderColor: bdColors, borderWidth: 1, borderRadius: 4, order: 3 },
+        { label: `Objectif (${total})`, data: Array(days.length).fill(total), type: 'line', borderColor: hexA(C.purple, 0.65), borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, fill: false, order: 1 },
+        { label: 'Moy. 7 jours', data: movAvg, type: 'line', borderColor: C.orange, borderWidth: 2, pointRadius: 0, fill: false, tension: 0.4, order: 2 },
       ],
     },
     options: chartOpts(),
@@ -506,6 +527,7 @@ async function toggleCompletion(habitId, date) {
   else { if (!completions[habitId]) completions[habitId] = new Set(); completions[habitId].add(date); }
   renderHabitGrid();
   renderHabitStats();
+  renderTrendChart();
 }
 
 async function toggleAllDay(date, event) {
@@ -529,6 +551,7 @@ async function toggleAllDay(date, event) {
   }
   renderHabitGrid();
   renderHabitStats();
+  renderTrendChart();
 }
 
 // ── Habit manager (add / edit / delete / reorder) ─────────
