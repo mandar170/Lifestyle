@@ -51,6 +51,7 @@ let journalDate = today();
 let actDate = today();
 let habits = [], completions = {};
 let mealPresets = [];
+let substitutes = [];
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let dragSrcId = null;
@@ -138,6 +139,7 @@ function initJournal() {
   buildMealCards();
   loadJournalData();
   loadMealPresets();
+  loadSubstitutes();
 }
 
 function changeJournalDate(delta) {
@@ -157,8 +159,21 @@ function buildMealCards() {
         <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
       </div>
       <div class="meal-card__body">
-        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Choisir un modèle</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
+        </div>
         <div class="preset-picker" id="pp-${key}"></div>
+        <div class="preset-picker" id="sp-${key}"></div>
+        <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
+          💊 <span id="sub-name-${key}"></span>
+          <label style="margin-left:auto;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
+            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" />
+            Macros comprises
+          </label>
+          <button onclick="clearSubstitute('${key}')" style="background:none;border:none;color:rgba(248,113,113,0.5);cursor:pointer;font-size:13px;padding:0 2px;" title="Retirer">✕</button>
+        </div>
+        <input type="hidden" id="sub-id-${key}" value="" />
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
@@ -196,12 +211,21 @@ function renderMealCards(meals) {
       card.classList.toggle('meal-card--done', !!m.done);
       chk.classList.toggle('meal-check--done', !!m.done);
       tag.textContent = m.calories ? `${m.calories} kcal` : '— kcal';
+      // Substitut
+      const subId = m.substitute_id || '';
+      document.getElementById(`sub-id-${key}`).value = subId;
+      if (subId) {
+        const sub = substitutes.find(s => s.id === subId);
+        showSubBadge(key, sub?.name || '—', !!m.substitute_included);
+      } else { hideSubBadge(key); }
     } else {
       document.getElementById(`desc-${key}`).value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
+      document.getElementById(`sub-id-${key}`).value = '';
       card.classList.remove('meal-card--done');
       chk.classList.remove('meal-check--done');
       tag.textContent = '— kcal';
+      hideSubBadge(key);
     }
   });
   updateDailyTotals(meals);
@@ -219,16 +243,19 @@ async function toggleMealDone(mealType) {
 }
 
 async function saveMeal(mealType) {
+  const subId = document.getElementById(`sub-id-${mealType}`)?.value || null;
   const entry = {
-    date:        journalDate,
-    meal_type:   mealType,
-    done:        document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
-    description: document.getElementById(`desc-${mealType}`).value.trim() || null,
-    calories:    numI(document.getElementById(`kcal-${mealType}`).value),
-    protein_g:   numF(document.getElementById(`prot-${mealType}`).value),
-    carbs_g:     numF(document.getElementById(`gluc-${mealType}`).value),
-    fat_g:       numF(document.getElementById(`lip-${mealType}`).value),
-    fiber_g:     numF(document.getElementById(`fib-${mealType}`).value),
+    date:                 journalDate,
+    meal_type:            mealType,
+    done:                 document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
+    description:          document.getElementById(`desc-${mealType}`).value.trim() || null,
+    calories:             numI(document.getElementById(`kcal-${mealType}`).value),
+    protein_g:            numF(document.getElementById(`prot-${mealType}`).value),
+    carbs_g:              numF(document.getElementById(`gluc-${mealType}`).value),
+    fat_g:                numF(document.getElementById(`lip-${mealType}`).value),
+    fiber_g:              numF(document.getElementById(`fib-${mealType}`).value),
+    substitute_id:        subId || null,
+    substitute_included:  !!(subId && document.getElementById(`sub-included-${mealType}`)?.checked),
   };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -236,6 +263,121 @@ async function saveMeal(mealType) {
   await loadJournalData();
   syncNutritionTable(journalDate);
   loadNutritionChart(); loadDashboard();
+}
+
+// ── Substituts RNPC ────────────────────────────────────────
+async function loadSubstitutes() {
+  const { data } = await db.from('meal_substitutes').select('*').order('name');
+  substitutes = data || [];
+  renderSubstituteList();
+}
+
+function toggleSubstitutePicker(mealType) {
+  const picker = document.getElementById(`sp-${mealType}`);
+  if (!picker) return;
+  const isOpen = picker.classList.contains('preset-picker--open');
+  document.querySelectorAll('.preset-picker').forEach(p => p.classList.remove('preset-picker--open'));
+  if (isOpen) return;
+  picker.innerHTML = substitutes.length
+    ? substitutes.map(s => `
+        <div class="preset-item" onclick="applySubstitute('${s.id}','${mealType}')">
+          <span class="preset-item__name">${s.name}</span>
+          <span class="preset-item__meta">${[s.calories?s.calories+'kcal':null, s.protein_g?s.protein_g+'g prot':null].filter(Boolean).join(' · ')}</span>
+        </div>`).join('')
+    : '<p class="preset-list-empty">Aucun substitut enregistré.</p>';
+  picker.classList.add('preset-picker--open');
+}
+
+function applySubstitute(subId, mealType) {
+  const s = substitutes.find(x => x.id === subId);
+  if (!s) return;
+  document.getElementById(`sub-id-${mealType}`).value = subId;
+  const included = document.getElementById(`sub-included-${mealType}`)?.checked;
+  if (!included) {
+    // Ajouter les macros du substitut aux valeurs existantes
+    const addTo = (fieldId, val) => {
+      if (val == null) return;
+      const el = document.getElementById(fieldId);
+      if (el) el.value = ((parseFloat(el.value) || 0) + val).toFixed(val % 1 === 0 ? 0 : 1);
+    };
+    addTo(`kcal-${mealType}`, s.calories);
+    addTo(`prot-${mealType}`, s.protein_g);
+    addTo(`gluc-${mealType}`, s.carbs_g);
+    addTo(`lip-${mealType}`,  s.fat_g);
+    addTo(`fib-${mealType}`,  s.fiber_g);
+  }
+  showSubBadge(mealType, s.name, included);
+  document.getElementById(`sp-${mealType}`).classList.remove('preset-picker--open');
+}
+
+function showSubBadge(mealType, name, included) {
+  const badge = document.getElementById(`sub-badge-${mealType}`);
+  const nameEl = document.getElementById(`sub-name-${mealType}`);
+  const chk = document.getElementById(`sub-included-${mealType}`);
+  if (badge) badge.style.display = 'flex';
+  if (nameEl) nameEl.textContent = name;
+  if (chk) chk.checked = !!included;
+}
+
+function hideSubBadge(mealType) {
+  const badge = document.getElementById(`sub-badge-${mealType}`);
+  if (badge) badge.style.display = 'none';
+}
+
+function clearSubstitute(mealType) {
+  document.getElementById(`sub-id-${mealType}`).value = '';
+  hideSubBadge(mealType);
+}
+
+async function saveMealSubstitute() {
+  const name = document.getElementById('ns-name').value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  const entry = {
+    name,
+    calories:  numI(document.getElementById('ns-kcal').value),
+    protein_g: numF(document.getElementById('ns-prot').value),
+    carbs_g:   numF(document.getElementById('ns-gluc').value),
+    fat_g:     numF(document.getElementById('ns-lip').value),
+    fiber_g:   numF(document.getElementById('ns-fib').value),
+  };
+  const { error } = await db.from('meal_substitutes').insert(entry);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Substitut enregistré', 'success');
+  ['ns-name','ns-kcal','ns-prot','ns-gluc','ns-lip','ns-fib'].forEach(id => { document.getElementById(id).value = ''; });
+  await loadSubstitutes();
+}
+
+async function deleteMealSubstitute(id) {
+  if (!confirm('Supprimer ce substitut ?')) return;
+  const { error } = await db.from('meal_substitutes').delete().eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  showToast('Substitut supprimé', 'success');
+  await loadSubstitutes();
+}
+
+function renderSubstituteList() {
+  const container = document.getElementById('substitute-list');
+  if (!container) return;
+  if (!substitutes.length) {
+    container.innerHTML = '<p class="preset-list-empty">Aucun substitut enregistré — tu pourras les ajouter une fois le tableau reçu.</p>';
+    return;
+  }
+  container.innerHTML = substitutes.map(s => {
+    const macros = [
+      s.calories  ? s.calories+'kcal'    : null,
+      s.protein_g ? s.protein_g+'g prot' : null,
+      s.carbs_g   ? s.carbs_g+'g gluc'   : null,
+      s.fat_g     ? s.fat_g+'g lip'      : null,
+      s.fiber_g   ? s.fiber_g+'g fib'    : null,
+    ].filter(Boolean).join(' · ');
+    return `<div class="preset-item">
+      <div style="flex:1;min-width:0;">
+        <div class="preset-item__name">${s.name}</div>
+        ${macros ? `<div class="preset-item__meta" style="margin-top:2px;">${macros}</div>` : ''}
+      </div>
+      <button class="preset-item__del" onclick="deleteMealSubstitute('${s.id}')" title="Supprimer">✕</button>
+    </div>`;
+  }).join('');
 }
 
 // ── Meal presets ───────────────────────────────────────────
