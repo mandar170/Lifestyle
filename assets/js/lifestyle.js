@@ -46,6 +46,7 @@ const C = {
 
 // ── State ──────────────────────────────────────────────────
 let stepsChart = null, measurementsChart = null, nutritionChart = null, habitTrendChart = null;
+const dashCharts = {};
 let journalDate = today();
 let actDate = today();
 let habits = [], completions = {};
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadStepsChart();
   loadMeasurementsChart();
   loadNutritionChart();
+  renderDashCharts();
 });
 
 // ── Tabs ───────────────────────────────────────────────────
@@ -84,6 +86,7 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(`panel-${btn.dataset.tab}`).classList.add('active');
       setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+      if (btn.dataset.tab === 'dashboard')  renderDashCharts();
       if (btn.dataset.tab === 'calendrier') loadCalendar();
       if (btn.dataset.tab === 'habitudes')  renderTrendChart();
       if (btn.dataset.tab === 'suivi') {
@@ -1220,6 +1223,143 @@ function chartOpts() {
       y:{ grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'#475569', font:{ family:'Space Grotesk', size:11 } } },
     },
   };
+}
+
+// ── Dashboard ──────────────────────────────────────────────
+function switchTab(tabName, suiviName) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  const btn   = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  const panel = document.getElementById(`panel-${tabName}`);
+  if (btn)   btn.classList.add('active');
+  if (panel) panel.classList.add('active');
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+  if (tabName === 'dashboard')  renderDashCharts();
+  if (tabName === 'calendrier') loadCalendar();
+  if (tabName === 'habitudes')  renderTrendChart();
+  if (tabName === 'suivi') {
+    if (suiviName) {
+      document.querySelectorAll('.suivi-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#panel-suivi [id^="suivi-"]').forEach(p => p.style.display = 'none');
+      const sb = document.querySelector(`.suivi-btn[data-suivi="${suiviName}"]`);
+      const sp = document.getElementById(`suivi-${suiviName}`);
+      if (sb) sb.classList.add('active');
+      if (sp) sp.style.display = '';
+    }
+    const active = document.querySelector('.suivi-btn.active')?.dataset.suivi;
+    if (active === 'mouvement') loadMovementData();
+  }
+}
+
+function getLast7Days() {
+  const days = []; const d = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const dd = new Date(d); dd.setDate(d.getDate() - i);
+    days.push(dd.toISOString().split('T')[0]);
+  }
+  return days;
+}
+
+function renderDashMiniChart(canvasId, key, data, labels, color, type, goalVal) {
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  if (dashCharts[key]) { dashCharts[key].destroy(); delete dashCharts[key]; }
+  const isBar = type === 'bar';
+  const datasets = [{
+    data,
+    backgroundColor: isBar ? data.map(() => hexA(color, 0.3)) : undefined,
+    borderColor: color,
+    borderWidth: isBar ? 1 : 2,
+    borderRadius: isBar ? 3 : undefined,
+    fill: !isBar ? { target: 'origin', above: hexA(color, 0.08) } : false,
+    pointRadius: 0,
+    tension: 0.4,
+    order: 2,
+  }];
+  if (goalVal != null) datasets.push({
+    data: Array(data.length).fill(goalVal),
+    type: 'line', borderColor: hexA(color, 0.3), borderWidth: 1,
+    borderDash: [4, 3], pointRadius: 0, fill: false, order: 1,
+  });
+  dashCharts[key] = new Chart(ctx, {
+    type,
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#334155', font: { size: 9 }, maxRotation: 0, maxTicksLimit: 7 } },
+        y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#334155', font: { size: 9 }, maxTicksLimit: 4 } },
+      },
+    },
+  });
+}
+
+async function renderDashCharts() {
+  const days7 = getLast7Days();
+  const labels7 = days7.map(d => formatDateShort(d));
+
+  const [nutRes, stepsRes, weightRes, actRes] = await Promise.all([
+    db.from('meals').select('date,calories,protein_g,fat_g,done').gte('date', days7[0]).eq('done', true),
+    db.from('daily_steps').select('date,steps').gte('date', days7[0]).order('date'),
+    db.from('measurements').select('date,weight_kg').not('weight_kg', 'is', null).gte('date', daysAgo(30)).order('date'),
+    db.from('activities').select('type,date').order('date', { ascending: false }).limit(1),
+  ]);
+
+  // ── Nutrition ───────────────────────────────────────────
+  const nutByDay = {};
+  (nutRes.data || []).forEach(m => { nutByDay[m.date] = (nutByDay[m.date] || 0) + (m.calories || 0); });
+  const todayMeals = (nutRes.data || []).filter(m => m.date === today());
+  const todayKcal  = todayMeals.reduce((s, m) => s + (m.calories  || 0), 0);
+  const todayProt  = todayMeals.reduce((s, m) => s + (m.protein_g || 0), 0);
+  const todayLip   = todayMeals.reduce((s, m) => s + (m.fat_g     || 0), 0);
+  setEl('d-kcal', todayKcal ? todayKcal.toLocaleString('fr-FR') : '—');
+  setEl('d-prot', todayProt ? todayProt.toFixed(0) + 'g' : '—');
+  setEl('d-lip',  todayLip  ? todayLip.toFixed(0)  + 'g' : '—');
+  renderDashMiniChart('dash-nutri-chart', 'nutri', days7.map(d => nutByDay[d] || 0), labels7, C.orange, 'bar');
+
+  // ── Habitudes ───────────────────────────────────────────
+  const active = habits.filter(h => !h.archived);
+  if (active.length) {
+    const todayDone = active.filter(h => completions[h.id]?.has(today())).length;
+    const habData   = days7.map(d => active.filter(h => completions[h.id]?.has(d)).length);
+    const sum7      = habData.reduce((a, b) => a + b, 0);
+    const rate7     = Math.round(sum7 / (days7.length * active.length) * 100);
+    setEl('d-hab-today',  `${todayDone}/${active.length}`);
+    setEl('d-hab-streak', calcStreak(active) + 'j');
+    setEl('d-hab-rate',   rate7 + '%');
+    renderDashMiniChart('dash-habits-chart', 'habits', habData, labels7, C.primary, 'bar', active.length);
+  }
+
+  // ── Mouvement / Pas ─────────────────────────────────────
+  const stepsByDay = {};
+  (stepsRes.data || []).forEach(s => { stepsByDay[s.date] = s.steps; });
+  const stepsData  = days7.map(d => stepsByDay[d] || 0);
+  const todaySteps = stepsByDay[today()];
+  const nonZero    = stepsData.filter(Boolean);
+  const avgSteps   = nonZero.length ? Math.round(nonZero.reduce((a, b) => a + b, 0) / nonZero.length) : 0;
+  const lastAct    = actRes.data?.[0];
+  setEl('d-steps',     todaySteps ? todaySteps.toLocaleString('fr-FR') : '—');
+  setEl('d-steps-avg', avgSteps   ? avgSteps.toLocaleString('fr-FR')   : '—');
+  setEl('d-last-act',  lastAct    ? (ACT_ICONS[lastAct.type] || '•') + ' ' + (ACT_LABELS[lastAct.type] || lastAct.type) : '—');
+  renderDashMiniChart('dash-steps-chart', 'steps', stepsData, labels7, '#22c55e', 'bar', 10000);
+
+  // ── Mensurations ────────────────────────────────────────
+  const weights = (weightRes.data || []).filter(w => w.weight_kg != null);
+  if (weights.length) {
+    const last  = weights[weights.length - 1];
+    const first = weights[0];
+    const delta = (last.weight_kg - first.weight_kg).toFixed(1);
+    const sign  = delta > 0 ? '+' : '';
+    const deltaColor = delta < 0 ? '#22c55e' : delta > 0 ? '#f87171' : '#94a3b8';
+    setEl('d-weight', last.weight_kg + ' kg');
+    const deltaEl = document.getElementById('d-weight-delta');
+    if (deltaEl) { deltaEl.textContent = sign + delta + ' kg'; deltaEl.style.color = deltaColor; }
+    renderDashMiniChart('dash-weight-chart', 'weight',
+      weights.map(w => w.weight_kg),
+      weights.map(w => formatDateShort(w.date)),
+      '#a855f7', 'line');
+  }
 }
 
 // ── Utils ──────────────────────────────────────────────────
