@@ -81,7 +81,7 @@
     .hk-hdr__day { width:34px; text-align:center; font-family:'Orbitron',sans-serif; letter-spacing:.04em; color:var(--text-dim); flex-shrink:0; }
     .hk-hdr__day > div:first-child { font-size:8px; text-transform:uppercase; }
     .hk-hdr__num { font-size:12px; font-weight:700; margin-top:2px; }
-    .hk-day-toggle { display:block; margin:4px auto 0; width:13px; height:13px; cursor:pointer; accent-color:var(--primary); }
+    .hk-day-toggle { width:34px; height:34px; border-radius:8px; border:1.5px solid; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .15s,border-color .15s; font-size:14px; flex-shrink:0; user-select:none; margin-top:5px; }
     .hk-hdr__day--today .hk-hdr__num { color:var(--primary); }
     .hk-row { display:flex; align-items:center; gap:10px; padding:5px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
     .hk-row:last-child { border-bottom:none; }
@@ -91,8 +91,8 @@
     .hk-cell { width:34px; height:34px; border-radius:8px; border:1.5px solid; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .15s,border-color .15s,box-shadow .15s; font-size:14px; flex-shrink:0; user-select:none; }
     .hk-cell--today { box-shadow:0 0 0 1.5px rgba(100,220,255,0.35); }
     @media(max-width:600px){
-      .hk-hdr__day,.hk-cell { width:28px; }
-      .hk-cell { height:28px; font-size:12px; }
+      .hk-hdr__day,.hk-cell,.hk-day-toggle { width:28px; }
+      .hk-cell,.hk-day-toggle { height:28px; font-size:12px; }
       .hk-icon { width:30px; height:30px; font-size:12px; }
       .hk-day--older { display:none; }
     }
@@ -420,6 +420,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=7"></script>
+  <script src="assets/js/lifestyle.js?v=8"></script>
 </body>
 </html>
