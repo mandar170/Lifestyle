@@ -431,6 +431,9 @@ function renderHabitGrid() {
   const done = active.filter(h => completions[h.id]?.has(todayStr)).length;
   setEl('h-today-detail', `${done}/${active.length} aujourd'hui`);
   setEl('h-today', `${done}/${active.length}`);
+
+  const toggleBtn = document.getElementById('habit-toggle-all-btn');
+  if (toggleBtn) toggleBtn.textContent = (done === active.length && active.length > 0) ? 'Tout décocher' : 'Tout cocher';
 }
 
 function calcStreak(active) {
@@ -496,6 +499,29 @@ async function toggleCompletion(habitId, date) {
   if (error) { showToast('Erreur mise à jour', 'error'); return; }
   if (isDone) completions[habitId]?.delete(date);
   else { if (!completions[habitId]) completions[habitId] = new Set(); completions[habitId].add(date); }
+  renderHabitGrid();
+  renderHabitStats();
+}
+
+async function toggleAllToday() {
+  const active = habits.filter(h => h.is_active !== false);
+  const d = today();
+  const allDone = active.every(h => completions[h.id]?.has(d));
+  const toToggle = active.filter(h => allDone ? completions[h.id]?.has(d) : !completions[h.id]?.has(d));
+  if (!toToggle.length) return;
+
+  const upserts = toToggle.map(h => ({
+    id: `${h.id.slice(0, 32)}_${d}`,
+    habit_id: h.id,
+    date: d,
+    amount_of_completions: allDone ? 0 : 1,
+  }));
+  const { error } = await db.from('habit_completions').upsert(upserts, { onConflict: 'habit_id,date' });
+  if (error) { showToast('Erreur', 'error'); return; }
+  for (const h of toToggle) {
+    if (allDone) completions[h.id]?.delete(d);
+    else { if (!completions[h.id]) completions[h.id] = new Set(); completions[h.id].add(d); }
+  }
   renderHabitGrid();
   renderHabitStats();
 }
