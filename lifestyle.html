@@ -209,10 +209,20 @@
       <div class="section-card">
         <div class="section-card__header">
           <h2 class="section-card__title">Suivi des habitudes</h2>
-          <span id="h-today-detail" style="color:var(--text-muted);font-size:13px;"></span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="h-today-detail" style="color:var(--text-muted);font-size:13px;"></span>
+            <button id="habit-toggle-all-btn" class="btn btn--ghost btn--sm" onclick="toggleAllToday()" style="white-space:nowrap;">Tout cocher</button>
+          </div>
         </div>
         <div class="hk-scroll">
           <div id="habit-grid"><p style="color:var(--text-dim);font-size:13px;padding:24px 0;">Chargement…</p></div>
+        </div>
+      </div>
+      <div class="section-card">
+        <div class="section-card__header"><h2 class="section-card__title">Tendance 30 jours</h2></div>
+        <div class="chart-wrap">
+          <canvas id="habit-trend-chart"></canvas>
+          <div class="chart-nodata" id="habit-chart-nodata"><div class="chart-nodata__icon">📊</div><span>Aucune habitude complétée sur les 30 derniers jours</span></div>
         </div>
       </div>
       <div class="section-card">
@@ -241,13 +251,6 @@
         </div>
         <!-- Habit list -->
         <div id="habit-manage-list"></div>
-      </div>
-      <div class="section-card">
-        <div class="section-card__header"><h2 class="section-card__title">Tendance 30 jours</h2></div>
-        <div class="chart-wrap">
-          <canvas id="habit-trend-chart"></canvas>
-          <div class="chart-nodata" id="habit-chart-nodata"><div class="chart-nodata__icon">📊</div><span>Aucune habitude complétée sur les 30 derniers jours</span></div>
-        </div>
       </div>
     </div>
 
@@ -419,6 +422,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=5"></script>
+  <script src="assets/js/lifestyle.js?v=6"></script>
 </body>
 </html>
