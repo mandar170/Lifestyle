@@ -50,6 +50,8 @@ let journalDate = today();
 let actDate = today();
 let habits = [], completions = {};
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
+let editingHabitId = null;
+let dragSrcId = null;
 
 // ── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -342,6 +344,32 @@ function renderHabitStats() {
   setEl('h-rate', possible > 0 ? Math.round(done / possible * 100) + '%' : '—');
 }
 
+// ── Habit icon helper ──────────────────────────────────────
+function habitIconHtml(h, size = 18) {
+  const icon = h.icon?.trim();
+  if (!icon) return h.name.slice(0, 1).toUpperCase();
+  // Iconify format: "prefix:name" e.g. "mdi:run"
+  if (icon.includes(':')) return `<iconify-icon icon="${icon}" width="${size}" height="${size}" style="display:flex;align-items:center;justify-content:center;"></iconify-icon>`;
+  return icon.slice(0, 2); // emoji
+}
+
+// ── Color picker HTML helper ───────────────────────────────
+function colorPickerHtml(pickerId, activeColor) {
+  const colors = [
+    ['cyan','#64dcff'],['blue','#3b82f6'],['green','#22c55e'],['yellow','#facc15'],
+    ['orange','#f97316'],['red','#ef4444'],['purple','#a855f7'],['pink','#ec4899'],
+    ['teal','#14b8a6'],['slate','#64748b'],
+  ];
+  return `<div class="color-picker" id="${pickerId}">${colors.map(([n, h]) =>
+    `<div class="cp-color${activeColor === n ? ' cp-color--active' : ''}" data-color="${n}" style="background:${h};" title="${n}" onclick="pickColor('${pickerId}',this)"></div>`
+  ).join('')}</div>`;
+}
+
+function pickColor(pickerId, el) {
+  document.querySelectorAll(`#${pickerId} .cp-color`).forEach(e => e.classList.remove('cp-color--active'));
+  el.classList.add('cp-color--active');
+}
+
 // ── HabitKit-style grid ────────────────────────────────────
 function renderHabitGrid() {
   const container = document.getElementById('habit-grid');
@@ -379,9 +407,8 @@ function renderHabitGrid() {
   // Habit rows
   active.forEach(h => {
     const color = HABIT_COLORS[h.color] || C.primary;
-    const initials = h.name.slice(0, 1).toUpperCase();
     html += `<div class="hk-row">
-      <div class="hk-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};">${initials}</div>
+      <div class="hk-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};font-size:17px;">${habitIconHtml(h, 17)}</div>
       <div class="hk-name" title="${h.name}">${h.name}</div>
       <div class="hk-days">`;
     days.forEach((d, i) => {
@@ -473,54 +500,83 @@ async function toggleCompletion(habitId, date) {
   renderHabitStats();
 }
 
-// ── Habit manager (add / delete / list) ───────────────────
+// ── Habit manager (add / edit / delete / reorder) ─────────
 let selectedHabitColor = 'cyan';
 
 function initHabitManager() {
-  // Color picker
-  document.querySelectorAll('.cp-color').forEach(el => {
+  // Add-form color picker (static in HTML)
+  document.querySelectorAll('#habit-color-picker .cp-color').forEach(el => {
     el.addEventListener('click', () => {
-      document.querySelectorAll('.cp-color').forEach(e => e.classList.remove('cp-color--active'));
+      document.querySelectorAll('#habit-color-picker .cp-color').forEach(e => e.classList.remove('cp-color--active'));
       el.classList.add('cp-color--active');
       selectedHabitColor = el.dataset.color;
     });
   });
 
-  // Add button
-  const addBtn  = document.getElementById('add-habit-btn');
-  const nameEl  = document.getElementById('new-habit-name');
+  const addBtn = document.getElementById('add-habit-btn');
+  const nameEl = document.getElementById('new-habit-name');
   if (!addBtn) return;
-
   addBtn.addEventListener('click', () => addHabit());
   nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') addHabit(); });
 }
 
 async function addHabit() {
   const nameEl = document.getElementById('new-habit-name');
+  const iconEl = document.getElementById('new-habit-icon');
   const name   = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
-
+  const icon     = iconEl?.value.trim() || null;
+  const color    = document.querySelector('#habit-color-picker .cp-color--active')?.dataset.color || 'cyan';
   const maxOrder = habits.length ? Math.max(...habits.map(h => h.order_index || 0)) + 1 : 0;
-  const entry = {
-    id:          crypto.randomUUID(),
-    name,
-    color:       selectedHabitColor,
-    archived:    false,
-    order_index: maxOrder,
-  };
-  const { error } = await db.from('habits').insert(entry);
+  const { error } = await db.from('habits').insert({
+    id: crypto.randomUUID(), name, icon, color, archived: false, order_index: maxOrder,
+  });
   if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
   showToast('Habitude ajoutée', 'success');
-  nameEl.value = '';
+  nameEl.value = ''; if (iconEl) iconEl.value = '';
   await loadHabits();
 }
 
 async function deleteHabit(id) {
-  // Also delete completions to avoid orphans
   await db.from('habit_completions').delete().eq('habit_id', id);
   const { error } = await db.from('habits').delete().eq('id', id);
-  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  if (error) { showToast('Erreur', 'error'); return; }
   showToast('Habitude supprimée', 'success');
+  await loadHabits();
+}
+
+function startEditHabit(id) {
+  editingHabitId = id;
+  renderHabitManageList();
+}
+
+function cancelHabitEdit() {
+  editingHabitId = null;
+  renderHabitManageList();
+}
+
+async function saveHabitEdit(id) {
+  const safeId = CSS.escape(id);
+  const name  = document.getElementById(`hedit-name-${id}`)?.value.trim();
+  const icon  = document.getElementById(`hedit-icon-${id}`)?.value.trim() || null;
+  const color = document.querySelector(`#hedit-cp-${safeId} .cp-color--active`)?.dataset.color || 'cyan';
+  if (!name) return;
+  const { error } = await db.from('habits').update({ name, icon, color }).eq('id', id);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Habitude mise à jour', 'success');
+  editingHabitId = null;
+  await loadHabits();
+}
+
+async function reorderHabits(srcId, tgtId) {
+  const active = habits.filter(h => !h.archived);
+  const srcIdx = active.findIndex(h => h.id === srcId);
+  const tgtIdx = active.findIndex(h => h.id === tgtId);
+  if (srcIdx === -1 || tgtIdx === -1 || srcIdx === tgtIdx) return;
+  const reordered = [...active];
+  const [moved] = reordered.splice(srcIdx, 1);
+  reordered.splice(tgtIdx, 0, moved);
+  await Promise.all(reordered.map((h, i) => db.from('habits').update({ order_index: i }).eq('id', h.id)));
   await loadHabits();
 }
 
@@ -534,13 +590,59 @@ function renderHabitManageList() {
   }
   container.innerHTML = active.map(h => {
     const color   = HABIT_COLORS[h.color] || C.primary;
-    const initial = h.name.slice(0, 1).toUpperCase();
-    return `<div class="habit-manage-row">
-      <div class="habit-manage-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};">${initial}</div>
+    const isEditing = editingHabitId === h.id;
+    const editForm = isEditing ? `
+      <div class="habit-edit-form">
+        <div class="habit-edit-row">
+          <input type="text" class="habit-edit-input" id="hedit-name-${h.id}" value="${h.name.replace(/"/g,'&quot;')}" placeholder="Nom" style="flex:1;" />
+          <input type="text" class="habit-edit-input" id="hedit-icon-${h.id}" value="${(h.icon||'').replace(/"/g,'&quot;')}" placeholder="🏃 ou mdi:run" style="width:130px;" />
+        </div>
+        ${colorPickerHtml(`hedit-cp-${h.id}`, h.color)}
+        <div style="display:flex;gap:6px;margin-top:2px;">
+          <button class="btn btn--primary btn--sm" onclick="saveHabitEdit('${h.id}')">Sauvegarder</button>
+          <button class="btn btn--ghost btn--sm" onclick="cancelHabitEdit()">Annuler</button>
+        </div>
+      </div>` : '';
+    return `<div class="habit-manage-row" draggable="true" data-id="${h.id}">
+      <span class="habit-drag" title="Glisser pour réordonner">⠿</span>
+      <div class="habit-manage-icon" style="background:${hexA(color,0.15)};border-color:${hexA(color,0.35)};color:${color};font-size:16px;">${habitIconHtml(h, 16)}</div>
       <div class="habit-manage-name">${h.name}</div>
-      <button class="habit-manage-del" onclick="deleteHabit('${h.id}')" title="Supprimer">✕</button>
+      <button class="habit-manage-btn habit-manage-btn--edit" onclick="startEditHabit('${h.id}')" title="Modifier">✏</button>
+      <button class="habit-manage-btn habit-manage-btn--del"  onclick="deleteHabit('${h.id}')"    title="Supprimer">✕</button>
+      ${editForm}
     </div>`;
   }).join('');
+
+  initDragDrop();
+}
+
+function initDragDrop() {
+  const rows = document.querySelectorAll('#habit-manage-list .habit-manage-row[draggable]');
+  rows.forEach(row => {
+    row.addEventListener('dragstart', e => {
+      dragSrcId = row.dataset.id;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => row.style.opacity = '0.4', 0);
+    });
+    row.addEventListener('dragend', () => {
+      row.style.opacity = '';
+      document.querySelectorAll('#habit-manage-list .habit-manage-row').forEach(r => r.classList.remove('drag-over'));
+    });
+    row.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('#habit-manage-list .habit-manage-row').forEach(r => r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('drop', async e => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      if (dragSrcId && dragSrcId !== row.dataset.id) {
+        await reorderHabits(dragSrcId, row.dataset.id);
+      }
+      dragSrcId = null;
+    });
+  });
 }
 
 // ── Mouvement tab (activities + steps) ────────────────────
