@@ -398,10 +398,16 @@ function renderHabitGrid() {
     const isToday  = d === todayStr;
     const isOlder  = i < N - 4;
     const allDoneDay = active.length > 0 && active.every(h => completions[h.id]?.has(d));
+    const someDay    = !allDoneDay && active.some(h => completions[h.id]?.has(d));
+    const cellStyle  = allDoneDay
+      ? `background:${hexA(C.primary,0.3)};border-color:${C.primary};color:${C.primary};`
+      : someDay
+        ? `background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.25);color:rgba(255,255,255,0.35);`
+        : `background:rgba(255,255,255,0.02);border-color:rgba(255,255,255,0.1);`;
     html += `<div class="hk-hdr__day${isToday ? ' hk-hdr__day--today' : ''}${isOlder ? ' hk-day--older' : ''}">
       <div>${DAY_FR[dt.getDay()]}</div>
       <div class="hk-hdr__num">${dt.getDate()}</div>
-      <input type="checkbox" class="hk-day-toggle" ${allDoneDay ? 'checked' : ''} onclick="toggleAllDay('${d}',event)" title="Tout cocher / décocher">
+      <div class="hk-day-toggle" style="${cellStyle}" onclick="toggleAllDay('${d}',event)" title="Tout cocher / décocher">${allDoneDay ? '✓' : someDay ? '–' : ''}</div>
     </div>`;
   });
   html += '</div></div>';
