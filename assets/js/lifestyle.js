@@ -162,16 +162,16 @@ function buildMealCards() {
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
+            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" />
+            Macros déjà comprises
+          </label>
         </div>
         <div class="preset-picker" id="pp-${key}"></div>
         <div class="preset-picker" id="sp-${key}"></div>
         <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
           💊 <span id="sub-name-${key}"></span>
-          <label style="margin-left:auto;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
-            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" />
-            Macros comprises
-          </label>
-          <button onclick="clearSubstitute('${key}')" style="background:none;border:none;color:rgba(248,113,113,0.5);cursor:pointer;font-size:13px;padding:0 2px;" title="Retirer">✕</button>
+          <button onclick="clearSubstitute('${key}')" style="background:none;border:none;color:rgba(248,113,113,0.5);cursor:pointer;font-size:13px;padding:0 2px;margin-left:auto;" title="Retirer">✕</button>
         </div>
         <input type="hidden" id="sub-id-${key}" value="" />
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
@@ -311,12 +311,12 @@ function applySubstitute(subId, mealType) {
 }
 
 function showSubBadge(mealType, name, included) {
-  const badge = document.getElementById(`sub-badge-${mealType}`);
+  const badge  = document.getElementById(`sub-badge-${mealType}`);
   const nameEl = document.getElementById(`sub-name-${mealType}`);
-  const chk = document.getElementById(`sub-included-${mealType}`);
-  if (badge) badge.style.display = 'flex';
-  if (nameEl) nameEl.textContent = name;
-  if (chk) chk.checked = !!included;
+  const chk    = document.getElementById(`sub-included-${mealType}`);
+  if (badge)  badge.style.display = 'flex';
+  if (nameEl) nameEl.textContent  = name;
+  if (chk && included !== undefined) chk.checked = !!included;
 }
 
 function hideSubBadge(mealType) {
