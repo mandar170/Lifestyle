@@ -243,19 +243,34 @@ async function toggleMealDone(mealType) {
 }
 
 async function saveMeal(mealType) {
-  const subId = document.getElementById(`sub-id-${mealType}`)?.value || null;
+  const subId    = document.getElementById(`sub-id-${mealType}`)?.value || null;
+  const included = !!(subId && document.getElementById(`sub-included-${mealType}`)?.checked);
+  const sub      = subId ? substitutes.find(s => s.id === subId) : null;
+
+  // Macros saisies manuellement
+  let calories  = numI(document.getElementById(`kcal-${mealType}`).value);
+  let protein_g = numF(document.getElementById(`prot-${mealType}`).value);
+  let carbs_g   = numF(document.getElementById(`gluc-${mealType}`).value);
+  let fat_g     = numF(document.getElementById(`lip-${mealType}`).value);
+  let fiber_g   = numF(document.getElementById(`fib-${mealType}`).value);
+
+  // Si substitut sélectionné et macros PAS comprises → ajouter au total sauvegardé
+  if (sub && !included) {
+    calories  = (calories  || 0) + (sub.calories  || 0) || null;
+    protein_g = (protein_g || 0) + (sub.protein_g || 0) || null;
+    carbs_g   = (carbs_g   || 0) + (sub.carbs_g   || 0) || null;
+    fat_g     = (fat_g     || 0) + (sub.fat_g     || 0) || null;
+    fiber_g   = (fiber_g   || 0) + (sub.fiber_g   || 0) || null;
+  }
+
   const entry = {
-    date:                 journalDate,
-    meal_type:            mealType,
-    done:                 document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
-    description:          document.getElementById(`desc-${mealType}`).value.trim() || null,
-    calories:             numI(document.getElementById(`kcal-${mealType}`).value),
-    protein_g:            numF(document.getElementById(`prot-${mealType}`).value),
-    carbs_g:              numF(document.getElementById(`gluc-${mealType}`).value),
-    fat_g:                numF(document.getElementById(`lip-${mealType}`).value),
-    fiber_g:              numF(document.getElementById(`fib-${mealType}`).value),
-    substitute_id:        subId || null,
-    substitute_included:  !!(subId && document.getElementById(`sub-included-${mealType}`)?.checked),
+    date:                journalDate,
+    meal_type:           mealType,
+    done:                document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
+    description:         document.getElementById(`desc-${mealType}`).value.trim() || null,
+    calories, protein_g, carbs_g, fat_g, fiber_g,
+    substitute_id:       subId || null,
+    substitute_included: included,
   };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -292,21 +307,8 @@ function applySubstitute(subId, mealType) {
   const s = substitutes.find(x => x.id === subId);
   if (!s) return;
   document.getElementById(`sub-id-${mealType}`).value = subId;
-  const included = document.getElementById(`sub-included-${mealType}`)?.checked;
-  if (!included) {
-    // Ajouter les macros du substitut aux valeurs existantes
-    const addTo = (fieldId, val) => {
-      if (val == null) return;
-      const el = document.getElementById(fieldId);
-      if (el) el.value = ((parseFloat(el.value) || 0) + val).toFixed(val % 1 === 0 ? 0 : 1);
-    };
-    addTo(`kcal-${mealType}`, s.calories);
-    addTo(`prot-${mealType}`, s.protein_g);
-    addTo(`gluc-${mealType}`, s.carbs_g);
-    addTo(`lip-${mealType}`,  s.fat_g);
-    addTo(`fib-${mealType}`,  s.fiber_g);
-  }
-  showSubBadge(mealType, s.name, included);
+  // Ne pas toucher aux champs — les macros seront ajoutées à la sauvegarde si nécessaire
+  showSubBadge(mealType, s.name);
   document.getElementById(`sp-${mealType}`).classList.remove('preset-picker--open');
 }
 
@@ -316,6 +318,7 @@ function showSubBadge(mealType, name, included) {
   const chk    = document.getElementById(`sub-included-${mealType}`);
   if (badge)  badge.style.display = 'flex';
   if (nameEl) nameEl.textContent  = name;
+  // Restaurer l'état du checkbox (utilisé lors du chargement depuis la DB)
   if (chk && included !== undefined) chk.checked = !!included;
 }
 
