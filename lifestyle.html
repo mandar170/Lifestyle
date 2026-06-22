@@ -151,6 +151,20 @@
     .habit-edit-row { display:flex; gap:8px; flex-wrap:wrap; }
     .habit-edit-input { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:7px; padding:7px 10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px; }
     .habit-edit-input:focus { outline:none; border-color:rgba(100,220,255,0.4); }
+    /* ── Substitute toggle ── */
+    .sub-toggle { width:20px; height:20px; border-radius:5px; border:1.5px solid rgba(100,220,255,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:transparent; flex-shrink:0; transition:background .15s,border-color .15s,color .15s; }
+    .sub-toggle--on { background:rgba(100,220,255,0.3); border-color:var(--primary); color:var(--primary); }
+    /* ── Planned workouts ── */
+    .planned-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-top:8px; }
+    .planned-item--done { opacity:0.5; }
+    .planned-done-toggle { width:28px; height:28px; border-radius:7px; border:1.5px solid rgba(100,220,255,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color:transparent; flex-shrink:0; transition:background .15s,border-color .15s,color .15s; }
+    .planned-done-toggle--on { background:rgba(100,220,255,0.3); border-color:var(--primary); color:var(--primary); }
+    /* ── Journal notes ── */
+    .journal-notes-area { width:100%; min-height:180px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:10px; padding:14px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:14px; resize:vertical; box-sizing:border-box; }
+    .journal-notes-area:focus { outline:none; border-color:rgba(100,220,255,0.35); }
+    .journal-entry-item { padding:12px 14px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-top:8px; }
+    .journal-entry-date { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.07em; text-transform:uppercase; color:var(--primary); margin-bottom:6px; }
+    .journal-entry-text { font-size:13px; color:var(--text-dim); line-height:1.6; white-space:pre-wrap; }
   </style>
 </head>
 <body>
@@ -395,6 +409,7 @@
         <button class="suivi-btn active" data-suivi="mouvement">🏃 Mouvement</button>
         <button class="suivi-btn" data-suivi="mensurations">📏 Mensurations</button>
         <button class="suivi-btn" data-suivi="nutrition">🍽️ Nutrition</button>
+        <button class="suivi-btn" data-suivi="journal">📝 Journal</button>
       </div>
 
       <!-- ── Mouvement ── -->
@@ -424,6 +439,7 @@
               <div class="form-group" id="ag-hr" style="display:none;"><label>FC moy. (bpm)</label><input type="number" id="act-hr" min="30" max="250" placeholder="145" /></div>
               <div class="form-group" id="ag-elev" style="display:none;"><label>Dénivelé + (m)</label><input type="number" id="act-elev" min="0" placeholder="120" /></div>
               <div class="form-group" id="ag-power" style="display:none;"><label>Puissance moy. (W)</label><input type="number" id="act-power" min="0" placeholder="180" /></div>
+              <div class="form-group"><label>Heure de début</label><input type="time" id="act-start-time" /></div>
               <div class="form-group form-group--full" id="ag-desc" style="display:none;"><label>Type de séance</label><input type="text" id="act-desc" placeholder="Footing facile…" /></div>
               <div class="form-group" id="ag-gym" style="display:none;"><label>Type de séance</label>
                 <select id="act-session-type" class="styled">
@@ -445,6 +461,40 @@
         <div class="section-card">
           <div class="section-card__header"><h2 class="section-card__title">Pas journaliers</h2><span style="font-size:12px;color:var(--text-dim);">Objectif : 10 000</span></div>
           <div class="chart-wrap"><canvas id="steps-chart"></canvas><div class="chart-nodata" id="steps-chart-nodata"><div class="chart-nodata__icon">👣</div><p>Aucune donnée</p></div></div>
+        </div>
+
+        <!-- Water -->
+        <div class="steps-inline" style="margin-top:16px;">
+          <label>💧 Eau du jour</label>
+          <input type="number" id="j-water" min="0" placeholder="ex: 1 500" />
+          <button class="btn btn--ghost btn--sm" onclick="addWater(250)">+250 ml</button>
+          <button class="btn btn--primary btn--sm" id="j-water-save">Enregistrer</button>
+        </div>
+        <div class="section-card">
+          <div class="section-card__header"><h2 class="section-card__title">Hydratation</h2><span style="font-size:12px;color:var(--text-dim);">Objectif : 2 L</span></div>
+          <div class="chart-wrap"><canvas id="water-chart"></canvas><div class="chart-nodata" id="water-chart-nodata"><div class="chart-nodata__icon">💧</div><p>Aucune donnée</p></div></div>
+        </div>
+
+        <!-- Planned workouts -->
+        <div class="section-card" style="margin-top:16px;">
+          <div class="section-card__header"><h2 class="section-card__title">Séances planifiées</h2></div>
+          <form id="plan-form">
+            <div class="form-grid">
+              <div class="form-group"><label>Date</label><input type="date" id="plan-date" /></div>
+              <div class="form-group"><label>Type</label>
+                <select id="plan-type" class="styled">
+                  <option value="walk">🚶 Marche</option>
+                  <option value="run">🏃 Course</option>
+                  <option value="bike">🚴 Vélo</option>
+                  <option value="gym">🏋️ Muscu</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Heure</label><input type="time" id="plan-start-time" /></div>
+              <div class="form-group form-group--full"><label>Description</label><input type="text" id="plan-desc" placeholder="Footing 45 min, séance push…" /></div>
+            </div>
+            <div class="form-actions" style="margin-top:8px;"><button type="submit" class="btn btn--primary btn--sm">+ Planifier</button></div>
+          </form>
+          <div id="planned-list"></div>
         </div>
       </div>
 
@@ -503,6 +553,25 @@
           <p style="margin-top:12px;font-size:12px;color:var(--text-dim);">Barres = total journalier · Ligne = moy. mobile 7 jours</p>
         </div>
       </div>
+
+      <!-- ── Journal (notes perso) ── -->
+      <div id="suivi-journal" style="display:none;">
+        <div class="journal-date-nav" style="margin-bottom:16px;">
+          <button class="btn btn--ghost btn--sm" id="jn-prev">←</button>
+          <input type="date" id="jn-date" />
+          <button class="btn btn--ghost btn--sm" id="jn-next">→</button>
+          <button class="btn btn--ghost btn--sm" id="jn-today" style="margin-left:auto;">Aujourd'hui</button>
+        </div>
+        <div class="section-card">
+          <div class="section-card__header"><h2 class="section-card__title">Note du jour</h2></div>
+          <textarea class="journal-notes-area" id="jn-content" placeholder="Notes d'évolution personnelle, ressenti, objectifs…"></textarea>
+          <div class="form-actions" style="margin-top:8px;"><button class="btn btn--primary btn--sm" onclick="saveJournalNote()">Enregistrer</button></div>
+        </div>
+        <div class="section-card" style="margin-top:16px;">
+          <div class="section-card__header"><h2 class="section-card__title">Historique</h2></div>
+          <div id="jn-history"><p style="color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;">Chargement…</p></div>
+        </div>
+      </div>
     </div>
 
     <!-- ════ EXPORT PDF ════ -->
@@ -557,6 +626,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=16"></script>
+  <script src="assets/js/lifestyle.js?v=17"></script>
 </body>
 </html>
