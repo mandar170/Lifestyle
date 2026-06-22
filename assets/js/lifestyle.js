@@ -73,6 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initCalendar();
   initHabitManager();
   initJournalNotes();
+  initWater();
 
   await Promise.all([loadDashboard(), loadHabits()]);
   loadStepsChart();
@@ -108,8 +109,9 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(`suivi-${btn.dataset.suivi}`).style.display = '';
       setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
-      if (btn.dataset.suivi === 'mouvement') loadMovementData();
-      if (btn.dataset.suivi === 'journal')   loadJournalNote();
+      if (btn.dataset.suivi === 'mouvement')  loadMovementData();
+      if (btn.dataset.suivi === 'nutrition')  loadNutritionWater();
+      if (btn.dataset.suivi === 'journal')    loadJournalNote();
     });
   });
 
@@ -1020,15 +1022,6 @@ function initMovementTab() {
     loadStepsChart(); loadDashboard();
   });
 
-  document.getElementById('j-water-save').addEventListener('click', async () => {
-    const val = parseInt(document.getElementById('j-water').value);
-    if (!val || val < 0) return;
-    const { error } = await db.from('daily_water').upsert({ date: actDate, amount_ml: val }, { onConflict: 'date' });
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    showToast('Hydratation enregistrée', 'success');
-    loadWaterChart();
-  });
-
   initPlannedWorkouts();
   loadMovementData();
 }
@@ -1042,14 +1035,12 @@ function changeActDate(delta) {
 }
 
 async function loadMovementData() {
-  const [actsRes, stepsRes, waterRes] = await Promise.all([
+  const [actsRes, stepsRes] = await Promise.all([
     db.from('activities').select('*').eq('date', actDate).order('created_at'),
     db.from('daily_steps').select('steps').eq('date', actDate).maybeSingle(),
-    db.from('daily_water').select('amount_ml').eq('date', actDate).maybeSingle(),
   ]);
   renderActivities(actsRes.data || []);
   document.getElementById('j-steps').value = stepsRes.data?.steps ?? '';
-  document.getElementById('j-water').value = waterRes.data?.amount_ml ?? '';
 }
 
 // ── Activity form ──────────────────────────────────────────
@@ -1168,6 +1159,25 @@ async function deleteActivity(id) {
 }
 
 // ── Water ──────────────────────────────────────────────────
+function initWater() {
+  const btn = document.getElementById('j-water-save');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const val = parseInt(document.getElementById('j-water').value);
+    if (!val || val < 0) return;
+    const { error } = await db.from('daily_water').upsert({ date: today(), amount_ml: val }, { onConflict: 'date' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Hydratation enregistrée', 'success');
+    loadWaterChart();
+  });
+}
+
+async function loadNutritionWater() {
+  const { data } = await db.from('daily_water').select('amount_ml').eq('date', today()).maybeSingle();
+  const el = document.getElementById('j-water');
+  if (el) el.value = data?.amount_ml ?? '';
+}
+
 function addWater(ml) {
   const el = document.getElementById('j-water');
   if (el) el.value = (parseInt(el.value) || 0) + ml;
