@@ -1159,21 +1159,40 @@ async function deleteActivity(id) {
 }
 
 // ── Water ──────────────────────────────────────────────────
+let waterDate = today();
+
 function initWater() {
-  const btn = document.getElementById('j-water-save');
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
+  const dateInput = document.getElementById('water-date');
+  if (!dateInput) return;
+  dateInput.value = waterDate;
+
+  document.getElementById('water-prev').addEventListener('click', () => changeWaterDate(-1));
+  document.getElementById('water-next').addEventListener('click', () => changeWaterDate(1));
+  document.getElementById('water-today-btn').addEventListener('click', () => {
+    waterDate = today(); dateInput.value = waterDate; loadNutritionWater();
+  });
+  dateInput.addEventListener('change', () => { waterDate = dateInput.value; loadNutritionWater(); });
+
+  document.getElementById('j-water-save').addEventListener('click', async () => {
     const val = parseInt(document.getElementById('j-water').value);
     if (!val || val < 0) return;
-    const { error } = await db.from('daily_water').upsert({ date: today(), amount_ml: val }, { onConflict: 'date' });
+    const { error } = await db.from('daily_water').upsert({ date: waterDate, amount_ml: val }, { onConflict: 'date' });
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     showToast('Hydratation enregistrée', 'success');
     loadWaterChart();
   });
 }
 
+function changeWaterDate(delta) {
+  const d = new Date(waterDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  waterDate = d.toISOString().split('T')[0];
+  document.getElementById('water-date').value = waterDate;
+  loadNutritionWater();
+}
+
 async function loadNutritionWater() {
-  const { data } = await db.from('daily_water').select('amount_ml').eq('date', today()).maybeSingle();
+  const { data } = await db.from('daily_water').select('amount_ml').eq('date', waterDate).maybeSingle();
   const el = document.getElementById('j-water');
   if (el) el.value = data?.amount_ml ?? '';
 }
