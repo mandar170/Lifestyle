@@ -45,9 +45,10 @@ const C = {
 };
 
 // ── State ──────────────────────────────────────────────────
-let stepsChart = null, measurementsChart = null, nutritionChart = null, habitTrendChart = null;
+let stepsChart = null, measurementsChart = null, nutritionChart = null, habitTrendChart = null, waterChart = null;
 const dashCharts = {};
 let journalDate = today();
+let journalNoteDate = today();
 let actDate = today();
 let habits = [], completions = {};
 let mealPresets = [];
@@ -71,11 +72,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   initExportTab();
   initCalendar();
   initHabitManager();
+  initJournalNotes();
 
   await Promise.all([loadDashboard(), loadHabits()]);
   loadStepsChart();
   loadMeasurementsChart();
   loadNutritionChart();
+  loadWaterChart();
   renderDashCharts();
 });
 
@@ -106,6 +109,7 @@ function initTabs() {
       document.getElementById(`suivi-${btn.dataset.suivi}`).style.display = '';
       setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
       if (btn.dataset.suivi === 'mouvement') loadMovementData();
+      if (btn.dataset.suivi === 'journal')   loadJournalNote();
     });
   });
 
@@ -163,15 +167,13 @@ function buildMealCards() {
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
-            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" onchange="updateFieldsFromSubstitute('${key}')" />
-            Macros déjà comprises
-          </label>
         </div>
         <div class="preset-picker" id="pp-${key}"></div>
         <div class="preset-picker" id="sp-${key}"></div>
         <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
           💊 <span id="sub-name-${key}"></span>
+          <div class="sub-toggle" id="sub-toggle-${key}" onclick="toggleSubIncluded('${key}')" title="Macros déjà comprises dans le repas">✓</div>
+          <span style="font-size:10px;color:var(--text-dim);">comprises</span>
           <button onclick="clearSubstitute('${key}')" style="background:none;border:none;color:rgba(248,113,113,0.5);cursor:pointer;font-size:13px;padding:0 2px;margin-left:auto;" title="Retirer">✕</button>
         </div>
         <input type="hidden" id="sub-id-${key}" value="" />
@@ -261,7 +263,7 @@ async function toggleMealDone(mealType) {
 
 async function saveMeal(mealType) {
   const subId    = document.getElementById(`sub-id-${mealType}`)?.value || null;
-  const included = !!(subId && document.getElementById(`sub-included-${mealType}`)?.checked);
+  const included = !!(subId && document.getElementById(`sub-toggle-${mealType}`)?.classList.contains('sub-toggle--on'));
 
   // Les champs affichent déjà le bon total (base + substitut si non comprises)
   const entry = {
@@ -327,7 +329,7 @@ function applySubstitute(subId, mealType) {
 
 function updateFieldsFromSubstitute(mealType) {
   const subId    = document.getElementById(`sub-id-${mealType}`)?.value;
-  const included = document.getElementById(`sub-included-${mealType}`)?.checked;
+  const included = document.getElementById(`sub-toggle-${mealType}`)?.classList.contains('sub-toggle--on');
   const sub      = subId ? substitutes.find(s => s.id === subId) : null;
   const base     = subBaseValues[mealType];
   if (!sub || !base) return;
@@ -347,11 +349,17 @@ function updateFieldsFromSubstitute(mealType) {
 function showSubBadge(mealType, name, included) {
   const badge  = document.getElementById(`sub-badge-${mealType}`);
   const nameEl = document.getElementById(`sub-name-${mealType}`);
-  const chk    = document.getElementById(`sub-included-${mealType}`);
+  const toggle = document.getElementById(`sub-toggle-${mealType}`);
   if (badge)  badge.style.display = 'flex';
   if (nameEl) nameEl.textContent  = name;
-  // Restaurer l'état du checkbox (utilisé lors du chargement depuis la DB)
-  if (chk && included !== undefined) chk.checked = !!included;
+  if (toggle && included !== undefined) toggle.classList.toggle('sub-toggle--on', !!included);
+}
+
+function toggleSubIncluded(mealType) {
+  const toggle = document.getElementById(`sub-toggle-${mealType}`);
+  if (!toggle) return;
+  toggle.classList.toggle('sub-toggle--on');
+  updateFieldsFromSubstitute(mealType);
 }
 
 function hideSubBadge(mealType) {
@@ -1012,6 +1020,16 @@ function initMovementTab() {
     loadStepsChart(); loadDashboard();
   });
 
+  document.getElementById('j-water-save').addEventListener('click', async () => {
+    const val = parseInt(document.getElementById('j-water').value);
+    if (!val || val < 0) return;
+    const { error } = await db.from('daily_water').upsert({ date: actDate, amount_ml: val }, { onConflict: 'date' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Hydratation enregistrée', 'success');
+    loadWaterChart();
+  });
+
+  initPlannedWorkouts();
   loadMovementData();
 }
 
@@ -1024,12 +1042,14 @@ function changeActDate(delta) {
 }
 
 async function loadMovementData() {
-  const [actsRes, stepsRes] = await Promise.all([
+  const [actsRes, stepsRes, waterRes] = await Promise.all([
     db.from('activities').select('*').eq('date', actDate).order('created_at'),
     db.from('daily_steps').select('steps').eq('date', actDate).maybeSingle(),
+    db.from('daily_water').select('amount_ml').eq('date', actDate).maybeSingle(),
   ]);
   renderActivities(actsRes.data || []);
   document.getElementById('j-steps').value = stepsRes.data?.steps ?? '';
+  document.getElementById('j-water').value = waterRes.data?.amount_ml ?? '';
 }
 
 // ── Activity form ──────────────────────────────────────────
@@ -1081,6 +1101,7 @@ function initActivityForm() {
     const entry = {
       date:          actDate,
       type,
+      start_time:    document.getElementById('act-start-time').value || null,
       duration_min:  numI(document.getElementById('act-duration').value),
       distance_km:   type !== 'gym' ? numF(document.getElementById('act-distance')?.value) : null,
       steps:         (type === 'walk' || type === 'run') ? numI(document.getElementById('act-steps').value) : null,
@@ -1096,6 +1117,7 @@ function initActivityForm() {
     showToast('Activité ajoutée', 'success');
     e.target.reset();
     document.getElementById('act-type-val').value = 'walk';
+    document.getElementById('act-start-time').value = '';
     const spEl = document.getElementById('act-speed'); if (spEl) spEl.value = '';
     setActivityFields('walk');
     document.querySelectorAll('.act-type-btn').forEach(b => b.classList.toggle('act-type-btn--active', b.dataset.type === 'walk'));
@@ -1112,6 +1134,7 @@ function renderActivities(activities) {
     const icon  = ACT_ICONS[a.type] || '•';
     const label = ACT_LABELS[a.type] || a.type;
     const parts = [];
+    if (a.start_time)   parts.push(a.start_time.slice(0, 5));
     if (a.duration_min) parts.push(`${a.duration_min} min`);
     if (a.distance_km)  parts.push(`${a.distance_km} km`);
     if (a.type === 'run' && a.duration_min && a.distance_km) {
@@ -1142,6 +1165,166 @@ async function deleteActivity(id) {
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   showToast('Activité supprimée', 'success');
   await loadMovementData();
+}
+
+// ── Water ──────────────────────────────────────────────────
+function addWater(ml) {
+  const el = document.getElementById('j-water');
+  if (el) el.value = (parseInt(el.value) || 0) + ml;
+}
+
+async function loadWaterChart() {
+  const noData = document.getElementById('water-chart-nodata');
+  const { data } = await db.from('daily_water').select('date, amount_ml').order('date').limit(60);
+  if (!data?.length) { if (noData) noData.style.display = 'flex'; return; }
+  if (noData) noData.style.display = 'none';
+  const GOAL   = 2000;
+  const values = data.map(d => d.amount_ml);
+  const movAvg = values.map((_, i) => {
+    const w = values.slice(Math.max(0, i - 6), i + 1);
+    return Math.round(w.reduce((a, b) => a + b, 0) / w.length);
+  });
+  const ctx = document.getElementById('water-chart').getContext('2d');
+  if (waterChart) waterChart.destroy();
+  waterChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => formatDate(d.date)),
+      datasets: [
+        { label: 'Eau (ml)', data: values, backgroundColor: values.map(v => v >= GOAL ? hexA('#22d3ee', 0.45) : hexA('#3b82f6', 0.35)), borderColor: values.map(v => v >= GOAL ? '#22d3ee' : '#3b82f6'), borderWidth: 1, borderRadius: 4, order: 2 },
+        { label: 'Moy. 7 jours', data: movAvg, type: 'line', borderColor: hexA('#22d3ee', 0.85), backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: false, order: 1 },
+        { label: 'Objectif 2 L', data: Array(data.length).fill(GOAL), type: 'line', borderColor: hexA(C.orange, 0.6), borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, fill: false, order: 0 },
+      ],
+    },
+    options: chartOpts(),
+  });
+}
+
+// ── Planned workouts ───────────────────────────────────────
+function initPlannedWorkouts() {
+  const form = document.getElementById('plan-form');
+  if (!form) return;
+  document.getElementById('plan-date').value = today();
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const entry = {
+      date:        document.getElementById('plan-date').value,
+      type:        document.getElementById('plan-type').value,
+      start_time:  document.getElementById('plan-start-time').value || null,
+      description: document.getElementById('plan-desc').value.trim() || null,
+      done:        false,
+    };
+    if (!entry.date) { showToast('Date requise', 'error'); return; }
+    const { error } = await db.from('planned_workouts').insert(entry);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Séance planifiée', 'success');
+    e.target.reset();
+    document.getElementById('plan-date').value = today();
+    await loadPlannedWorkouts();
+  });
+  loadPlannedWorkouts();
+}
+
+async function loadPlannedWorkouts() {
+  const { data } = await db.from('planned_workouts').select('*').order('date').order('start_time', { nullsFirst: false });
+  renderPlannedWorkouts(data || []);
+}
+
+function renderPlannedWorkouts(workouts) {
+  const container = document.getElementById('planned-list');
+  if (!container) return;
+  if (!workouts.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;">Aucune séance planifiée.</p>';
+    return;
+  }
+  const todayStr = today();
+  container.innerHTML = workouts.map(w => {
+    const icon  = ACT_ICONS[w.type] || '•';
+    const label = ACT_LABELS[w.type] || w.type;
+    const gymSub = w.type === 'gym' && w.session_type ? ` · ${GYM_LABELS[w.session_type] || w.session_type}` : '';
+    const parts = [];
+    if (w.start_time) parts.push(w.start_time.slice(0, 5));
+    if (w.description) parts.push(w.description);
+    const isPast = w.date < todayStr && !w.done;
+    return `<div class="planned-item${w.done ? ' planned-item--done' : ''}">
+      <div class="planned-done-toggle${w.done ? ' planned-done-toggle--on' : ''}" onclick="togglePlannedDone('${w.id}',${!w.done})" title="${w.done ? 'Marquer non fait' : 'Marquer fait'}">✓</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:16px;">${icon}</span>
+          <span style="font-size:13px;font-weight:600;${w.done ? 'text-decoration:line-through;' : ''}">${label}${gymSub}</span>
+          <span style="font-size:11px;color:${isPast ? 'rgba(248,113,113,0.7)' : 'var(--text-dim)'};margin-left:auto;">${formatDateShort(w.date)}</span>
+        </div>
+        ${parts.length ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${parts.join(' · ')}</div>` : ''}
+      </div>
+      <button class="activity-item__del" onclick="deletePlannedWorkout('${w.id}')" title="Supprimer">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function togglePlannedDone(id, done) {
+  const { error } = await db.from('planned_workouts').update({ done }).eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  await loadPlannedWorkouts();
+}
+
+async function deletePlannedWorkout(id) {
+  if (!confirm('Supprimer cette séance planifiée ?')) return;
+  const { error } = await db.from('planned_workouts').delete().eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  showToast('Séance supprimée', 'success');
+  await loadPlannedWorkouts();
+}
+
+// ── Journal notes ──────────────────────────────────────────
+function initJournalNotes() {
+  const dateInput = document.getElementById('jn-date');
+  if (!dateInput) return;
+  dateInput.value = journalNoteDate;
+  document.getElementById('jn-prev').addEventListener('click', () => changeJournalNoteDate(-1));
+  document.getElementById('jn-next').addEventListener('click', () => changeJournalNoteDate(1));
+  document.getElementById('jn-today').addEventListener('click', () => {
+    journalNoteDate = today(); dateInput.value = journalNoteDate; loadJournalNote();
+  });
+  dateInput.addEventListener('change', () => { journalNoteDate = dateInput.value; loadJournalNote(); });
+}
+
+function changeJournalNoteDate(delta) {
+  const d = new Date(journalNoteDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  journalNoteDate = d.toISOString().split('T')[0];
+  document.getElementById('jn-date').value = journalNoteDate;
+  loadJournalNote();
+}
+
+async function loadJournalNote() {
+  const { data } = await db.from('journal_entries').select('content').eq('date', journalNoteDate).maybeSingle();
+  const el = document.getElementById('jn-content');
+  if (el) el.value = data?.content || '';
+  loadJournalHistory();
+}
+
+async function saveJournalNote() {
+  const content = document.getElementById('jn-content')?.value.trim();
+  if (!content) { showToast('Note vide', 'error'); return; }
+  const { error } = await db.from('journal_entries').upsert({ date: journalNoteDate, content }, { onConflict: 'date' });
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Note enregistrée', 'success');
+  loadJournalHistory();
+}
+
+async function loadJournalHistory() {
+  const container = document.getElementById('jn-history');
+  if (!container) return;
+  const { data } = await db.from('journal_entries').select('date, content').order('date', { ascending: false }).limit(10);
+  const entries = (data || []).filter(e => e.date !== journalNoteDate);
+  if (!entries.length) {
+    container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:16px 0;">Aucune note enregistrée.</p>';
+    return;
+  }
+  container.innerHTML = entries.map(e => `<div class="journal-entry-item">
+    <div class="journal-entry-date">${formatDateFull(e.date)}</div>
+    <div class="journal-entry-text">${e.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+  </div>`).join('');
 }
 
 // ── Measurement form ───────────────────────────────────────
