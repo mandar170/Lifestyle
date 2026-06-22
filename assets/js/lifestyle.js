@@ -52,6 +52,7 @@ let actDate = today();
 let habits = [], completions = {};
 let mealPresets = [];
 let substitutes = [];
+let subBaseValues = {}; // { mealType: { kcal, prot, gluc, lip, fib } }
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let dragSrcId = null;
@@ -163,7 +164,7 @@ function buildMealCards() {
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
-            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" onchange="updateSubPreview('${key}')" />
+            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" onchange="updateFieldsFromSubstitute('${key}')" />
             Macros déjà comprises
           </label>
         </div>
@@ -177,19 +178,11 @@ function buildMealCards() {
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
-          <input type="number" id="kcal-${key}" placeholder="—" min="0" oninput="updateSubPreview('${key}')" />
-          <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
-          <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
-          <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
-          <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
-        </div>
-        <div class="sub-preview" id="sub-preview-${key}">
-          <span class="sub-preview__label">Total →</span>
-          <span id="sub-preview-kcal-${key}"></span>
-          <span id="sub-preview-prot-${key}" style="color:#64dcff;"></span>
-          <span id="sub-preview-gluc-${key}" style="color:#facc15;"></span>
-          <span id="sub-preview-lip-${key}"  style="color:#a855f7;"></span>
-          <span id="sub-preview-fib-${key}"  style="color:#22d3ee;"></span>
+          <input type="number" id="kcal-${key}" placeholder="—" min="0" />
+          <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" />
+          <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" />
+          <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
+          <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
         </div>
         <button class="btn btn--primary btn--sm" style="margin-top:4px;" onclick="saveMeal('${key}')">Enregistrer</button>
       </div>
@@ -225,7 +218,23 @@ function renderMealCards(meals) {
       if (subId) {
         const sub = substitutes.find(s => s.id === subId);
         showSubBadge(key, sub?.name || '—', !!m.substitute_included);
-      } else { hideSubBadge(key); }
+        // Reconstruire subBaseValues pour que le toggle checkbox fonctionne
+        if (sub) {
+          if (!m.substitute_included) {
+            // Champs = base + sub → base = champs - sub
+            subBaseValues[key] = {
+              kcal: (m.calories  || 0) - (sub.calories  || 0),
+              prot: (m.protein_g || 0) - (sub.protein_g || 0),
+              gluc: (m.carbs_g   || 0) - (sub.carbs_g   || 0),
+              lip:  (m.fat_g     || 0) - (sub.fat_g     || 0),
+              fib:  (m.fiber_g   || 0) - (sub.fiber_g   || 0),
+            };
+          } else {
+            // Champs = base uniquement
+            subBaseValues[key] = { kcal: m.calories||0, prot: m.protein_g||0, gluc: m.carbs_g||0, lip: m.fat_g||0, fib: m.fiber_g||0 };
+          }
+        }
+      } else { hideSubBadge(key); delete subBaseValues[key]; }
     } else {
       document.getElementById(`desc-${key}`).value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
@@ -253,30 +262,18 @@ async function toggleMealDone(mealType) {
 async function saveMeal(mealType) {
   const subId    = document.getElementById(`sub-id-${mealType}`)?.value || null;
   const included = !!(subId && document.getElementById(`sub-included-${mealType}`)?.checked);
-  const sub      = subId ? substitutes.find(s => s.id === subId) : null;
 
-  // Macros saisies manuellement
-  let calories  = numI(document.getElementById(`kcal-${mealType}`).value);
-  let protein_g = numF(document.getElementById(`prot-${mealType}`).value);
-  let carbs_g   = numF(document.getElementById(`gluc-${mealType}`).value);
-  let fat_g     = numF(document.getElementById(`lip-${mealType}`).value);
-  let fiber_g   = numF(document.getElementById(`fib-${mealType}`).value);
-
-  // Si substitut sélectionné et macros PAS comprises → ajouter au total sauvegardé
-  if (sub && !included) {
-    calories  = (calories  || 0) + (sub.calories  || 0) || null;
-    protein_g = (protein_g || 0) + (sub.protein_g || 0) || null;
-    carbs_g   = (carbs_g   || 0) + (sub.carbs_g   || 0) || null;
-    fat_g     = (fat_g     || 0) + (sub.fat_g     || 0) || null;
-    fiber_g   = (fiber_g   || 0) + (sub.fiber_g   || 0) || null;
-  }
-
+  // Les champs affichent déjà le bon total (base + substitut si non comprises)
   const entry = {
     date:                journalDate,
     meal_type:           mealType,
     done:                document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
     description:         document.getElementById(`desc-${mealType}`).value.trim() || null,
-    calories, protein_g, carbs_g, fat_g, fiber_g,
+    calories:            numI(document.getElementById(`kcal-${mealType}`).value),
+    protein_g:           numF(document.getElementById(`prot-${mealType}`).value),
+    carbs_g:             numF(document.getElementById(`gluc-${mealType}`).value),
+    fat_g:               numF(document.getElementById(`lip-${mealType}`).value),
+    fiber_g:             numF(document.getElementById(`fib-${mealType}`).value),
     substitute_id:       subId || null,
     substitute_included: included,
   };
@@ -314,34 +311,37 @@ function toggleSubstitutePicker(mealType) {
 function applySubstitute(subId, mealType) {
   const s = substitutes.find(x => x.id === subId);
   if (!s) return;
+  // Sauvegarder les valeurs de base actuelles des champs
+  subBaseValues[mealType] = {
+    kcal: parseFloat(document.getElementById(`kcal-${mealType}`)?.value) || 0,
+    prot: parseFloat(document.getElementById(`prot-${mealType}`)?.value) || 0,
+    gluc: parseFloat(document.getElementById(`gluc-${mealType}`)?.value) || 0,
+    lip:  parseFloat(document.getElementById(`lip-${mealType}`)?.value)  || 0,
+    fib:  parseFloat(document.getElementById(`fib-${mealType}`)?.value)  || 0,
+  };
   document.getElementById(`sub-id-${mealType}`).value = subId;
   showSubBadge(mealType, s.name);
   document.getElementById(`sp-${mealType}`).classList.remove('preset-picker--open');
-  updateSubPreview(mealType);
+  updateFieldsFromSubstitute(mealType);
 }
 
-function updateSubPreview(mealType) {
-  const preview  = document.getElementById(`sub-preview-${mealType}`);
-  if (!preview) return;
+function updateFieldsFromSubstitute(mealType) {
   const subId    = document.getElementById(`sub-id-${mealType}`)?.value;
   const included = document.getElementById(`sub-included-${mealType}`)?.checked;
   const sub      = subId ? substitutes.find(s => s.id === subId) : null;
-
-  if (!sub || included) { preview.classList.remove('sub-preview--visible'); return; }
-
-  const kcal  = (parseFloat(document.getElementById(`kcal-${mealType}`)?.value) || 0) + (sub.calories  || 0);
-  const prot  = (parseFloat(document.getElementById(`prot-${mealType}`)?.value) || 0) + (sub.protein_g || 0);
-  const gluc  = (parseFloat(document.getElementById(`gluc-${mealType}`)?.value) || 0) + (sub.carbs_g   || 0);
-  const lip   = (parseFloat(document.getElementById(`lip-${mealType}`)?.value)  || 0) + (sub.fat_g     || 0);
-  const fib   = (parseFloat(document.getElementById(`fib-${mealType}`)?.value)  || 0) + (sub.fiber_g   || 0);
-
-  const fmt = (v, unit) => v ? `${Number.isInteger(v) ? v : v.toFixed(1)}${unit}` : null;
-  document.getElementById(`sub-preview-kcal-${mealType}`).textContent = fmt(kcal, ' kcal') || '';
-  document.getElementById(`sub-preview-prot-${mealType}`).textContent = fmt(prot, 'g prot') || '';
-  document.getElementById(`sub-preview-gluc-${mealType}`).textContent = fmt(gluc, 'g gluc') || '';
-  document.getElementById(`sub-preview-lip-${mealType}`).textContent  = fmt(lip,  'g lip')  || '';
-  document.getElementById(`sub-preview-fib-${mealType}`).textContent  = fmt(fib,  'g fib')  || '';
-  preview.classList.add('sub-preview--visible');
+  const base     = subBaseValues[mealType];
+  if (!sub || !base) return;
+  const fmt = v => v ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : '';
+  const set = (field, baseVal, subVal) => {
+    const el = document.getElementById(`${field}-${mealType}`);
+    if (!el) return;
+    el.value = included ? fmt(baseVal) : fmt((baseVal || 0) + (subVal || 0));
+  };
+  set('kcal', base.kcal, sub.calories);
+  set('prot', base.prot, sub.protein_g);
+  set('gluc', base.gluc, sub.carbs_g);
+  set('lip',  base.lip,  sub.fat_g);
+  set('fib',  base.fib,  sub.fiber_g);
 }
 
 function showSubBadge(mealType, name, included) {
@@ -360,9 +360,18 @@ function hideSubBadge(mealType) {
 }
 
 function clearSubstitute(mealType) {
+  // Restaurer les valeurs de base dans les champs
+  const base = subBaseValues[mealType];
+  if (base) {
+    const fmt = v => v ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : '';
+    ['kcal','prot','gluc','lip','fib'].forEach(f => {
+      const el = document.getElementById(`${f}-${mealType}`);
+      if (el) el.value = fmt(base[f]);
+    });
+    delete subBaseValues[mealType];
+  }
   document.getElementById(`sub-id-${mealType}`).value = '';
   hideSubBadge(mealType);
-  updateSubPreview(mealType);
 }
 
 async function saveMealSubstitute() {
