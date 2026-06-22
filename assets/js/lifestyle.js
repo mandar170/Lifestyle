@@ -163,7 +163,7 @@ function buildMealCards() {
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--text-dim);">
-            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" />
+            <input type="checkbox" id="sub-included-${key}" style="accent-color:var(--primary);width:13px;height:13px;" onchange="updateSubPreview('${key}')" />
             Macros déjà comprises
           </label>
         </div>
@@ -177,11 +177,19 @@ function buildMealCards() {
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
-          <input type="number" id="kcal-${key}" placeholder="—" min="0" />
-          <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" />
-          <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" />
-          <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
-          <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
+          <input type="number" id="kcal-${key}" placeholder="—" min="0" oninput="updateSubPreview('${key}')" />
+          <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
+          <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
+          <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
+          <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" oninput="updateSubPreview('${key}')" />
+        </div>
+        <div class="sub-preview" id="sub-preview-${key}">
+          <span class="sub-preview__label">Total →</span>
+          <span id="sub-preview-kcal-${key}"></span>
+          <span id="sub-preview-prot-${key}" style="color:#64dcff;"></span>
+          <span id="sub-preview-gluc-${key}" style="color:#facc15;"></span>
+          <span id="sub-preview-lip-${key}"  style="color:#a855f7;"></span>
+          <span id="sub-preview-fib-${key}"  style="color:#22d3ee;"></span>
         </div>
         <button class="btn btn--primary btn--sm" style="margin-top:4px;" onclick="saveMeal('${key}')">Enregistrer</button>
       </div>
@@ -307,9 +315,33 @@ function applySubstitute(subId, mealType) {
   const s = substitutes.find(x => x.id === subId);
   if (!s) return;
   document.getElementById(`sub-id-${mealType}`).value = subId;
-  // Ne pas toucher aux champs — les macros seront ajoutées à la sauvegarde si nécessaire
   showSubBadge(mealType, s.name);
   document.getElementById(`sp-${mealType}`).classList.remove('preset-picker--open');
+  updateSubPreview(mealType);
+}
+
+function updateSubPreview(mealType) {
+  const preview  = document.getElementById(`sub-preview-${mealType}`);
+  if (!preview) return;
+  const subId    = document.getElementById(`sub-id-${mealType}`)?.value;
+  const included = document.getElementById(`sub-included-${mealType}`)?.checked;
+  const sub      = subId ? substitutes.find(s => s.id === subId) : null;
+
+  if (!sub || included) { preview.classList.remove('sub-preview--visible'); return; }
+
+  const kcal  = (parseFloat(document.getElementById(`kcal-${mealType}`)?.value) || 0) + (sub.calories  || 0);
+  const prot  = (parseFloat(document.getElementById(`prot-${mealType}`)?.value) || 0) + (sub.protein_g || 0);
+  const gluc  = (parseFloat(document.getElementById(`gluc-${mealType}`)?.value) || 0) + (sub.carbs_g   || 0);
+  const lip   = (parseFloat(document.getElementById(`lip-${mealType}`)?.value)  || 0) + (sub.fat_g     || 0);
+  const fib   = (parseFloat(document.getElementById(`fib-${mealType}`)?.value)  || 0) + (sub.fiber_g   || 0);
+
+  const fmt = (v, unit) => v ? `${Number.isInteger(v) ? v : v.toFixed(1)}${unit}` : null;
+  document.getElementById(`sub-preview-kcal-${mealType}`).textContent = fmt(kcal, ' kcal') || '';
+  document.getElementById(`sub-preview-prot-${mealType}`).textContent = fmt(prot, 'g prot') || '';
+  document.getElementById(`sub-preview-gluc-${mealType}`).textContent = fmt(gluc, 'g gluc') || '';
+  document.getElementById(`sub-preview-lip-${mealType}`).textContent  = fmt(lip,  'g lip')  || '';
+  document.getElementById(`sub-preview-fib-${mealType}`).textContent  = fmt(fib,  'g fib')  || '';
+  preview.classList.add('sub-preview--visible');
 }
 
 function showSubBadge(mealType, name, included) {
@@ -330,6 +362,7 @@ function hideSubBadge(mealType) {
 function clearSubstitute(mealType) {
   document.getElementById(`sub-id-${mealType}`).value = '';
   hideSubBadge(mealType);
+  updateSubPreview(mealType);
 }
 
 async function saveMealSubstitute() {
