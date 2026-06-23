@@ -56,6 +56,7 @@ let substitutes = [];
 let subBaseValues = {}; // { mealType: { kcal, prot, gluc, lip, fib } }
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
+let editingPresetId = null;
 let dragSrcId = null;
 
 // ── Init ───────────────────────────────────────────────────
@@ -520,15 +521,70 @@ function renderPresetList() {
       p.fat_g     ? p.fat_g+'g lip'      : null,
       p.fiber_g   ? p.fiber_g+'g fib'    : null,
     ].filter(Boolean).join(' · ');
-    return `<div class="preset-item">
+    const isEditing = editingPresetId === p.id;
+    const esc = s => String(s ?? '').replace(/"/g, '&quot;');
+    const editForm = isEditing ? `
+      <div style="width:100%;display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <input type="text" id="pe-name-${p.id}" class="np-input" value="${esc(p.name)}" placeholder="Nom" style="flex:1;min-width:120px;" />
+          <select id="pe-type-${p.id}" class="np-input" style="width:auto;flex:0 0 auto;">
+            <option value="">Tous les repas</option>
+            <option value="breakfast"${p.meal_type==='breakfast'?' selected':''}>Petit déjeuner</option>
+            <option value="morning_snack"${p.meal_type==='morning_snack'?' selected':''}>Collation matin</option>
+            <option value="lunch"${p.meal_type==='lunch'?' selected':''}>Déjeuner</option>
+            <option value="afternoon_snack"${p.meal_type==='afternoon_snack'?' selected':''}>Collation après-midi</option>
+            <option value="dinner"${p.meal_type==='dinner'?' selected':''}>Dîner</option>
+            <option value="evening_snack"${p.meal_type==='evening_snack'?' selected':''}>Collation soir</option>
+          </select>
+        </div>
+        <input type="text" id="pe-desc-${p.id}" class="np-input" value="${esc(p.description)}" placeholder="Contenu / description…" />
+        <div class="meal-macros-labels"><span>kcal</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+        <div class="meal-macros">
+          <input type="number" id="pe-kcal-${p.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${p.calories??''}" min="0" />
+          <input type="number" id="pe-prot-${p.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${p.protein_g??''}" min="0" step="0.1" />
+          <input type="number" id="pe-gluc-${p.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${p.carbs_g??''}" min="0" step="0.1" />
+          <input type="number" id="pe-lip-${p.id}"  class="np-input" style="padding:6px 4px;text-align:center;" value="${p.fat_g??''}" min="0" step="0.1" />
+          <input type="number" id="pe-fib-${p.id}"  class="np-input" style="padding:6px 4px;text-align:center;" value="${p.fiber_g??''}" min="0" step="0.1" />
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn--primary btn--sm" onclick="savePresetEdit('${p.id}')">Sauvegarder</button>
+          <button class="btn btn--ghost btn--sm" onclick="cancelPresetEdit()">Annuler</button>
+        </div>
+      </div>` : '';
+    return `<div class="preset-item" style="flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div class="preset-item__name">${p.name}${p.meal_type ? ` <span style="font-size:10px;color:var(--text-dim);">(${PRESET_TYPE_LABELS[p.meal_type]||p.meal_type})</span>` : ''}</div>
         ${p.description ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${p.description}</div>` : ''}
         ${macros ? `<div class="preset-item__meta" style="margin-top:3px;">${macros}</div>` : ''}
       </div>
+      <button class="habit-manage-btn habit-manage-btn--edit" onclick="startPresetEdit('${p.id}')" title="Modifier">✏</button>
       <button class="preset-item__del" onclick="deleteMealPreset('${p.id}')" title="Supprimer">✕</button>
+      ${editForm}
     </div>`;
   }).join('');
+}
+
+function startPresetEdit(id) { editingPresetId = id; renderPresetList(); }
+function cancelPresetEdit()  { editingPresetId = null; renderPresetList(); }
+
+async function savePresetEdit(id) {
+  const name = document.getElementById(`pe-name-${id}`)?.value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  const entry = {
+    name,
+    meal_type:   document.getElementById(`pe-type-${id}`).value || null,
+    description: document.getElementById(`pe-desc-${id}`).value.trim() || null,
+    calories:    numI(document.getElementById(`pe-kcal-${id}`).value),
+    protein_g:   numF(document.getElementById(`pe-prot-${id}`).value),
+    carbs_g:     numF(document.getElementById(`pe-gluc-${id}`).value),
+    fat_g:       numF(document.getElementById(`pe-lip-${id}`).value),
+    fiber_g:     numF(document.getElementById(`pe-fib-${id}`).value),
+  };
+  const { error } = await db.from('meal_presets').update(entry).eq('id', id);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Modèle mis à jour', 'success');
+  editingPresetId = null;
+  await loadMealPresets();
 }
 
 function updateDailyTotals(meals) {
