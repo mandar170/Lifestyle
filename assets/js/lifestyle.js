@@ -54,6 +54,7 @@ let habits = [], completions = {};
 let mealPresets = [];
 let substitutes = [];
 let foods = [];
+let mealFoodItems = {}; // { mealType: [{id, foodId, foodName, grams, calories, protein_g, ...}] }
 const foodPickerState = {}; // { ctx: { selectedId } }
 let subBaseValues = {}; // { mealType: { kcal, prot, gluc, lip, fib } }
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
@@ -187,6 +188,7 @@ function buildMealCards() {
             <button class="btn btn--primary btn--sm" onclick="applyFoodToFields('meal-${key}')">+ Ajouter</button>
           </div>
         </div>
+        <div class="meal-food-items" id="mfi-${key}"></div>
         <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
           💊 <span id="sub-name-${key}"></span>
           <div class="sub-toggle" id="sub-toggle-${key}" onclick="toggleSubIncluded('${key}')" title="Macros déjà comprises dans le repas">✓</div>
@@ -209,8 +211,17 @@ function buildMealCards() {
 }
 
 async function loadJournalData() {
-  const { data: meals } = await db.from('meals').select('*').eq('date', journalDate);
+  const [{ data: meals }, { data: foodItems }] = await Promise.all([
+    db.from('meals').select('*').eq('date', journalDate),
+    db.from('meal_food_items').select('*').eq('date', journalDate),
+  ]);
+  mealFoodItems = {};
+  (foodItems || []).forEach(item => {
+    if (!mealFoodItems[item.meal_type]) mealFoodItems[item.meal_type] = [];
+    mealFoodItems[item.meal_type].push(item);
+  });
   renderMealCards(meals || []);
+  MEAL_TYPES.forEach(({ key }) => renderMealFoodItems(key));
 }
 
 function renderMealCards(meals) {
@@ -593,40 +604,182 @@ function selectFoodForPicker(ctx, foodId) {
   document.getElementById(`fp-grams-${ctx}`)?.focus();
 }
 
-function applyFoodToFields(ctx) {
+async function applyFoodToFields(ctx) {
   const state = foodPickerState[ctx];
   if (!state?.selectedId) return;
   const food  = foods.find(f => f.id === state.selectedId);
   const grams = parseFloat(document.getElementById(`fp-grams-${ctx}`)?.value);
-  if (!food)          { showToast('Sélectionne un aliment', 'error'); return; }
-  if (!grams || grams <= 0) { showToast('Indique le poids', 'error'); return; }
+  if (!food)               { showToast('Sélectionne un aliment', 'error'); return; }
+  if (!grams || grams <= 0){ showToast('Indique le poids', 'error'); return; }
 
   const factor = grams / 100;
   const isMeal = ctx.startsWith('meal-');
   const key    = isMeal ? ctx.slice(5) : null;
   const getId  = f => isMeal ? `${f}-${key}` : `np-${f}`;
 
-  const addTo = (fieldId, raw) => {
-    if (raw == null) return;
+  const calc = raw => raw == null ? null : raw * factor;
+  const calcKcal = calc(food.calories_per_100g);
+  const calcProt = calc(food.protein_per_100g);
+  const calcGluc = calc(food.carbs_per_100g);
+  const calcLip  = calc(food.fat_per_100g);
+  const calcFib  = calc(food.fiber_per_100g);
+
+  const addTo = (fieldId, added) => {
+    if (added == null) return;
     const el = document.getElementById(fieldId);
     if (!el) return;
     const current = parseFloat(el.value) || 0;
-    const added   = raw * factor;
-    el.value = fieldId.startsWith('kcal') || fieldId.startsWith('np-kcal')
+    el.value = fieldId.startsWith('kcal') || fieldId === 'np-kcal'
       ? Math.round(current + added)
       : parseFloat((current + added).toFixed(1));
   };
 
-  addTo(getId('kcal'), food.calories_per_100g);
-  addTo(getId('prot'), food.protein_per_100g);
-  addTo(getId('gluc'), food.carbs_per_100g);
-  addTo(getId('lip'),  food.fat_per_100g);
-  addTo(getId('fib'),  food.fiber_per_100g);
+  addTo(getId('kcal'), calcKcal);
+  addTo(getId('prot'), calcProt);
+  addTo(getId('gluc'), calcGluc);
+  addTo(getId('lip'),  calcLip);
+  addTo(getId('fib'),  calcFib);
 
   document.getElementById(`fp-grams-${ctx}`).value = '';
   document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
   delete foodPickerState[ctx];
+
+  if (isMeal) {
+    const item = {
+      date:      journalDate,
+      meal_type: key,
+      food_id:   food.id,
+      food_name: food.name,
+      grams:     grams,
+      calories:  calcKcal != null ? Math.round(calcKcal) : null,
+      protein_g: calcProt != null ? parseFloat(calcProt.toFixed(1)) : null,
+      carbs_g:   calcGluc != null ? parseFloat(calcGluc.toFixed(1)) : null,
+      fat_g:     calcLip  != null ? parseFloat(calcLip.toFixed(1))  : null,
+      fiber_g:   calcFib  != null ? parseFloat(calcFib.toFixed(1))  : null,
+    };
+    const { data, error } = await db.from('meal_food_items').insert(item).select().single();
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    if (!mealFoodItems[key]) mealFoodItems[key] = [];
+    mealFoodItems[key].push(data);
+    renderMealFoodItems(key);
+  }
+
   showToast(`${food.name} (${grams}g) ajouté`, 'success');
+}
+
+function renderMealFoodItems(mealType) {
+  const container = document.getElementById(`mfi-${mealType}`);
+  if (!container) return;
+  const items = mealFoodItems[mealType] || [];
+  const descEl = document.getElementById(`desc-${mealType}`);
+  if (descEl && items.length) descEl.value = items.map(i => i.food_name).join(', ');
+  if (!items.length) { container.innerHTML = ''; return; }
+  container.innerHTML = items.map(item => `
+    <div class="meal-food-item" id="mfi-item-${item.id}">
+      <div class="meal-food-item__label">${item.food_name}</div>
+      <div class="meal-food-item__meta">${item.grams}g · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
+      <div class="meal-food-item__edit-input" id="mfi-edit-${item.id}" style="display:none;">
+        <input type="number" id="mfi-qty-${item.id}" class="np-input" placeholder="g" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmFoodQtyEdit('${mealType}','${item.id}')" />
+        <button class="btn btn--primary btn--sm" onclick="confirmFoodQtyEdit('${mealType}','${item.id}')">OK</button>
+        <button class="btn btn--ghost btn--sm" onclick="cancelFoodQtyEdit('${item.id}')">✕</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button class="btn btn--ghost btn--sm" onclick="editMealFoodItemQty('${item.id}')" title="Modifier la quantité">✏️</button>
+        <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removeMealFoodItem('${mealType}','${item.id}')" title="Supprimer">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function editMealFoodItemQty(itemId) {
+  const editRow = document.getElementById(`mfi-edit-${itemId}`);
+  if (!editRow) return;
+  editRow.style.display = 'flex';
+  document.getElementById(`mfi-qty-${itemId}`)?.focus();
+}
+
+function cancelFoodQtyEdit(itemId) {
+  const editRow = document.getElementById(`mfi-edit-${itemId}`);
+  if (editRow) editRow.style.display = 'none';
+}
+
+async function confirmFoodQtyEdit(mealType, itemId) {
+  const items = mealFoodItems[mealType] || [];
+  const item = items.find(i => i.id === itemId || String(i.id) === String(itemId));
+  if (!item) return;
+  const newGrams = parseFloat(document.getElementById(`mfi-qty-${itemId}`)?.value);
+  if (!newGrams || newGrams <= 0) { showToast('Indique le poids', 'error'); return; }
+
+  const food = foods.find(f => f.id === item.food_id);
+  const oldFactor = item.grams / 100;
+  const newFactor = newGrams / 100;
+  const diff = (raw) => raw != null ? raw * (newFactor - oldFactor) : 0;
+
+  const getId = f => `${f}-${mealType}`;
+  const adjustField = (fieldId, raw) => {
+    const el = document.getElementById(fieldId);
+    if (!el || raw == null) return;
+    const current = parseFloat(el.value) || 0;
+    const d = diff(raw);
+    el.value = fieldId.startsWith('kcal')
+      ? Math.round(current + d)
+      : parseFloat((current + d).toFixed(1));
+  };
+
+  if (food) {
+    adjustField(getId('kcal'), food.calories_per_100g);
+    adjustField(getId('prot'), food.protein_per_100g);
+    adjustField(getId('gluc'), food.carbs_per_100g);
+    adjustField(getId('lip'),  food.fat_per_100g);
+    adjustField(getId('fib'),  food.fiber_per_100g);
+  }
+
+  const factor = newGrams / 100;
+  const updated = {
+    grams:     newGrams,
+    calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
+    protein_g: food ? parseFloat((food.protein_per_100g * factor).toFixed(1)) : item.protein_g,
+    carbs_g:   food ? parseFloat((food.carbs_per_100g   * factor).toFixed(1)) : item.carbs_g,
+    fat_g:     food ? parseFloat((food.fat_per_100g     * factor).toFixed(1)) : item.fat_g,
+    fiber_g:   food ? parseFloat((food.fiber_per_100g   * factor).toFixed(1)) : item.fiber_g,
+  };
+  const { error } = await db.from('meal_food_items').update(updated).eq('id', itemId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  Object.assign(item, updated);
+  renderMealFoodItems(mealType);
+  showToast('Quantité mise à jour', 'success');
+}
+
+async function removeMealFoodItem(mealType, itemId) {
+  const items = mealFoodItems[mealType] || [];
+  const item = items.find(i => i.id === itemId || String(i.id) === String(itemId));
+  if (!item) return;
+
+  const food = foods.find(f => f.id === item.food_id);
+  const factor = item.grams / 100;
+  const getId = f => `${f}-${mealType}`;
+  const subtractField = (fieldId, raw) => {
+    const el = document.getElementById(fieldId);
+    if (!el || raw == null) return;
+    const current = parseFloat(el.value) || 0;
+    const sub = raw * factor;
+    el.value = fieldId.startsWith('kcal')
+      ? Math.max(0, Math.round(current - sub))
+      : parseFloat(Math.max(0, current - sub).toFixed(1));
+  };
+
+  if (food) {
+    subtractField(getId('kcal'), food.calories_per_100g);
+    subtractField(getId('prot'), food.protein_per_100g);
+    subtractField(getId('gluc'), food.carbs_per_100g);
+    subtractField(getId('lip'),  food.fat_per_100g);
+    subtractField(getId('fib'),  food.fiber_per_100g);
+  }
+
+  const { error } = await db.from('meal_food_items').delete().eq('id', itemId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  mealFoodItems[mealType] = items.filter(i => String(i.id) !== String(itemId));
+  renderMealFoodItems(mealType);
+  showToast('Aliment supprimé', 'success');
 }
 
 // ── Meal presets ───────────────────────────────────────────
