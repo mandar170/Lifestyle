@@ -53,10 +53,13 @@ let actDate = today();
 let habits = [], completions = {};
 let mealPresets = [];
 let substitutes = [];
+let foods = [];
+const foodPickerState = {}; // { ctx: { selectedId } }
 let subBaseValues = {}; // { mealType: { kcal, prot, gluc, lip, fib } }
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let editingPresetId = null;
+let editingFoodId = null;
 let dragSrcId = null;
 
 // ── Init ───────────────────────────────────────────────────
@@ -148,6 +151,7 @@ function initJournal() {
   loadJournalData();
   loadMealPresets();
   loadSubstitutes();
+  loadFoods();
 }
 
 function changeJournalDate(delta) {
@@ -170,9 +174,19 @@ function buildMealCards() {
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">🥗 Aliment</button>
         </div>
         <div class="preset-picker" id="pp-${key}"></div>
         <div class="preset-picker" id="sp-${key}"></div>
+        <div class="food-picker" id="fp-meal-${key}">
+          <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
+          <div class="food-picker-list" id="fp-list-meal-${key}"></div>
+          <div class="food-weight-row" id="fp-weight-meal-${key}" style="display:none;">
+            <span id="fp-fname-meal-${key}" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
+            <input type="number" id="fp-grams-meal-${key}" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToFields('meal-${key}')" />
+            <button class="btn btn--primary btn--sm" onclick="applyFoodToFields('meal-${key}')">+ Ajouter</button>
+          </div>
+        </div>
         <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
           💊 <span id="sub-name-${key}"></span>
           <div class="sub-toggle" id="sub-toggle-${key}" onclick="toggleSubIncluded('${key}')" title="Macros déjà comprises dans le repas">✓</div>
@@ -434,6 +448,185 @@ function renderSubstituteList() {
       <button class="preset-item__del" onclick="deleteMealSubstitute('${s.id}')" title="Supprimer">✕</button>
     </div>`;
   }).join('');
+}
+
+// ── Foods ──────────────────────────────────────────────────
+async function loadFoods() {
+  const { data } = await db.from('foods').select('*').order('name');
+  foods = data || [];
+  renderFoodList();
+}
+
+function renderFoodList() {
+  const container = document.getElementById('food-list');
+  if (!container) return;
+  if (!foods.length) {
+    container.innerHTML = '<p class="preset-list-empty">Aucun aliment enregistré.</p>';
+    return;
+  }
+  container.innerHTML = foods.map(f => {
+    const macros = [
+      f.calories_per_100g != null ? f.calories_per_100g + 'kcal' : null,
+      f.protein_per_100g  != null ? f.protein_per_100g  + 'g prot' : null,
+      f.carbs_per_100g    != null ? f.carbs_per_100g    + 'g gluc' : null,
+      f.fat_per_100g      != null ? f.fat_per_100g      + 'g lip'  : null,
+      f.fiber_per_100g    != null ? f.fiber_per_100g    + 'g fib'  : null,
+    ].filter(Boolean).join(' · ');
+    const isEditing = editingFoodId === f.id;
+    const esc = s => String(s ?? '').replace(/"/g, '&quot;');
+    const editForm = isEditing ? `
+      <div style="width:100%;display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;">
+        <input type="text" id="fe-name-${f.id}" class="np-input" value="${esc(f.name)}" placeholder="Nom" />
+        <div class="meal-macros-labels"><span>kcal</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+        <div class="meal-macros">
+          <input type="number" id="fe-kcal-${f.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${f.calories_per_100g??''}" min="0" />
+          <input type="number" id="fe-prot-${f.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${f.protein_per_100g??''}" min="0" step="0.1" />
+          <input type="number" id="fe-gluc-${f.id}" class="np-input" style="padding:6px 4px;text-align:center;" value="${f.carbs_per_100g??''}" min="0" step="0.1" />
+          <input type="number" id="fe-lip-${f.id}"  class="np-input" style="padding:6px 4px;text-align:center;" value="${f.fat_per_100g??''}" min="0" step="0.1" />
+          <input type="number" id="fe-fib-${f.id}"  class="np-input" style="padding:6px 4px;text-align:center;" value="${f.fiber_per_100g??''}" min="0" step="0.1" />
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn--primary btn--sm" onclick="saveFoodEdit('${f.id}')">Sauvegarder</button>
+          <button class="btn btn--ghost btn--sm" onclick="cancelFoodEdit()">Annuler</button>
+        </div>
+      </div>` : '';
+    return `<div class="preset-item" style="flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div class="preset-item__name">${f.name}</div>
+        ${macros ? `<div class="preset-item__meta" style="margin-top:2px;">${macros} / 100g</div>` : ''}
+      </div>
+      <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')" title="Modifier">✏</button>
+      <button class="preset-item__del" onclick="deleteFood('${f.id}')" title="Supprimer">✕</button>
+      ${editForm}
+    </div>`;
+  }).join('');
+}
+
+function startFoodEdit(id) { editingFoodId = id; renderFoodList(); }
+function cancelFoodEdit()  { editingFoodId = null; renderFoodList(); }
+
+async function saveFood() {
+  const name = document.getElementById('nf-name')?.value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  const entry = {
+    name,
+    calories_per_100g: numF(document.getElementById('nf-kcal').value),
+    protein_per_100g:  numF(document.getElementById('nf-prot').value),
+    carbs_per_100g:    numF(document.getElementById('nf-gluc').value),
+    fat_per_100g:      numF(document.getElementById('nf-lip').value),
+    fiber_per_100g:    numF(document.getElementById('nf-fib').value),
+  };
+  const { error } = await db.from('foods').insert(entry);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Aliment ajouté', 'success');
+  ['nf-name','nf-kcal','nf-prot','nf-gluc','nf-lip','nf-fib'].forEach(id => { document.getElementById(id).value = ''; });
+  await loadFoods();
+}
+
+async function saveFoodEdit(id) {
+  const name = document.getElementById(`fe-name-${id}`)?.value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
+  const entry = {
+    name,
+    calories_per_100g: numF(document.getElementById(`fe-kcal-${id}`).value),
+    protein_per_100g:  numF(document.getElementById(`fe-prot-${id}`).value),
+    carbs_per_100g:    numF(document.getElementById(`fe-gluc-${id}`).value),
+    fat_per_100g:      numF(document.getElementById(`fe-lip-${id}`).value),
+    fiber_per_100g:    numF(document.getElementById(`fe-fib-${id}`).value),
+  };
+  const { error } = await db.from('foods').update(entry).eq('id', id);
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Aliment mis à jour', 'success');
+  editingFoodId = null;
+  await loadFoods();
+}
+
+async function deleteFood(id) {
+  if (!confirm('Supprimer cet aliment ?')) return;
+  const { error } = await db.from('foods').delete().eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  showToast('Aliment supprimé', 'success');
+  await loadFoods();
+}
+
+// ── Food picker ────────────────────────────────────────────
+function toggleFoodPicker(ctx) {
+  const picker = document.getElementById(`fp-${ctx}`);
+  if (!picker) return;
+  const isOpen = picker.classList.contains('preset-picker--open');
+  document.querySelectorAll('.preset-picker, .food-picker').forEach(p => p.classList.remove('preset-picker--open'));
+  if (isOpen) return;
+  picker.classList.add('preset-picker--open');
+  renderFoodPickerContent(ctx);
+  setTimeout(() => document.getElementById(`fp-search-${ctx}`)?.focus(), 50);
+}
+
+function renderFoodPickerContent(ctx) {
+  const search  = (document.getElementById(`fp-search-${ctx}`)?.value || '').toLowerCase();
+  const listEl  = document.getElementById(`fp-list-${ctx}`);
+  if (!listEl) return;
+  const filtered = foods.filter(f => f.name.toLowerCase().includes(search));
+  if (!filtered.length) {
+    listEl.innerHTML = '<p class="preset-list-empty">Aucun aliment trouvé.</p>';
+    return;
+  }
+  listEl.innerHTML = filtered.map(f => {
+    const meta = [
+      f.calories_per_100g != null ? f.calories_per_100g + 'kcal' : null,
+      f.protein_per_100g  != null ? f.protein_per_100g  + 'g p'  : null,
+    ].filter(Boolean).join(' · ');
+    return `<div class="preset-item" onclick="selectFoodForPicker('${ctx}','${f.id}')">
+      <span class="preset-item__name">${f.name}</span>
+      <span class="preset-item__meta">${meta} /100g</span>
+    </div>`;
+  }).join('');
+}
+
+function selectFoodForPicker(ctx, foodId) {
+  const food = foods.find(f => f.id === foodId);
+  if (!food) return;
+  foodPickerState[ctx] = { selectedId: foodId };
+  const weightRow = document.getElementById(`fp-weight-${ctx}`);
+  const nameEl    = document.getElementById(`fp-fname-${ctx}`);
+  if (weightRow) weightRow.style.display = 'flex';
+  if (nameEl)    nameEl.textContent = food.name;
+  document.getElementById(`fp-grams-${ctx}`)?.focus();
+}
+
+function applyFoodToFields(ctx) {
+  const state = foodPickerState[ctx];
+  if (!state?.selectedId) return;
+  const food  = foods.find(f => f.id === state.selectedId);
+  const grams = parseFloat(document.getElementById(`fp-grams-${ctx}`)?.value);
+  if (!food)          { showToast('Sélectionne un aliment', 'error'); return; }
+  if (!grams || grams <= 0) { showToast('Indique le poids', 'error'); return; }
+
+  const factor = grams / 100;
+  const isMeal = ctx.startsWith('meal-');
+  const key    = isMeal ? ctx.slice(5) : null;
+  const getId  = f => isMeal ? `${f}-${key}` : `np-${f}`;
+
+  const addTo = (fieldId, raw) => {
+    if (raw == null) return;
+    const el = document.getElementById(fieldId);
+    if (!el) return;
+    const current = parseFloat(el.value) || 0;
+    const added   = raw * factor;
+    el.value = fieldId.startsWith('kcal') || fieldId.startsWith('np-kcal')
+      ? Math.round(current + added)
+      : parseFloat((current + added).toFixed(1));
+  };
+
+  addTo(getId('kcal'), food.calories_per_100g);
+  addTo(getId('prot'), food.protein_per_100g);
+  addTo(getId('gluc'), food.carbs_per_100g);
+  addTo(getId('lip'),  food.fat_per_100g);
+  addTo(getId('fib'),  food.fiber_per_100g);
+
+  document.getElementById(`fp-grams-${ctx}`).value = '';
+  document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
+  delete foodPickerState[ctx];
+  showToast(`${food.name} (${grams}g) ajouté`, 'success');
 }
 
 // ── Meal presets ───────────────────────────────────────────
