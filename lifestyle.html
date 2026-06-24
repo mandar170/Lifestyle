@@ -154,6 +154,12 @@
     /* ── Substitute toggle ── */
     .sub-toggle { width:20px; height:20px; border-radius:5px; border:1.5px solid rgba(100,220,255,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:transparent; flex-shrink:0; transition:background .15s,border-color .15s,color .15s; }
     .sub-toggle--on { background:rgba(100,220,255,0.3); border-color:var(--primary); color:var(--primary); }
+    /* ── Food picker ── */
+    .food-picker { display:none; flex-direction:column; gap:6px; margin-top:4px; }
+    .food-picker.preset-picker--open { display:flex; }
+    .food-picker-list { display:flex; flex-direction:column; gap:3px; max-height:170px; overflow-y:auto; }
+    .food-search { font-size:12px !important; padding:6px 10px !important; }
+    .food-weight-row { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(100,220,255,0.05); border:1px solid rgba(100,220,255,0.18); border-radius:7px; flex-wrap:wrap; }
     /* ── Planned workouts ── */
     .planned-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-top:8px; }
     .planned-item--done { opacity:0.5; }
@@ -296,6 +302,16 @@
             <input type="number" id="np-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
             <input type="number" id="np-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
           </div>
+          <button class="btn btn--ghost btn--sm" style="align-self:flex-start;" onclick="toggleFoodPicker('preset')">🥗 Ajouter un aliment</button>
+          <div class="food-picker" id="fp-preset">
+            <input type="text" class="np-input food-search" id="fp-search-preset" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('preset')" />
+            <div class="food-picker-list" id="fp-list-preset"></div>
+            <div class="food-weight-row" id="fp-weight-preset" style="display:none;">
+              <span id="fp-fname-preset" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
+              <input type="number" id="fp-grams-preset" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToFields('preset')" />
+              <button class="btn btn--primary btn--sm" onclick="applyFoodToFields('preset')">+ Ajouter</button>
+            </div>
+          </div>
           <button class="btn btn--primary btn--sm" onclick="saveMealPreset()">+ Enregistrer le modèle</button>
         </div>
         <div id="preset-list"><p class="preset-list-empty">Chargement…</p></div>
@@ -317,6 +333,25 @@
           <button class="btn btn--primary btn--sm" onclick="saveMealSubstitute()">+ Ajouter le substitut</button>
         </div>
         <div id="substitute-list"><p class="preset-list-empty">Chargement…</p></div>
+      </div>
+
+      <!-- Mes aliments -->
+      <div class="section-card">
+        <div class="section-card__header"><h2 class="section-card__title">🥗 Mes aliments</h2></div>
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          <input type="text" id="nf-name" class="np-input" placeholder="Nom de l'aliment…" maxlength="100" />
+          <div class="meal-macros-labels"><span>kcal</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+          <div class="meal-macros">
+            <input type="number" id="nf-kcal" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" />
+            <input type="number" id="nf-prot" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-gluc" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+          </div>
+          <p style="font-size:10px;color:var(--text-dim);margin:0;">Valeurs pour 100 g</p>
+          <button class="btn btn--primary btn--sm" onclick="saveFood()">+ Ajouter l'aliment</button>
+        </div>
+        <div id="food-list"><p class="preset-list-empty">Chargement…</p></div>
       </div>
     </div>
 
@@ -630,6 +665,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=17"></script>
+  <script src="assets/js/lifestyle.js?v=18"></script>
 </body>
 </html>
