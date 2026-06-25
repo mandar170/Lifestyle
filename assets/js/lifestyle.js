@@ -54,9 +54,9 @@ let habits = [], completions = {};
 let mealPresets = [];
 let substitutes = [];
 let foods = [];
-let mealFoodItems = {}; // { mealType: [{id, foodId, foodName, grams, calories, protein_g, ...}] }
+let mealFoodItems = {}; // { mealType: [{id, foodId, foodName, grams, calories, ...}] }
+let mealSubEntries = {}; // { mealType: [{id, substituteId, substituteName, included, calories, protein_g, ...}] }
 const foodPickerState = {}; // { ctx: { selectedId } }
-let subBaseValues = {}; // { mealType: { kcal, prot, gluc, lip, fib } }
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let editingPresetId = null;
@@ -189,13 +189,7 @@ function buildMealCards() {
           </div>
         </div>
         <div class="meal-food-items" id="mfi-${key}"></div>
-        <div class="sub-badge" id="sub-badge-${key}" style="display:none;">
-          💊 <span id="sub-name-${key}"></span>
-          <div class="sub-toggle" id="sub-toggle-${key}" onclick="toggleSubIncluded('${key}')" title="Macros déjà comprises dans le repas">✓</div>
-          <span style="font-size:10px;color:var(--text-dim);">comprises</span>
-          <button onclick="clearSubstitute('${key}')" style="background:none;border:none;color:rgba(248,113,113,0.5);cursor:pointer;font-size:13px;padding:0 2px;margin-left:auto;" title="Retirer">✕</button>
-        </div>
-        <input type="hidden" id="sub-id-${key}" value="" />
+        <div class="meal-sub-items" id="msi-${key}"></div>
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
@@ -211,17 +205,23 @@ function buildMealCards() {
 }
 
 async function loadJournalData() {
-  const [{ data: meals }, { data: foodItems }] = await Promise.all([
+  const [{ data: meals }, { data: foodItems }, { data: subItems }] = await Promise.all([
     db.from('meals').select('*').eq('date', journalDate),
     db.from('meal_food_items').select('*').eq('date', journalDate),
+    db.from('meal_substitute_entries').select('*').eq('date', journalDate),
   ]);
   mealFoodItems = {};
   (foodItems || []).forEach(item => {
     if (!mealFoodItems[item.meal_type]) mealFoodItems[item.meal_type] = [];
     mealFoodItems[item.meal_type].push(item);
   });
+  mealSubEntries = {};
+  (subItems || []).forEach(item => {
+    if (!mealSubEntries[item.meal_type]) mealSubEntries[item.meal_type] = [];
+    mealSubEntries[item.meal_type].push(item);
+  });
   renderMealCards(meals || []);
-  MEAL_TYPES.forEach(({ key }) => renderMealFoodItems(key));
+  MEAL_TYPES.forEach(({ key }) => { renderMealFoodItems(key); renderMealSubEntries(key); });
 }
 
 function renderMealCards(meals) {
@@ -242,37 +242,12 @@ function renderMealCards(meals) {
       card.classList.toggle('meal-card--done', !!m.done);
       chk.classList.toggle('meal-check--done', !!m.done);
       tag.textContent = m.calories ? `${m.calories} kcal` : '— kcal';
-      // Substitut
-      const subId = m.substitute_id || '';
-      document.getElementById(`sub-id-${key}`).value = subId;
-      if (subId) {
-        const sub = substitutes.find(s => s.id === subId);
-        showSubBadge(key, sub?.name || '—', !!m.substitute_included);
-        // Reconstruire subBaseValues pour que le toggle checkbox fonctionne
-        if (sub) {
-          if (!m.substitute_included) {
-            // Champs = base + sub → base = champs - sub
-            subBaseValues[key] = {
-              kcal: (m.calories  || 0) - (sub.calories  || 0),
-              prot: (m.protein_g || 0) - (sub.protein_g || 0),
-              gluc: (m.carbs_g   || 0) - (sub.carbs_g   || 0),
-              lip:  (m.fat_g     || 0) - (sub.fat_g     || 0),
-              fib:  (m.fiber_g   || 0) - (sub.fiber_g   || 0),
-            };
-          } else {
-            // Champs = base uniquement
-            subBaseValues[key] = { kcal: m.calories||0, prot: m.protein_g||0, gluc: m.carbs_g||0, lip: m.fat_g||0, fib: m.fiber_g||0 };
-          }
-        }
-      } else { hideSubBadge(key); delete subBaseValues[key]; }
     } else {
       document.getElementById(`desc-${key}`).value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
-      document.getElementById(`sub-id-${key}`).value = '';
       card.classList.remove('meal-card--done');
       chk.classList.remove('meal-check--done');
       tag.textContent = '— kcal';
-      hideSubBadge(key);
     }
   });
   updateDailyTotals(meals);
@@ -290,22 +265,16 @@ async function toggleMealDone(mealType) {
 }
 
 async function saveMeal(mealType) {
-  const subId    = document.getElementById(`sub-id-${mealType}`)?.value || null;
-  const included = !!(subId && document.getElementById(`sub-toggle-${mealType}`)?.classList.contains('sub-toggle--on'));
-
-  // Les champs affichent déjà le bon total (base + substitut si non comprises)
   const entry = {
-    date:                journalDate,
-    meal_type:           mealType,
-    done:                document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
-    description:         document.getElementById(`desc-${mealType}`).value.trim() || null,
-    calories:            numI(document.getElementById(`kcal-${mealType}`).value),
-    protein_g:           numF(document.getElementById(`prot-${mealType}`).value),
-    carbs_g:             numF(document.getElementById(`gluc-${mealType}`).value),
-    fat_g:               numF(document.getElementById(`lip-${mealType}`).value),
-    fiber_g:             numF(document.getElementById(`fib-${mealType}`).value),
-    substitute_id:       subId || null,
-    substitute_included: included,
+    date:      journalDate,
+    meal_type: mealType,
+    done:      document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
+    description: document.getElementById(`desc-${mealType}`).value.trim() || null,
+    calories:  numI(document.getElementById(`kcal-${mealType}`).value),
+    protein_g: numF(document.getElementById(`prot-${mealType}`).value),
+    carbs_g:   numF(document.getElementById(`gluc-${mealType}`).value),
+    fat_g:     numF(document.getElementById(`lip-${mealType}`).value),
+    fiber_g:   numF(document.getElementById(`fib-${mealType}`).value),
   };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -338,76 +307,115 @@ function toggleSubstitutePicker(mealType) {
   picker.classList.add('preset-picker--open');
 }
 
-function applySubstitute(subId, mealType) {
+async function applySubstitute(subId, mealType) {
   const s = substitutes.find(x => x.id === subId);
   if (!s) return;
-  // Sauvegarder les valeurs de base actuelles des champs
-  subBaseValues[mealType] = {
-    kcal: parseFloat(document.getElementById(`kcal-${mealType}`)?.value) || 0,
-    prot: parseFloat(document.getElementById(`prot-${mealType}`)?.value) || 0,
-    gluc: parseFloat(document.getElementById(`gluc-${mealType}`)?.value) || 0,
-    lip:  parseFloat(document.getElementById(`lip-${mealType}`)?.value)  || 0,
-    fib:  parseFloat(document.getElementById(`fib-${mealType}`)?.value)  || 0,
-  };
-  document.getElementById(`sub-id-${mealType}`).value = subId;
-  showSubBadge(mealType, s.name);
   document.getElementById(`sp-${mealType}`).classList.remove('preset-picker--open');
-  updateFieldsFromSubstitute(mealType);
-}
 
-function updateFieldsFromSubstitute(mealType) {
-  const subId    = document.getElementById(`sub-id-${mealType}`)?.value;
-  const included = document.getElementById(`sub-toggle-${mealType}`)?.classList.contains('sub-toggle--on');
-  const sub      = subId ? substitutes.find(s => s.id === subId) : null;
-  const base     = subBaseValues[mealType];
-  if (!sub || !base) return;
-  const fmt = v => v ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : '';
-  const set = (field, baseVal, subVal) => {
+  const item = {
+    date:            journalDate,
+    meal_type:       mealType,
+    substitute_id:   s.id,
+    substitute_name: s.name,
+    included:        false,
+    calories:        s.calories  || null,
+    protein_g:       s.protein_g || null,
+    carbs_g:         s.carbs_g   || null,
+    fat_g:           s.fat_g     || null,
+    fiber_g:         s.fiber_g   || null,
+  };
+  const { data, error } = await db.from('meal_substitute_entries').insert(item).select().single();
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+
+  if (!mealSubEntries[mealType]) mealSubEntries[mealType] = [];
+  mealSubEntries[mealType].push(data);
+
+  // included=false → add macros to fields
+  const addTo = (field, val) => {
+    if (val == null) return;
     const el = document.getElementById(`${field}-${mealType}`);
     if (!el) return;
-    el.value = included ? fmt(baseVal) : fmt((baseVal || 0) + (subVal || 0));
+    const cur = parseFloat(el.value) || 0;
+    el.value = field === 'kcal' ? Math.round(cur + val) : parseFloat((cur + val).toFixed(1));
   };
-  set('kcal', base.kcal, sub.calories);
-  set('prot', base.prot, sub.protein_g);
-  set('gluc', base.gluc, sub.carbs_g);
-  set('lip',  base.lip,  sub.fat_g);
-  set('fib',  base.fib,  sub.fiber_g);
+  addTo('kcal', s.calories);
+  addTo('prot', s.protein_g);
+  addTo('gluc', s.carbs_g);
+  addTo('lip',  s.fat_g);
+  addTo('fib',  s.fiber_g);
+
+  renderMealSubEntries(mealType);
+  showToast(`${s.name} ajouté`, 'success');
 }
 
-function showSubBadge(mealType, name, included) {
-  const badge  = document.getElementById(`sub-badge-${mealType}`);
-  const nameEl = document.getElementById(`sub-name-${mealType}`);
-  const toggle = document.getElementById(`sub-toggle-${mealType}`);
-  if (badge)  badge.style.display = 'flex';
-  if (nameEl) nameEl.textContent  = name;
-  if (toggle && included !== undefined) toggle.classList.toggle('sub-toggle--on', !!included);
+function renderMealSubEntries(mealType) {
+  const container = document.getElementById(`msi-${mealType}`);
+  if (!container) return;
+  const items = mealSubEntries[mealType] || [];
+  if (!items.length) { container.innerHTML = ''; return; }
+  container.innerHTML = items.map(item => `
+    <div class="meal-sub-item" id="msi-item-${item.id}">
+      <span style="font-size:13px;">💊</span>
+      <span class="meal-sub-item__name">${item.substitute_name}</span>
+      <span class="meal-sub-item__meta">${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</span>
+      <button class="meal-sub-toggle${item.included ? ' meal-sub-toggle--on' : ''}" onclick="toggleSubEntry('${mealType}','${item.id}')" title="Macros déjà comprises dans le repas">${item.included ? '✓ comprises' : '+ à ajouter'}</button>
+      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removeSubEntry('${mealType}','${item.id}')" title="Supprimer">✕</button>
+    </div>`).join('');
 }
 
-function toggleSubIncluded(mealType) {
-  const toggle = document.getElementById(`sub-toggle-${mealType}`);
-  if (!toggle) return;
-  toggle.classList.toggle('sub-toggle--on');
-  updateFieldsFromSubstitute(mealType);
+async function toggleSubEntry(mealType, entryId) {
+  const items = mealSubEntries[mealType] || [];
+  const item = items.find(i => String(i.id) === String(entryId));
+  if (!item) return;
+  const nowIncluded = !item.included;
+  const { error } = await db.from('meal_substitute_entries').update({ included: nowIncluded }).eq('id', entryId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+
+  // Adjust macro fields: if now included, subtract (macros already in meal); if now not included, add
+  const sign = nowIncluded ? -1 : 1;
+  const adjustField = (field, val) => {
+    if (val == null) return;
+    const el = document.getElementById(`${field}-${mealType}`);
+    if (!el) return;
+    const cur = parseFloat(el.value) || 0;
+    el.value = field === 'kcal' ? Math.round(cur + sign * val) : parseFloat((cur + sign * val).toFixed(1));
+  };
+  adjustField('kcal', item.calories);
+  adjustField('prot', item.protein_g);
+  adjustField('gluc', item.carbs_g);
+  adjustField('lip',  item.fat_g);
+  adjustField('fib',  item.fiber_g);
+
+  item.included = nowIncluded;
+  renderMealSubEntries(mealType);
 }
 
-function hideSubBadge(mealType) {
-  const badge = document.getElementById(`sub-badge-${mealType}`);
-  if (badge) badge.style.display = 'none';
-}
+async function removeSubEntry(mealType, entryId) {
+  const items = mealSubEntries[mealType] || [];
+  const item = items.find(i => String(i.id) === String(entryId));
+  if (!item) return;
 
-function clearSubstitute(mealType) {
-  // Restaurer les valeurs de base dans les champs
-  const base = subBaseValues[mealType];
-  if (base) {
-    const fmt = v => v ? (Number.isInteger(v) ? String(v) : v.toFixed(1)) : '';
-    ['kcal','prot','gluc','lip','fib'].forEach(f => {
-      const el = document.getElementById(`${f}-${mealType}`);
-      if (el) el.value = fmt(base[f]);
-    });
-    delete subBaseValues[mealType];
+  // If not included, macros were added → subtract them back
+  if (!item.included) {
+    const subtractField = (field, val) => {
+      if (val == null) return;
+      const el = document.getElementById(`${field}-${mealType}`);
+      if (!el) return;
+      const cur = parseFloat(el.value) || 0;
+      el.value = field === 'kcal' ? Math.max(0, Math.round(cur - val)) : parseFloat(Math.max(0, cur - val).toFixed(1));
+    };
+    subtractField('kcal', item.calories);
+    subtractField('prot', item.protein_g);
+    subtractField('gluc', item.carbs_g);
+    subtractField('lip',  item.fat_g);
+    subtractField('fib',  item.fiber_g);
   }
-  document.getElementById(`sub-id-${mealType}`).value = '';
-  hideSubBadge(mealType);
+
+  const { error } = await db.from('meal_substitute_entries').delete().eq('id', entryId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  mealSubEntries[mealType] = items.filter(i => String(i.id) !== String(entryId));
+  renderMealSubEntries(mealType);
+  showToast('Substitut retiré', 'success');
 }
 
 async function saveMealSubstitute() {
