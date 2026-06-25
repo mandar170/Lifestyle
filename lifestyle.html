@@ -166,6 +166,13 @@
     .meal-food-item__label { flex:1; font-size:12px; color:var(--text); font-weight:500; min-width:0; }
     .meal-food-item__meta { font-size:10px; color:var(--text-dim); }
     .meal-food-item__edit-input { display:flex; align-items:center; gap:6px; width:100%; margin-top:4px; }
+    /* ── Meal substitute entries ── */
+    .meal-sub-items { display:flex; flex-direction:column; gap:4px; }
+    .meal-sub-item { display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(167,139,250,0.05); border:1px solid rgba(167,139,250,0.2); border-radius:6px; flex-wrap:wrap; }
+    .meal-sub-item__name { flex:1; font-size:12px; color:var(--text); font-weight:500; }
+    .meal-sub-item__meta { font-size:10px; color:var(--text-dim); }
+    .meal-sub-toggle { font-size:10px; padding:2px 7px; border-radius:4px; border:1px solid rgba(167,139,250,0.3); cursor:pointer; color:var(--text-dim); background:none; white-space:nowrap; transition:background .15s,border-color .15s,color .15s; }
+    .meal-sub-toggle--on { background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.5); color:rgb(167,139,250); }
     /* ── Planned workouts ── */
     .planned-item { display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:8px; margin-top:8px; }
     .planned-item--done { opacity:0.5; }
@@ -671,6 +678,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=20"></script>
+  <script src="assets/js/lifestyle.js?v=21"></script>
 </body>
 </html>
