@@ -173,7 +173,7 @@ function buildMealCards() {
       </div>
       <div class="meal-card__body">
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')">📋 Modèle</button>
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePresetPicker('${key}')" style="display:none;">📋 Modèle</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">🥗 Aliment</button>
         </div>
