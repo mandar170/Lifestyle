@@ -59,6 +59,7 @@ let mealSubEntries = {}; // { mealType: [{id, substituteId, substituteName, incl
 const foodPickerState = {}; // { ctx: { selectedId } }
 let planDate = today();
 let planFoodItems = {};
+let planSubEntries = {}; // { mealType: [{id, substituteId, substituteName, included, ...}] }
 let planInitialized = false;
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
@@ -212,7 +213,11 @@ function buildPlanCards() {
         <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">→ Journal</button>
       </div>
       <div class="plan-card__body">
-        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">🥗 Aliment</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePlanSubPicker('${key}')">💊 Substitut</button>
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">🥗 Aliment</button>
+        </div>
+        <div class="preset-picker" id="psp-${key}"></div>
         <div class="food-picker" id="fp-plan-${key}">
           <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
           <div class="food-picker-list" id="fp-list-plan-${key}"></div>
@@ -223,18 +228,27 @@ function buildPlanCards() {
           </div>
         </div>
         <div class="meal-food-items" id="pfi-${key}"></div>
+        <div class="meal-sub-items" id="psi-${key}"></div>
       </div>
     </div>`).join('');
 }
 
 async function loadPlanData() {
-  const { data } = await db.from('meal_plan_items').select('*').eq('plan_date', planDate);
+  const [{ data: items }, { data: subs }] = await Promise.all([
+    db.from('meal_plan_items').select('*').eq('plan_date', planDate),
+    db.from('meal_plan_sub_entries').select('*').eq('plan_date', planDate),
+  ]);
   planFoodItems = {};
-  (data || []).forEach(item => {
+  (items || []).forEach(item => {
     if (!planFoodItems[item.meal_type]) planFoodItems[item.meal_type] = [];
     planFoodItems[item.meal_type].push(item);
   });
-  MEAL_TYPES.forEach(({ key }) => renderPlanFoodItems(key));
+  planSubEntries = {};
+  (subs || []).forEach(s => {
+    if (!planSubEntries[s.meal_type]) planSubEntries[s.meal_type] = [];
+    planSubEntries[s.meal_type].push(s);
+  });
+  MEAL_TYPES.forEach(({ key }) => { renderPlanFoodItems(key); renderPlanSubEntries(key); });
 }
 
 async function applyFoodToPlan(ctx) {
@@ -277,8 +291,11 @@ function renderPlanFoodItems(mealType) {
   if (!container) return;
   const items = planFoodItems[mealType] || [];
   if (tag) {
-    const total = items.reduce((s, i) => s + (i.calories || 0), 0);
-    tag.textContent = items.length ? `${total} kcal` : '— kcal';
+    const foodKcal = items.reduce((s, i) => s + (i.calories || 0), 0);
+    const subKcal  = (planSubEntries[mealType] || []).filter(s => !s.included).reduce((s, i) => s + (i.calories || 0), 0);
+    const total = foodKcal + subKcal;
+    const hasSomething = items.length || (planSubEntries[mealType] || []).length;
+    tag.textContent = hasSomething ? `${total} kcal` : '— kcal';
   }
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => `
@@ -338,21 +355,114 @@ async function removePlanFoodItem(mealType, itemId) {
   showToast('Aliment retiré du plan', 'success');
 }
 
+// ── Plan substitutes ───────────────────────────────────────
+function togglePlanSubPicker(mealType) {
+  const picker = document.getElementById(`psp-${mealType}`);
+  if (!picker) return;
+  const isOpen = picker.classList.contains('preset-picker--open');
+  document.querySelectorAll('.preset-picker').forEach(p => p.classList.remove('preset-picker--open'));
+  if (isOpen) return;
+  picker.innerHTML = substitutes.length
+    ? substitutes.map(s => `
+        <div class="preset-item" onclick="addSubToPlan('${mealType}','${s.id}')">
+          <span class="preset-item__name">${s.name}</span>
+          <span class="preset-item__meta">${[s.calories ? s.calories + ' kcal' : null, s.protein_g ? s.protein_g + 'g P' : null].filter(Boolean).join(' · ')}</span>
+        </div>`).join('')
+    : '<p class="preset-list-empty">Aucun substitut enregistré.</p>';
+  picker.classList.add('preset-picker--open');
+}
+
+async function addSubToPlan(mealType, subId) {
+  const s = substitutes.find(x => x.id === subId);
+  if (!s) return;
+  document.getElementById(`psp-${mealType}`).classList.remove('preset-picker--open');
+  const item = {
+    plan_date:       planDate,
+    meal_type:       mealType,
+    substitute_id:   s.id,
+    substitute_name: s.name,
+    included:        false,
+    calories:        s.calories  || null,
+    protein_g:       s.protein_g || null,
+    carbs_g:         s.carbs_g   || null,
+    fat_g:           s.fat_g     || null,
+    fiber_g:         s.fiber_g   || null,
+  };
+  const { data, error } = await db.from('meal_plan_sub_entries').insert(item).select().single();
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  if (!planSubEntries[mealType]) planSubEntries[mealType] = [];
+  planSubEntries[mealType].push(data);
+  renderPlanSubEntries(mealType);
+  renderPlanFoodItems(mealType);
+  showToast(`${s.name} ajouté au plan`, 'success');
+}
+
+function renderPlanSubEntries(mealType) {
+  const container = document.getElementById(`psi-${mealType}`);
+  if (!container) return;
+  const items = planSubEntries[mealType] || [];
+  if (!items.length) { container.innerHTML = ''; return; }
+  container.innerHTML = items.map(item => `
+    <div class="meal-sub-item" id="psi-item-${item.id}">
+      <span style="font-size:13px;">💊</span>
+      <span class="meal-sub-item__name">${item.substitute_name}</span>
+      <span class="meal-sub-item__meta">${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</span>
+      <button class="meal-sub-toggle${item.included ? ' meal-sub-toggle--on' : ''}" onclick="togglePlanSubEntry('${mealType}','${item.id}')">${item.included ? '✓ comprises' : '+ à ajouter'}</button>
+      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removePlanSubEntry('${mealType}','${item.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function togglePlanSubEntry(mealType, entryId) {
+  const items = planSubEntries[mealType] || [];
+  const item = items.find(i => String(i.id) === String(entryId));
+  if (!item) return;
+  const nowIncluded = !item.included;
+  const { error } = await db.from('meal_plan_sub_entries').update({ included: nowIncluded }).eq('id', entryId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  item.included = nowIncluded;
+  renderPlanSubEntries(mealType);
+  renderPlanFoodItems(mealType);
+}
+
+async function removePlanSubEntry(mealType, entryId) {
+  const { error } = await db.from('meal_plan_sub_entries').delete().eq('id', entryId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  planSubEntries[mealType] = (planSubEntries[mealType] || []).filter(i => String(i.id) !== String(entryId));
+  renderPlanSubEntries(mealType);
+  renderPlanFoodItems(mealType);
+  showToast('Substitut retiré du plan', 'success');
+}
+
 async function applyMealPlanToJournal(mealType) {
   const items = planFoodItems[mealType] || [];
-  if (!items.length) { showToast('Aucun aliment planifié pour ce repas', 'error'); return; }
+  const subs  = planSubEntries[mealType] || [];
+  if (!items.length && !subs.length) { showToast('Aucun aliment planifié pour ce repas', 'error'); return; }
 
-  const toInsert = items.map(i => ({
-    date: planDate, meal_type: mealType,
-    food_id: i.food_id, food_name: i.food_name, grams: i.grams,
-    calories: i.calories, protein_g: i.protein_g, carbs_g: i.carbs_g,
-    fat_g: i.fat_g, fiber_g: i.fiber_g,
-  }));
-  const { error: insErr } = await db.from('meal_food_items').insert(toInsert);
-  if (insErr) { showToast(`Erreur : ${insErr.message}`, 'error'); return; }
+  const ops = [];
+  if (items.length) {
+    ops.push(db.from('meal_food_items').insert(items.map(i => ({
+      date: planDate, meal_type: mealType,
+      food_id: i.food_id, food_name: i.food_name, grams: i.grams,
+      calories: i.calories, protein_g: i.protein_g, carbs_g: i.carbs_g,
+      fat_g: i.fat_g, fiber_g: i.fiber_g,
+    }))));
+  }
+  if (subs.length) {
+    ops.push(db.from('meal_substitute_entries').insert(subs.map(s => ({
+      date: planDate, meal_type: mealType,
+      substitute_id: s.substitute_id, substitute_name: s.substitute_name,
+      included: s.included,
+      calories: s.calories, protein_g: s.protein_g, carbs_g: s.carbs_g,
+      fat_g: s.fat_g, fiber_g: s.fiber_g,
+    }))));
+  }
+  const results = await Promise.all(ops);
+  const firstErr = results.find(r => r.error)?.error;
+  if (firstErr) { showToast(`Erreur : ${firstErr.message}`, 'error'); return; }
 
   const { data: allItems } = await db.from('meal_food_items').select('*').eq('date', planDate).eq('meal_type', mealType);
-  const t = (allItems || []).reduce((acc, i) => ({
+  const addSubs = subs.filter(s => !s.included);
+  const t = [...(allItems || []), ...addSubs].reduce((acc, i) => ({
     calories:  acc.calories  + (i.calories  || 0),
     protein_g: acc.protein_g + (i.protein_g || 0),
     carbs_g:   acc.carbs_g   + (i.carbs_g   || 0),

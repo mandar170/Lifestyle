@@ -1225,6 +1225,90 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 }
 .goal-input:focus { outline: none; border-color: var(--primary); }
 
+/* Soldes actuels */
+.soldes-actuels-row { margin-bottom: 24px; }
+.soldes-actuels-inner {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.soldes-actuels-label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-dim); flex-shrink: 0;
+}
+.soldes-actuels-cards { display: flex; gap: 12px; flex-wrap: wrap; flex: 1; }
+.solde-actuel-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-sm);
+  min-width: 130px;
+}
+.solde-actuel-card--total {
+  border-color: rgba(100,220,255,0.2);
+  background: rgba(100,220,255,0.04);
+}
+.solde-actuel-card__label {
+  font-size: 10px; color: var(--text-dim); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.solde-actuel-card__value {
+  font-family: var(--font-h); font-size: 15px; font-weight: 700;
+}
+
+/* Filter type buttons */
+.filter-type-btns { display: flex; gap: 6px; padding: 12px 0 4px; flex-wrap: wrap; }
+.filter-type-btn {
+  padding: 5px 16px; border-radius: 20px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-muted); font-size: 12px; cursor: pointer;
+  transition: all var(--tr);
+}
+.filter-type-btn:hover { background: rgba(255,255,255,0.08); }
+.filter-type-btn.active {
+  background: rgba(100,220,255,0.12);
+  border-color: rgba(100,220,255,0.3);
+  color: var(--primary);
+}
+
+/* Editable cells */
+.tx-editable { cursor: pointer; transition: background var(--tr); }
+.tx-editable:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* Note column */
+.tx-note-col { width: 80px; text-align: center; }
+.tx-note-cell { text-align: center; cursor: pointer; }
+.tx-note-text { font-size: 12px; color: var(--text-muted); }
+.tx-note-empty { color: rgba(100,220,255,0.3); font-size: 16px; }
+.tx-note-input {
+  width: 100%; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text); padding: 4px 8px;
+  border-radius: 4px; font-size: 12px;
+}
+
+/* Account items */
+.account-item {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+}
+.account-item__label {
+  font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  color: var(--primary);
+}
+.account-item__fields { display: flex; gap: 20px; flex-wrap: wrap; }
+
+/* Danger zone card */
+.section-card--danger { border-color: rgba(239,68,68,0.2); }
+
 /* ===========================================================
    GARDE-MANGER
    =========================================================== */
