@@ -57,6 +57,9 @@ let foods = [];
 let mealFoodItems = {}; // { mealType: [{id, foodId, foodName, grams, calories, ...}] }
 let mealSubEntries = {}; // { mealType: [{id, substituteId, substituteName, included, calories, protein_g, ...}] }
 const foodPickerState = {}; // { ctx: { selectedId } }
+let planDate = today();
+let planFoodItems = {};
+let planInitialized = false;
 let calYear = new Date().getFullYear(), calMonth = new Date().getMonth();
 let editingHabitId = null;
 let editingPresetId = null;
@@ -153,6 +156,7 @@ function initJournal() {
   loadMealPresets();
   loadSubstitutes();
   loadFoods();
+  initNutritionNav();
 }
 
 function changeJournalDate(delta) {
@@ -161,6 +165,219 @@ function changeJournalDate(delta) {
   journalDate = d.toISOString().split('T')[0];
   document.getElementById('j-date').value = journalDate;
   loadJournalData();
+}
+
+// ── Nutrition sub-nav ─────────────────────────────────────
+function initNutritionNav() {
+  document.querySelectorAll('.nutrition-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nutrition-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.nutrition;
+      document.getElementById('nutrition-journal').style.display = tab === 'journal' ? '' : 'none';
+      document.getElementById('nutrition-plan').style.display   = tab === 'plan'    ? '' : 'none';
+      if (tab === 'plan' && !planInitialized) { initPlan(); planInitialized = true; }
+    });
+  });
+}
+
+// ── Planification repas ────────────────────────────────────
+function initPlan() {
+  const dateInput = document.getElementById('p-date');
+  dateInput.value = planDate;
+  document.getElementById('p-prev').addEventListener('click', () => changePlanDate(-1));
+  document.getElementById('p-next').addEventListener('click', () => changePlanDate(1));
+  document.getElementById('p-today-btn').addEventListener('click', () => {
+    planDate = today(); dateInput.value = planDate; loadPlanData();
+  });
+  dateInput.addEventListener('change', () => { planDate = dateInput.value; loadPlanData(); });
+  buildPlanCards();
+  loadPlanData();
+}
+
+function changePlanDate(delta) {
+  const d = new Date(planDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  planDate = d.toISOString().split('T')[0];
+  document.getElementById('p-date').value = planDate;
+  loadPlanData();
+}
+
+function buildPlanCards() {
+  document.getElementById('plan-cards-grid').innerHTML = MEAL_TYPES.map(({ key, label }) => `
+    <div class="plan-card" id="pmc-${key}">
+      <div class="plan-card__header">
+        <span class="meal-label">${label}</span>
+        <span class="plan-kcal-tag" id="pkcal-tag-${key}">— kcal</span>
+        <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">→ Journal</button>
+      </div>
+      <div class="plan-card__body">
+        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">🥗 Aliment</button>
+        <div class="food-picker" id="fp-plan-${key}">
+          <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
+          <div class="food-picker-list" id="fp-list-plan-${key}"></div>
+          <div class="food-weight-row" id="fp-weight-plan-${key}" style="display:none;">
+            <span id="fp-fname-plan-${key}" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
+            <input type="number" id="fp-grams-plan-${key}" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToPlan('plan-${key}')" />
+            <button class="btn btn--primary btn--sm" onclick="applyFoodToPlan('plan-${key}')">+ Ajouter</button>
+          </div>
+        </div>
+        <div class="meal-food-items" id="pfi-${key}"></div>
+      </div>
+    </div>`).join('');
+}
+
+async function loadPlanData() {
+  const { data } = await db.from('meal_plan_items').select('*').eq('plan_date', planDate);
+  planFoodItems = {};
+  (data || []).forEach(item => {
+    if (!planFoodItems[item.meal_type]) planFoodItems[item.meal_type] = [];
+    planFoodItems[item.meal_type].push(item);
+  });
+  MEAL_TYPES.forEach(({ key }) => renderPlanFoodItems(key));
+}
+
+async function applyFoodToPlan(ctx) {
+  const state = foodPickerState[ctx];
+  if (!state?.selectedId) return;
+  const food  = foods.find(f => f.id === state.selectedId);
+  const grams = parseFloat(document.getElementById(`fp-grams-${ctx}`)?.value);
+  if (!food)              { showToast('Sélectionne un aliment', 'error'); return; }
+  if (!grams || grams <= 0) { showToast('Indique le poids', 'error'); return; }
+
+  const key    = ctx.slice(5); // 'plan-breakfast' → 'breakfast'
+  const factor = grams / 100;
+  const item   = {
+    plan_date: planDate,
+    meal_type: key,
+    food_id:   food.id,
+    food_name: food.name,
+    grams,
+    calories:  food.calories_per_100g != null ? Math.round(food.calories_per_100g * factor) : null,
+    protein_g: food.protein_per_100g  != null ? parseFloat((food.protein_per_100g  * factor).toFixed(1)) : null,
+    carbs_g:   food.carbs_per_100g    != null ? parseFloat((food.carbs_per_100g    * factor).toFixed(1)) : null,
+    fat_g:     food.fat_per_100g      != null ? parseFloat((food.fat_per_100g      * factor).toFixed(1)) : null,
+    fiber_g:   food.fiber_per_100g    != null ? parseFloat((food.fiber_per_100g    * factor).toFixed(1)) : null,
+  };
+  const { data, error } = await db.from('meal_plan_items').insert(item).select().single();
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+
+  if (!planFoodItems[key]) planFoodItems[key] = [];
+  planFoodItems[key].push(data);
+  document.getElementById(`fp-grams-${ctx}`).value = '';
+  document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
+  delete foodPickerState[ctx];
+  renderPlanFoodItems(key);
+  showToast(`${food.name} (${grams}g) ajouté au plan`, 'success');
+}
+
+function renderPlanFoodItems(mealType) {
+  const container = document.getElementById(`pfi-${mealType}`);
+  const tag       = document.getElementById(`pkcal-tag-${mealType}`);
+  if (!container) return;
+  const items = planFoodItems[mealType] || [];
+  if (tag) {
+    const total = items.reduce((s, i) => s + (i.calories || 0), 0);
+    tag.textContent = items.length ? `${total} kcal` : '— kcal';
+  }
+  if (!items.length) { container.innerHTML = ''; return; }
+  container.innerHTML = items.map(item => `
+    <div class="meal-food-item" id="pfi-item-${item.id}">
+      <div class="meal-food-item__label">${item.food_name}</div>
+      <div class="meal-food-item__meta">${item.grams}g · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
+      <div class="meal-food-item__edit-input" id="pfi-edit-${item.id}" style="display:none;">
+        <input type="number" id="pfi-qty-${item.id}" class="np-input" placeholder="g" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmPlanQtyEdit('${mealType}','${item.id}')" />
+        <button class="btn btn--primary btn--sm" onclick="confirmPlanQtyEdit('${mealType}','${item.id}')">OK</button>
+        <button class="btn btn--ghost btn--sm" onclick="cancelPlanQtyEdit('${item.id}')">✕</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-left:auto;">
+        <button class="btn btn--ghost btn--sm" onclick="editPlanFoodItemQty('${item.id}')" title="Modifier">✏️</button>
+        <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removePlanFoodItem('${mealType}','${item.id}')" title="Supprimer">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function editPlanFoodItemQty(itemId) {
+  const el = document.getElementById(`pfi-edit-${itemId}`);
+  if (el) { el.style.display = 'flex'; document.getElementById(`pfi-qty-${itemId}`)?.focus(); }
+}
+
+function cancelPlanQtyEdit(itemId) {
+  const el = document.getElementById(`pfi-edit-${itemId}`);
+  if (el) el.style.display = 'none';
+}
+
+async function confirmPlanQtyEdit(mealType, itemId) {
+  const items = planFoodItems[mealType] || [];
+  const item  = items.find(i => String(i.id) === String(itemId));
+  if (!item) return;
+  const newGrams = parseFloat(document.getElementById(`pfi-qty-${itemId}`)?.value);
+  if (!newGrams || newGrams <= 0) { showToast('Indique le poids', 'error'); return; }
+  const food    = foods.find(f => f.id === item.food_id);
+  const factor  = newGrams / 100;
+  const updated = {
+    grams:     newGrams,
+    calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
+    protein_g: food ? parseFloat((food.protein_per_100g * factor).toFixed(1)) : item.protein_g,
+    carbs_g:   food ? parseFloat((food.carbs_per_100g   * factor).toFixed(1)) : item.carbs_g,
+    fat_g:     food ? parseFloat((food.fat_per_100g     * factor).toFixed(1)) : item.fat_g,
+    fiber_g:   food ? parseFloat((food.fiber_per_100g   * factor).toFixed(1)) : item.fiber_g,
+  };
+  const { error } = await db.from('meal_plan_items').update(updated).eq('id', itemId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  Object.assign(item, updated);
+  renderPlanFoodItems(mealType);
+  showToast('Quantité mise à jour', 'success');
+}
+
+async function removePlanFoodItem(mealType, itemId) {
+  const { error } = await db.from('meal_plan_items').delete().eq('id', itemId);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  planFoodItems[mealType] = (planFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
+  renderPlanFoodItems(mealType);
+  showToast('Aliment retiré du plan', 'success');
+}
+
+async function applyMealPlanToJournal(mealType) {
+  const items = planFoodItems[mealType] || [];
+  if (!items.length) { showToast('Aucun aliment planifié pour ce repas', 'error'); return; }
+
+  const toInsert = items.map(i => ({
+    date: planDate, meal_type: mealType,
+    food_id: i.food_id, food_name: i.food_name, grams: i.grams,
+    calories: i.calories, protein_g: i.protein_g, carbs_g: i.carbs_g,
+    fat_g: i.fat_g, fiber_g: i.fiber_g,
+  }));
+  const { error: insErr } = await db.from('meal_food_items').insert(toInsert);
+  if (insErr) { showToast(`Erreur : ${insErr.message}`, 'error'); return; }
+
+  const { data: allItems } = await db.from('meal_food_items').select('*').eq('date', planDate).eq('meal_type', mealType);
+  const t = (allItems || []).reduce((acc, i) => ({
+    calories:  acc.calories  + (i.calories  || 0),
+    protein_g: acc.protein_g + (i.protein_g || 0),
+    carbs_g:   acc.carbs_g   + (i.carbs_g   || 0),
+    fat_g:     acc.fat_g     + (i.fat_g     || 0),
+    fiber_g:   acc.fiber_g   + (i.fiber_g   || 0),
+  }), { calories:0, protein_g:0, carbs_g:0, fat_g:0, fiber_g:0 });
+
+  await db.from('meals').upsert({
+    date: planDate, meal_type: mealType, done: false,
+    description: (allItems || []).map(i => i.food_name).join(', '),
+    calories:  Math.round(t.calories),
+    protein_g: parseFloat(t.protein_g.toFixed(1)),
+    carbs_g:   parseFloat(t.carbs_g.toFixed(1)),
+    fat_g:     parseFloat(t.fat_g.toFixed(1)),
+    fiber_g:   parseFloat(t.fiber_g.toFixed(1)),
+  }, { onConflict: 'date,meal_type' });
+
+  showToast('Repas ajouté au journal ✓', 'success');
+  journalDate = planDate;
+  document.getElementById('j-date').value = planDate;
+  document.querySelectorAll('.nutrition-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nutrition-btn[data-nutrition="journal"]').classList.add('active');
+  document.getElementById('nutrition-journal').style.display = '';
+  document.getElementById('nutrition-plan').style.display = 'none';
+  await loadJournalData();
 }
 
 function buildMealCards() {

@@ -160,6 +160,17 @@
     .food-picker-list { display:flex; flex-direction:column; gap:3px; max-height:170px; overflow-y:auto; }
     .food-search { font-size:12px !important; padding:6px 10px !important; }
     .food-weight-row { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(100,220,255,0.05); border:1px solid rgba(100,220,255,0.18); border-radius:7px; flex-wrap:wrap; }
+    /* ── Nutrition sub-nav ── */
+    .nutrition-nav { display:flex; gap:8px; margin-bottom:20px; }
+    .nutrition-btn { flex:1; padding:9px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.03); color:var(--text-dim); font-family:'Space Grotesk',sans-serif; font-size:13px; cursor:pointer; transition:all .2s; }
+    .nutrition-btn.active { border-color:rgba(100,220,255,0.4); background:rgba(100,220,255,0.08); color:var(--primary); }
+    /* ── Plan cards ── */
+    .plan-cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; }
+    @media(max-width:700px){ .plan-cards-grid { grid-template-columns:1fr; } }
+    .plan-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; }
+    .plan-card__header { display:flex; align-items:center; gap:8px; padding:12px 14px; background:rgba(255,255,255,0.01); }
+    .plan-kcal-tag { font-size:12px; font-weight:700; color:var(--orange); }
+    .plan-card__body { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
     /* ── Meal food items ── */
     .meal-food-items { display:flex; flex-direction:column; gap:4px; }
     .meal-food-item { display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.2); border-radius:6px; flex-wrap:wrap; }
@@ -275,6 +286,13 @@
 
     <!-- ════ JOURNAL ════ -->
     <div id="panel-journal" class="tab-panel">
+      <div class="nutrition-nav">
+        <button class="nutrition-btn active" data-nutrition="journal">📝 Journal</button>
+        <button class="nutrition-btn" data-nutrition="plan">📅 Planification</button>
+      </div>
+
+      <!-- ── Journal sub-panel ── -->
+      <div id="nutrition-journal">
       <div class="journal-date-nav">
         <button class="btn btn--ghost btn--sm" id="j-prev">←</button>
         <input type="date" id="j-date" />
@@ -366,6 +384,19 @@
         </div>
         <div id="food-list"><p class="preset-list-empty">Chargement…</p></div>
       </div>
+      </div><!-- /nutrition-journal -->
+
+      <!-- ── Plan sub-panel ── -->
+      <div id="nutrition-plan" style="display:none;">
+        <div class="journal-date-nav" style="margin-bottom:16px;">
+          <button class="btn btn--ghost btn--sm" id="p-prev">←</button>
+          <input type="date" id="p-date" />
+          <button class="btn btn--ghost btn--sm" id="p-next">→</button>
+          <button class="btn btn--ghost btn--sm" id="p-today-btn" style="margin-left:auto;">Aujourd'hui</button>
+        </div>
+        <div class="plan-cards-grid" id="plan-cards-grid"></div>
+      </div><!-- /nutrition-plan -->
+
     </div>
 
     <!-- ════ CALENDRIER ════ -->
@@ -678,6 +709,6 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
   <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
   <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=25"></script>
+  <script src="assets/js/lifestyle.js?v=26"></script>
 </body>
 </html>
