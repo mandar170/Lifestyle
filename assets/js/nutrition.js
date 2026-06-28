@@ -165,6 +165,31 @@ async function loadJournalData() {
   });
   renderMealCards(meals || []);
   MEAL_TYPES.forEach(({ key }) => { renderMealFoodItems(key); renderMealSubEntries(key); });
+  loadWater();
+}
+
+// ── Water ──────────────────────────────────────────────────
+async function loadWater() {
+  const { data } = await db.from('daily_water').select('amount_ml').eq('date', journalDate).maybeSingle();
+  const ml = data?.amount_ml ?? 0;
+  const input   = document.getElementById('j-water');
+  const display = document.getElementById('j-water-display');
+  if (input)   input.value    = ml || '';
+  if (display) display.textContent = ml ? `${ml} ml` : '— ml';
+}
+
+async function saveWater() {
+  const val = parseInt(document.getElementById('j-water')?.value) || 0;
+  const { error } = await db.from('daily_water').upsert({ date: journalDate, amount_ml: val }, { onConflict: 'date' });
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Hydratation enregistrée', 'success');
+  await loadWater();
+}
+
+function addWater(ml) {
+  const input = document.getElementById('j-water');
+  if (!input) return;
+  input.value = (parseInt(input.value) || 0) + ml;
 }
 
 function renderMealCards(meals) {
