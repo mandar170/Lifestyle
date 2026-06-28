@@ -44,6 +44,14 @@
       </div>
       <div id="goals-progress"></div>
       <div class="meals-grid" id="meals-grid"></div>
+      <div class="steps-inline" style="margin-top:4px;">
+        <label>💧 Eau</label>
+        <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
+        <button class="btn btn--ghost btn--sm" onclick="addWater(250)">+250</button>
+        <button class="btn btn--ghost btn--sm" onclick="addWater(500)">+500</button>
+        <input type="number" id="j-water" min="0" placeholder="mL" style="width:80px;" />
+        <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
+      </div>
     </div>
 
     <!-- ===== PLANIFICATION ===== -->
@@ -186,6 +194,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=1"></script>
+  <script src="assets/js/nutrition.js?v=2"></script>
 </body>
 </html>
