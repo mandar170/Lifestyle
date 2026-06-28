@@ -881,7 +881,7 @@ async function applyMealPlanToJournal(mealType) {
 
 // ── Pantry ─────────────────────────────────────────────────
 async function loadPantry() {
-  const { data } = await db.from('pantry_items').select('*').order('item_name');
+  const { data } = await db.from('pantry_items').select('*').order('name');
   pantryItems = data || [];
   renderPantryList();
 }
@@ -908,7 +908,7 @@ function renderPantryList() {
 
 function renderPantryRow(p) {
   return `<div class="pantry-stock-row" id="pantry-row-${p.id}">
-    <div class="pantry-stock-row__name">${p.item_name}</div>
+    <div class="pantry-stock-row__name">${p.name}</div>
     <div style="display:flex;align-items:center;gap:8px;">
       <input type="number" class="pantry-qty-input" value="${p.quantity}" min="0" step="0.1"
         onchange="updatePantryQty('${p.id}',this.value)"
@@ -985,7 +985,7 @@ async function addPantryItem() {
       item_type:    isFood ? 'food' : 'substitute',
       food_id:      isFood ? pantrySelectedItem.id : null,
       substitute_id: !isFood ? pantrySelectedItem.id : null,
-      item_name:    pantrySelectedItem.name,
+      name:         pantrySelectedItem.name,
       quantity:     qty,
       unit:         pantrySelectedItem.unit,
     };
