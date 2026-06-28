@@ -471,7 +471,7 @@ async function applyMealPlanToJournal(mealType) {
   }), { calories:0, protein_g:0, carbs_g:0, fat_g:0, fiber_g:0 });
 
   await db.from('meals').upsert({
-    date: planDate, meal_type: mealType, done: false,
+    date: planDate, meal_type: mealType, done: true,
     description: (allItems || []).map(i => i.food_name).join(', '),
     calories:  Math.round(t.calories),
     protein_g: parseFloat(t.protein_g.toFixed(1)),
