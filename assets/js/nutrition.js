@@ -881,7 +881,7 @@ async function applyMealPlanToJournal(mealType) {
 
 // ── Pantry ─────────────────────────────────────────────────
 async function loadPantry() {
-  const { data } = await db.from('pantry_items').select('*').order('name');
+  const { data } = await db.from('pantry_items').select('*').not('item_type', 'is', null).order('name');
   pantryItems = data || [];
   renderPantryList();
 }
@@ -944,7 +944,7 @@ function renderPantrySearch() {
   const subMatches  = substitutes.filter(s => s.name.toLowerCase().includes(search)).slice(0, 4);
   const all = [
     ...foodMatches.map(f => ({ type:'food', id:f.id, name:f.name, unit:f.unit||'g' })),
-    ...subMatches.map(s => ({ type:'sub',  id:s.id, name:s.name, unit:'unité' })),
+    ...subMatches.map(s => ({ type:'substitute', id:s.id, name:s.name, unit:'unité' })),
   ];
 
   if (!all.length) { results.style.display = 'none'; return; }
