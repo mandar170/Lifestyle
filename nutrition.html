@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nutrition — mandar170</title>
+  <link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo" style="color:#f97316;text-shadow:0 0 10px rgba(249,115,22,0.3);">NUTRITION</span>
+      </div>
+      <a href="personal.html" class="fit-header__back">← Espace perso</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:12px;padding-bottom:60px;">
+
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="journal">📝 Journal</button>
+      <button class="tab-btn" data-tab="planification">📅 Plan</button>
+      <button class="tab-btn" data-tab="pantry">🥫 Pantry</button>
+      <button class="tab-btn" data-tab="courses">🛒 Courses</button>
+      <button class="tab-btn" data-tab="gestion">⚙️ Gestion</button>
+    </div>
+
+    <!-- ===== JOURNAL ===== -->
+    <div class="tab-panel active" id="panel-journal">
+      <div class="journal-date-nav">
+        <button class="btn btn--ghost btn--sm" id="j-prev">←</button>
+        <input type="date" id="j-date" />
+        <button class="btn btn--ghost btn--sm" id="j-next">→</button>
+        <button class="btn btn--ghost btn--sm" id="j-today" style="margin-left:auto;">Aujourd'hui</button>
+      </div>
+      <div class="daily-totals">
+        <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
+        <div class="daily-totals__item"><div class="daily-totals__val" id="j-total-prot">—</div><div class="daily-totals__lbl">Prot (g)</div></div>
+        <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--yellow" id="j-total-gluc">—</div><div class="daily-totals__lbl">Gluc (g)</div></div>
+        <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
+        <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
+      </div>
+      <div id="goals-progress"></div>
+      <div class="meals-grid" id="meals-grid"></div>
+    </div>
+
+    <!-- ===== PLANIFICATION ===== -->
+    <div class="tab-panel" id="panel-planification">
+      <div class="journal-date-nav" style="margin-bottom:16px;">
+        <button class="btn btn--ghost btn--sm" id="p-prev">←</button>
+        <input type="date" id="p-date" />
+        <button class="btn btn--ghost btn--sm" id="p-next">→</button>
+        <button class="btn btn--ghost btn--sm" id="p-today-btn" style="margin-left:auto;">Aujourd'hui</button>
+      </div>
+      <div class="plan-cards-grid" id="plan-cards-grid"></div>
+    </div>
+
+    <!-- ===== PANTRY ===== -->
+    <div class="tab-panel" id="panel-pantry">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Mon stock</span>
+          <button id="btn-add-pantry" class="btn btn--primary btn--sm" onclick="showPantryForm()">+ Ajouter</button>
+        </div>
+        <div id="pantry-add-form" style="display:none;margin-bottom:16px;padding:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <div style="flex:1;min-width:200px;position:relative;">
+              <input type="text" id="pantry-search" class="np-input" placeholder="Rechercher un aliment ou substitut…" oninput="renderPantrySearch()" autocomplete="off" />
+              <div id="pantry-search-results" class="pantry-search-results"></div>
+            </div>
+            <input type="number" id="pantry-qty" class="np-input" placeholder="Quantité" min="0" step="0.1" style="width:120px;" />
+            <span id="pantry-unit-label" style="font-size:13px;color:var(--primary);align-self:center;min-width:30px;font-weight:600;"></span>
+          </div>
+          <div id="pantry-selected" style="font-size:12px;color:var(--text-dim);margin-bottom:12px;min-height:16px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn--primary btn--sm" onclick="addPantryItem()">Ajouter au stock</button>
+            <button class="btn btn--ghost btn--sm" onclick="hidePantryForm()">Annuler</button>
+          </div>
+        </div>
+        <div id="pantry-list">
+          <p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px 0;">Chargement…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== LISTE DE COURSES ===== -->
+    <div class="tab-panel" id="panel-courses">
+      <div class="section-card">
+        <div class="section-card__header">
+          <span class="section-card__title">Liste de courses</span>
+          <button class="btn btn--primary btn--sm" onclick="generateShoppingList()">Actualiser</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:4px;" id="courses-period"></p>
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">Basé sur vos repas planifiés (lundi soir → lundi suivant) vs votre stock Pantry.</p>
+        <div id="shopping-list-content">
+          <p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px 0;">Cliquez sur "Actualiser" pour générer la liste.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== GESTION ===== -->
+    <div class="tab-panel" id="panel-gestion">
+
+      <!-- Objectifs journaliers -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <div class="section-card__header">
+          <span class="section-card__title">Objectifs journaliers</span>
+          <button class="btn btn--primary btn--sm" onclick="saveGoals()">Sauvegarder</button>
+        </div>
+        <div class="meal-macros-labels" style="margin-bottom:4px;"><span>kcal/j</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+        <div class="meal-macros">
+          <input type="number" id="goal-kcal" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="2000" min="0" />
+          <input type="number" id="goal-prot" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="150" min="0" step="0.1" />
+          <input type="number" id="goal-gluc" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="200" min="0" step="0.1" />
+          <input type="number" id="goal-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="70" min="0" step="0.1" />
+          <input type="number" id="goal-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="30" min="0" step="0.1" />
+        </div>
+      </div>
+
+      <!-- Tags -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <div class="section-card__header">
+          <span class="section-card__title">Tags aliments</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <input type="text" id="tag-name" class="np-input" placeholder="Nom du tag…" maxlength="40" style="flex:1;min-width:120px;" />
+          <input type="color" id="tag-color" value="#64dcff" style="height:38px;width:50px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);cursor:pointer;border-radius:8px;padding:2px;" />
+          <button class="btn btn--primary btn--sm" onclick="saveTag()">+ Ajouter</button>
+        </div>
+        <div id="tag-list"></div>
+      </div>
+
+      <!-- Aliments -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <div class="section-card__header"><span class="section-card__title">🥗 Mes aliments</span></div>
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="nf-name" class="np-input" placeholder="Nom de l'aliment…" maxlength="100" style="flex:1;min-width:160px;" />
+            <select id="nf-unit" class="np-input" style="width:auto;flex:0 0 auto;">
+              <option value="g">g (grammes)</option>
+              <option value="L">L (litres)</option>
+              <option value="unité">unité</option>
+            </select>
+          </div>
+          <div class="meal-macros-labels"><span>kcal</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+          <div class="meal-macros">
+            <input type="number" id="nf-kcal" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" />
+            <input type="number" id="nf-prot" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-gluc" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="nf-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+          </div>
+          <p style="font-size:10px;color:var(--text-dim);margin:0;">Valeurs pour 100g / 100mL / 1 unité selon l'unité choisie</p>
+          <div>
+            <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">Tags :</p>
+            <div id="nf-tags" class="tag-chips"></div>
+          </div>
+          <button class="btn btn--primary btn--sm" onclick="saveFood()">+ Ajouter l'aliment</button>
+        </div>
+        <div id="food-list"><p class="preset-list-empty">Chargement…</p></div>
+      </div>
+
+      <!-- Substituts -->
+      <div class="section-card">
+        <div class="section-card__header"><span class="section-card__title">💊 Substituts RNPC</span></div>
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          <input type="text" id="ns-name" class="np-input" placeholder="Nom du substitut…" maxlength="100" />
+          <div class="meal-macros-labels"><span>kcal</span><span>Prot (g)</span><span>Gluc (g)</span><span>Lip (g)</span><span>Fib (g)</span></div>
+          <div class="meal-macros">
+            <input type="number" id="ns-kcal" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" />
+            <input type="number" id="ns-prot" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="ns-gluc" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="ns-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+            <input type="number" id="ns-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="—" min="0" step="0.1" />
+          </div>
+          <button class="btn btn--primary btn--sm" onclick="saveMealSubstitute()">+ Ajouter le substitut</button>
+        </div>
+        <div id="substitute-list"><p class="preset-list-empty">Chargement…</p></div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="assets/js/config.js?v=11"></script>
+  <script src="assets/js/nutrition.js?v=1"></script>
+</body>
+</html>
