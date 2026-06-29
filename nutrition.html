@@ -30,7 +30,23 @@
     <!-- ===== JOURNAL ===== -->
     <div class="tab-panel active" id="panel-journal">
       <div class="tab-cal-layout">
-        <div id="j-cal-container" class="tab-cal-sidebar"></div>
+        <div class="tab-cal-sidebar">
+          <div id="j-cal-container"></div>
+          <div class="water-sidebar" style="margin-top:10px;">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">💧 Eau</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
+            </div>
+            <div style="display:flex;gap:4px;margin-bottom:6px;">
+              <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(250)">+250</button>
+              <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(500)">+500</button>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
+              <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
+            </div>
+          </div>
+        </div>
         <div class="tab-cal-main">
           <div class="daily-totals">
             <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
@@ -41,14 +57,6 @@
           </div>
           <div id="goals-progress"></div>
           <div class="meals-grid" id="meals-grid"></div>
-          <div class="steps-inline" style="margin-top:4px;">
-            <label>💧 Eau</label>
-            <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
-            <button class="btn btn--ghost btn--sm" onclick="addWater(250)">+250</button>
-            <button class="btn btn--ghost btn--sm" onclick="addWater(500)">+500</button>
-            <input type="number" id="j-water" min="0" placeholder="mL" style="width:80px;" />
-            <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
-          </div>
         </div>
       </div>
     </div>
@@ -56,7 +64,15 @@
     <!-- ===== PLANIFICATION ===== -->
     <div class="tab-panel" id="panel-planification">
       <div class="tab-cal-layout">
-        <div id="p-cal-container" class="tab-cal-sidebar"></div>
+        <div class="tab-cal-sidebar">
+          <div id="p-cal-container"></div>
+          <div style="margin-top:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);cursor:pointer;">
+              <input type="checkbox" id="plan-deduct-stock" checked style="accent-color:var(--primary);" />
+              Déduire du stock
+            </label>
+          </div>
+        </div>
         <div class="tab-cal-main">
           <div id="plan-daily-totals" style="display:none;margin-bottom:12px;">
             <div class="daily-totals">
@@ -105,7 +121,7 @@
       <div class="section-card">
         <div class="section-card__header">
           <span class="section-card__title">Liste de courses</span>
-          <button class="btn btn--primary btn--sm" onclick="generateShoppingList()">Actualiser</button>
+          <button class="btn btn--ghost btn--sm" onclick="generateShoppingList()" style="font-size:11px;">↺ Recalculer</button>
         </div>
         <p style="font-size:12px;color:var(--text-dim);margin-bottom:4px;" id="courses-period"></p>
         <p style="font-size:12px;color:var(--text-dim);margin-bottom:16px;">Repas planifiés du lundi soir au lundi midi suivant, comparés au stock Pantry.</p>
@@ -201,6 +217,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=6"></script>
+  <script src="assets/js/nutrition.js?v=7"></script>
 </body>
 </html>
