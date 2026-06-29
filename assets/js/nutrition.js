@@ -723,6 +723,7 @@ async function applyFoodToPlan(ctx) {
   delete foodPickerState[ctx];
   renderPlanFoodItems(key);
   showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté au plan`, 'success');
+  maybeRefreshShopping();
 }
 
 function updatePlanDailyTotals() {
@@ -816,6 +817,7 @@ async function confirmPlanQtyEdit(mealType, itemId) {
   Object.assign(item, updated);
   renderPlanFoodItems(mealType);
   showToast('Quantité mise à jour', 'success');
+  maybeRefreshShopping();
 }
 
 async function removePlanFoodItem(mealType, itemId) {
@@ -824,6 +826,7 @@ async function removePlanFoodItem(mealType, itemId) {
   planFoodItems[mealType] = (planFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
   renderPlanFoodItems(mealType);
   showToast('Aliment retiré du plan', 'success');
+  maybeRefreshShopping();
 }
 
 // ── Plan substitutes ───────────────────────────────────────
@@ -859,6 +862,7 @@ async function addSubToPlan(mealType, subId) {
   renderPlanSubEntries(mealType);
   renderPlanFoodItems(mealType);
   showToast(`${s.name} ajouté au plan`, 'success');
+  maybeRefreshShopping();
 }
 
 function renderPlanSubEntries(mealType) {
@@ -895,6 +899,7 @@ async function removePlanSubEntry(mealType, entryId) {
   renderPlanSubEntries(mealType);
   renderPlanFoodItems(mealType);
   showToast('Substitut retiré du plan', 'success');
+  maybeRefreshShopping();
 }
 
 async function applyMealPlanToJournal(mealType) {
@@ -943,23 +948,25 @@ async function applyMealPlanToJournal(mealType) {
     fiber_g:   parseFloat(t.fiber_g.toFixed(1)),
   }, { onConflict: 'date,meal_type' });
 
-  // Deduct from pantry
-  for (const item of items) {
-    if (!item.food_id) continue;
-    const pantryItem = pantryItems.find(p => p.food_id === item.food_id);
-    if (pantryItem) {
-      const newQty = Math.max(0, pantryItem.quantity - (item.grams || 0));
-      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-      pantryItem.quantity = newQty;
+  // Deduct from pantry (if toggle is on)
+  if (document.getElementById('plan-deduct-stock')?.checked) {
+    for (const item of items) {
+      if (!item.food_id) continue;
+      const pantryItem = pantryItems.find(p => p.food_id === item.food_id);
+      if (pantryItem) {
+        const newQty = Math.max(0, pantryItem.quantity - (item.grams || 0));
+        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
+        pantryItem.quantity = newQty;
+      }
     }
-  }
-  for (const sub of subs.filter(s => !s.included)) {
-    if (!sub.substitute_id) continue;
-    const pantryItem = pantryItems.find(p => p.substitute_id === sub.substitute_id);
-    if (pantryItem) {
-      const newQty = Math.max(0, pantryItem.quantity - 1);
-      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-      pantryItem.quantity = newQty;
+    for (const sub of subs.filter(s => !s.included)) {
+      if (!sub.substitute_id) continue;
+      const pantryItem = pantryItems.find(p => p.substitute_id === sub.substitute_id);
+      if (pantryItem) {
+        const newQty = Math.max(0, pantryItem.quantity - 1);
+        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
+        pantryItem.quantity = newQty;
+      }
     }
   }
 
@@ -1004,12 +1011,12 @@ function renderPantryList() {
     html += `<div style="margin-bottom:4px;margin-top:12px;font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;display:flex;align-items:center;gap:6px;">
       <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
     </div>`;
-    html += g.items.map(p => renderPantryRow(p)).join('');
+    html += `<div class="pantry-grid">${g.items.map(p => renderPantryRow(p)).join('')}</div>`;
   });
 
   if (subPantry.length) {
     html += '<div style="margin-bottom:4px;margin-top:16px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">💊 Substituts</div>';
-    html += subPantry.map(p => renderPantryRow(p)).join('');
+    html += `<div class="pantry-grid">${subPantry.map(p => renderPantryRow(p)).join('')}</div>`;
   }
   container.innerHTML = html;
 }
@@ -1152,10 +1159,17 @@ function getShoppingPeriod() {
 }
 
 
+function maybeRefreshShopping() {
+  if (document.querySelector('.tab-btn[data-tab="courses"]')?.classList.contains('active')) {
+    generateShoppingList();
+  }
+}
+
 async function generateShoppingList() {
   const { start, end } = getShoppingPeriod();
   setEl('courses-period', `Semaine du ${formatDateShort(start)} au ${formatDateShort(end)}`);
-  setEl('shopping-list-content', '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:24px;">Calcul en cours…</p>');
+  const slc = document.getElementById('shopping-list-content');
+  if (slc) slc.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:24px;">Calcul en cours…</p>';
 
   const [planItemsRes, planSubsRes, pantryRes, tagsRes, tagLinksRes] = await Promise.all([
     db.from('meal_plan_items').select('food_id, food_name, grams').gte('plan_date', start).lte('plan_date', end),
