@@ -26,8 +26,12 @@ const C = {
 };
 
 // ── State ──────────────────────────────────────────────────
-let journalDate = today();
-let planDate    = today();
+let journalDate    = today();
+let planDate       = today();
+let journalCalYear = null;
+let journalCalMonth= null;
+let planCalYear    = null;
+let planCalMonth   = null;
 let planInitialized = false;
 let mealPresets = [];
 let substitutes = [];
@@ -73,7 +77,7 @@ function initTabs() {
       const t = btn.dataset.tab;
       if (t === 'planification' && !planInitialized) { initPlan(); planInitialized = true; }
       if (t === 'pantry') loadPantry();
-      if (t === 'courses') { updateCoursePeriodLabel(); }
+      if (t === 'courses') { generateShoppingList(); }
     });
   });
 }
@@ -87,25 +91,90 @@ function switchNutritionTab(tabName) {
   if (panel) panel.classList.add('active');
 }
 
-// ── Journal ────────────────────────────────────────────────
-function initJournal() {
-  const dateInput = document.getElementById('j-date');
-  dateInput.value = journalDate;
-  document.getElementById('j-prev').addEventListener('click', () => changeJournalDate(-1));
-  document.getElementById('j-next').addEventListener('click', () => changeJournalDate(1));
-  document.getElementById('j-today').addEventListener('click', () => {
-    journalDate = today(); dateInput.value = journalDate; loadJournalData();
-  });
-  dateInput.addEventListener('change', () => { journalDate = dateInput.value; loadJournalData(); });
-  buildMealCards();
-  loadJournalData();
+// ── Mini Calendar ──────────────────────────────────────────
+const MCAL_MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const MCAL_DAYS   = ['L','M','M','J','V','S','D'];
+
+function renderMiniCalendar(containerId, year, month, selectedStr, todayStr, calType) {
+  const firstDay   = new Date(year, month, 1);
+  const totalDays  = new Date(year, month + 1, 0).getDate();
+  const startDow   = (firstDay.getDay() + 6) % 7; // Mon=0
+  const totalCells = Math.ceil((startDow + totalDays) / 7) * 7;
+
+  let cells = MCAL_DAYS.map(d => `<span class="mcal__dow">${d}</span>`).join('');
+  for (let i = 0; i < totalCells; i++) {
+    const d = i - startDow + 1;
+    if (d < 1 || d > totalDays) {
+      cells += '<span class="mcal__day mcal__day--empty"></span>';
+    } else {
+      const dateObj = new Date(year, month, d);
+      const dStr    = dateObj.toISOString().split('T')[0];
+      let cls = 'mcal__day';
+      if (dStr === todayStr)    cls += ' mcal__day--today';
+      if (dStr === selectedStr) cls += ' mcal__day--sel';
+      cells += `<span class="${cls}" onclick="calDayClick('${calType}','${dStr}')">${d}</span>`;
+    }
+  }
+
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = `<div class="mcal">
+    <div class="mcal__header">
+      <button class="btn btn--ghost btn--sm mcal__nav" onclick="calNav('${calType}',-1)">‹</button>
+      <span class="mcal__title">${MCAL_MONTHS[month]} ${year}</span>
+      <button class="btn btn--ghost btn--sm mcal__nav" onclick="calNav('${calType}',1)">›</button>
+    </div>
+    <div class="mcal__grid">${cells}</div>
+    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:6px;font-size:11px;" onclick="calDayClick('${calType}','${todayStr}')">Aujourd'hui</button>
+  </div>`;
 }
 
-function changeJournalDate(delta) {
+function renderJournalCalendar() {
+  renderMiniCalendar('j-cal-container', journalCalYear, journalCalMonth, journalDate, today(), 'J');
+}
+function renderPlanCalendar() {
+  renderMiniCalendar('p-cal-container', planCalYear, planCalMonth, planDate, today(), 'P');
+}
+
+function calNav(calType, delta) {
+  if (calType === 'J') {
+    journalCalMonth += delta;
+    if (journalCalMonth < 0)  { journalCalMonth = 11; journalCalYear--;  }
+    if (journalCalMonth > 11) { journalCalMonth = 0;  journalCalYear++;  }
+    renderJournalCalendar();
+  } else {
+    planCalMonth += delta;
+    if (planCalMonth < 0)  { planCalMonth = 11; planCalYear--;  }
+    if (planCalMonth > 11) { planCalMonth = 0;  planCalYear++;  }
+    renderPlanCalendar();
+  }
+}
+
+function calDayClick(calType, dateStr) {
+  if (calType === 'J') {
+    journalDate = dateStr;
+    const d = new Date(dateStr + 'T12:00:00');
+    journalCalYear  = d.getFullYear();
+    journalCalMonth = d.getMonth();
+    renderJournalCalendar();
+    loadJournalData();
+  } else {
+    planDate = dateStr;
+    const d  = new Date(dateStr + 'T12:00:00');
+    planCalYear  = d.getFullYear();
+    planCalMonth = d.getMonth();
+    renderPlanCalendar();
+    loadPlanData();
+  }
+}
+
+// ── Journal ────────────────────────────────────────────────
+function initJournal() {
   const d = new Date(journalDate + 'T12:00:00');
-  d.setDate(d.getDate() + delta);
-  journalDate = d.toISOString().split('T')[0];
-  document.getElementById('j-date').value = journalDate;
+  journalCalYear  = d.getFullYear();
+  journalCalMonth = d.getMonth();
+  renderJournalCalendar();
+  buildMealCards();
   loadJournalData();
 }
 
@@ -572,23 +641,11 @@ async function removeSubEntry(mealType, entryId) {
 
 // ── Planification ──────────────────────────────────────────
 function initPlan() {
-  const dateInput = document.getElementById('p-date');
-  dateInput.value = planDate;
-  document.getElementById('p-prev').addEventListener('click', () => changePlanDate(-1));
-  document.getElementById('p-next').addEventListener('click', () => changePlanDate(1));
-  document.getElementById('p-today-btn').addEventListener('click', () => {
-    planDate = today(); dateInput.value = planDate; loadPlanData();
-  });
-  dateInput.addEventListener('change', () => { planDate = dateInput.value; loadPlanData(); });
-  buildPlanCards();
-  loadPlanData();
-}
-
-function changePlanDate(delta) {
   const d = new Date(planDate + 'T12:00:00');
-  d.setDate(d.getDate() + delta);
-  planDate = d.toISOString().split('T')[0];
-  document.getElementById('p-date').value = planDate;
+  planCalYear  = d.getFullYear();
+  planCalMonth = d.getMonth();
+  renderPlanCalendar();
+  buildPlanCards();
   loadPlanData();
 }
 
@@ -668,6 +725,38 @@ async function applyFoodToPlan(ctx) {
   showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté au plan`, 'success');
 }
 
+function updatePlanDailyTotals() {
+  let kcal = 0, prot = 0, gluc = 0, lip = 0, fib = 0, hasData = false;
+  MEAL_TYPES.forEach(({ key }) => {
+    [...(planFoodItems[key] || []), ...(planSubEntries[key] || []).filter(s => !s.included)].forEach(i => {
+      kcal += i.calories  || 0;
+      prot += i.protein_g || 0;
+      gluc += i.carbs_g   || 0;
+      lip  += i.fat_g     || 0;
+      fib  += i.fiber_g   || 0;
+      hasData = true;
+    });
+  });
+  const container = document.getElementById('plan-daily-totals');
+  if (container) container.style.display = hasData ? '' : 'none';
+
+  const kcalEl = document.getElementById('pt-total-kcal');
+  if (kcalEl) {
+    kcalEl.textContent = hasData ? Math.round(kcal).toLocaleString('fr-FR') : '—';
+    const goal = nutritionGoals?.calories;
+    if (goal && hasData) {
+      const ratio = kcal / goal;
+      kcalEl.style.color = ratio > 1.15 ? '#ef4444' : ratio > 1.05 ? '#f97316' : 'var(--primary)';
+    } else {
+      kcalEl.style.color = '';
+    }
+  }
+  setEl('pt-total-prot', hasData ? prot.toFixed(1) : '—');
+  setEl('pt-total-gluc', hasData ? gluc.toFixed(1) : '—');
+  setEl('pt-total-lip',  hasData ? lip.toFixed(1)  : '—');
+  setEl('pt-total-fib',  hasData ? fib.toFixed(1)  : '—');
+}
+
 function renderPlanFoodItems(mealType) {
   const container = document.getElementById(`pfi-${mealType}`);
   const tag       = document.getElementById(`pkcal-tag-${mealType}`);
@@ -680,6 +769,7 @@ function renderPlanFoodItems(mealType) {
     const hasSomething = items.length || (planSubEntries[mealType] || []).length;
     tag.textContent = hasSomething ? `${total} kcal` : '— kcal';
   }
+  updatePlanDailyTotals();
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => `
     <div class="meal-food-item" id="pfi-item-${item.id}">
@@ -774,6 +864,7 @@ async function addSubToPlan(mealType, subId) {
 function renderPlanSubEntries(mealType) {
   const container = document.getElementById(`psi-${mealType}`);
   if (!container) return;
+  updatePlanDailyTotals();
   const items = planSubEntries[mealType] || [];
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => `
@@ -1035,23 +1126,31 @@ async function removePantryItem(id) {
 
 // ── Shopping list ──────────────────────────────────────────
 function getShoppingPeriod() {
-  const now        = new Date();
-  const dayOfWeek  = now.getDay();
-  const toMonday   = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-  const lastMonday = new Date(now);
-  lastMonday.setDate(now.getDate() - toMonday);
-  const nextMonday = new Date(lastMonday);
-  nextMonday.setDate(lastMonday.getDate() + 7);
+  const now       = new Date();
+  const dow       = now.getDay(); // 0=Sun, 1=Mon…
+  const toMonday  = (dow === 0) ? 6 : dow - 1;
+  const thisMonday = new Date(now);
+  thisMonday.setDate(now.getDate() - toMonday);
+  thisMonday.setHours(0, 0, 0, 0);
+
+  // After Monday 18h (lundi soir passé) → show next week
+  const afterMondayEvening = (dow === 1 && now.getHours() >= 18) || (dow !== 1 && dow !== 0) || (dow === 0);
+  // dow===0 = Sunday (Monday is coming), other days = past Monday
+  // Simpler: if it's NOT Monday before 18h, advance to next week
+  const isMonBeforeEvening = (dow === 1 && now.getHours() < 18);
+
+  const startMonday = new Date(thisMonday);
+  if (!isMonBeforeEvening) startMonday.setDate(thisMonday.getDate() + 7);
+
+  const endMonday = new Date(startMonday);
+  endMonday.setDate(startMonday.getDate() + 7);
+
   return {
-    start: lastMonday.toISOString().split('T')[0],
-    end:   nextMonday.toISOString().split('T')[0],
+    start: startMonday.toISOString().split('T')[0],
+    end:   endMonday.toISOString().split('T')[0],
   };
 }
 
-function updateCoursePeriodLabel() {
-  const { start, end } = getShoppingPeriod();
-  setEl('courses-period', `Semaine du ${formatDateShort(start)} au ${formatDateShort(end)}`);
-}
 
 async function generateShoppingList() {
   const { start, end } = getShoppingPeriod();
@@ -1164,8 +1263,8 @@ function renderShoppingList(items) {
                onclick="showBuyForm(${idx})" title="Valider l'achat"
                ${checked ? 'style="pointer-events:none;"' : ''}>${checked ? '✓' : '+'}</div>
           <span class="shopping-item__name">${item.name}</span>
-          <span class="shopping-item__qty">${item.toBuy} ${item.unit}</span>
-          ${item.inStock > 0 ? `<span class="shopping-item__stock">en stock: ${item.inStock}</span>` : ''}
+          ${item.inStock > 0 ? `<span class="shopping-item__stock">stock: ${item.inStock} ${item.unit}</span>` : ''}
+          <span class="shopping-item__qty">→ ${item.toBuy} ${item.unit}</span>
           <div class="shopping-buy-form" id="sbf-${idx}" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:6px 0;">
             <input type="number" id="sbf-qty-${idx}" value="${item.toBuy}" min="0" step="0.1"
               style="width:72px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;color:var(--text);font-size:13px;text-align:center;" />
@@ -1353,21 +1452,44 @@ function renderFoodList() {
   const container = document.getElementById('food-list');
   if (!container) return;
   if (!foods.length) { container.innerHTML = '<p class="preset-list-empty">Aucun aliment enregistré.</p>'; return; }
-  container.innerHTML = foods.map(f => {
+
+  // Sort foods by tag then name
+  const sortedFoods = [...foods].sort((a, b) => {
+    const tagA = (foodTagLinks[a.id] || []).length ? (tags.find(t => t.id === foodTagLinks[a.id][0])?.name || 'Zzz') : 'Zzz';
+    const tagB = (foodTagLinks[b.id] || []).length ? (tags.find(t => t.id === foodTagLinks[b.id][0])?.name || 'Zzz') : 'Zzz';
+    if (tagA !== tagB) return tagA.localeCompare(tagB);
+    return a.name.localeCompare(b.name);
+  });
+
+  // Group by tag
+  const tagGroups = {};
+  sortedFoods.forEach(f => {
+    const tagIds  = foodTagLinks[f.id] || [];
+    const tag     = tagIds.length ? tags.find(t => t.id === tagIds[0]) : null;
+    const key     = tag?.name  || 'Autres';
+    const color   = tag?.color || '#64748b';
+    if (!tagGroups[key]) tagGroups[key] = { color, items: [] };
+    tagGroups[key].items.push(f);
+  });
+  const tagKeys = Object.keys(tagGroups).sort((a, b) => {
+    if (a === 'Autres') return 1;
+    if (b === 'Autres') return -1;
+    return a.localeCompare(b);
+  });
+
+  const renderFoodCard = (f) => {
     const macros = [
-      f.calories_per_100g != null ? f.calories_per_100g + 'kcal' : null,
-      f.protein_per_100g  != null ? f.protein_per_100g  + 'g p'  : null,
-      f.carbs_per_100g    != null ? f.carbs_per_100g    + 'g gl'  : null,
+      f.calories_per_100g != null ? f.calories_per_100g + ' kcal' : null,
+      f.protein_per_100g  != null ? f.protein_per_100g  + 'g P'   : null,
+      f.carbs_per_100g    != null ? f.carbs_per_100g    + 'g G'    : null,
+      f.fat_per_100g      != null ? f.fat_per_100g      + 'g L'    : null,
     ].filter(Boolean).join(' · ');
     const unit      = f.unit || 'g';
     const isEditing = editingFoodId === f.id;
-    const myTagIds  = isEditing ? (editingFoodTags[f.id] || foodTagLinks[f.id] || []) : (foodTagLinks[f.id] || []);
-    const myTags    = myTagIds.map(tid => tags.find(t => t.id === tid)).filter(Boolean);
-    const tagChips  = myTags.map(t => `<span style="font-size:10px;padding:2px 8px;border-radius:12px;background:${t.color}22;border:1px solid ${t.color};color:${t.color};">${t.name}</span>`).join('');
     const esc = s => String(s ?? '').replace(/"/g, '&quot;');
 
     const editForm = isEditing ? `
-      <div style="width:100%;display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;">
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding:8px 0 4px;border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <input type="text" id="fe-name-${f.id}" class="np-input" value="${esc(f.name)}" placeholder="Nom" style="flex:1;" />
           <select id="fe-unit-${f.id}" class="np-input" style="width:auto;flex:0 0 auto;">
@@ -1394,18 +1516,27 @@ function renderFoodList() {
         </div>
       </div>` : '';
 
-    return `<div class="preset-item" style="flex-wrap:wrap;">
-      <div style="flex:1;min-width:0;">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span class="preset-item__name">${f.name}</span>
-          <span style="font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.05);padding:1px 6px;border-radius:4px;">${unit}</span>
-          ${tagChips}
-        </div>
-        ${macros ? `<div class="preset-item__meta" style="margin-top:2px;">${macros} /100${unit}</div>` : ''}
+    return `<div class="food-grid-card${isEditing ? ' food-grid-card--editing' : ''}">
+      <div class="food-grid-card__top">
+        <span class="food-grid-card__name">${f.name}</span>
+        <span class="food-grid-card__unit">${unit}</span>
       </div>
-      <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏</button>
-      <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
+      ${macros ? `<div class="food-grid-card__macros">${macros}</div>` : ''}
+      <div class="food-grid-card__actions">
+        <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏</button>
+        <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
+      </div>
       ${editForm}
+    </div>`;
+  };
+
+  container.innerHTML = tagKeys.map(tagName => {
+    const g = tagGroups[tagName];
+    return `<div style="margin-bottom:16px;">
+      <div style="font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0 6px;display:flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
+      </div>
+      <div class="food-grid">${g.items.map(renderFoodCard).join('')}</div>
     </div>`;
   }).join('');
 }
