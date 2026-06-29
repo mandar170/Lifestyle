@@ -1553,14 +1553,14 @@ function renderFoodList() {
       </div>` : '';
 
     return `<div class="food-grid-card${isEditing ? ' food-grid-card--editing' : ''}">
-      <div class="food-grid-card__top">
-        <span class="food-grid-card__name">${f.name}</span>
+      <div class="food-grid-card__name">${f.name}</div>
+      <div class="food-grid-card__row2">
+        <span class="food-grid-card__macros">${macros || '—'}</span>
         <span class="food-grid-card__unit">${unit}</span>
-      </div>
-      ${macros ? `<div class="food-grid-card__macros">${macros}</div>` : ''}
-      <div class="food-grid-card__actions">
-        <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏️</button>
-        <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
+        <div class="food-grid-card__actions">
+          <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏️</button>
+          <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
+        </div>
       </div>
       ${editForm}
     </div>`;
