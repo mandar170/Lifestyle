@@ -1390,6 +1390,10 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 .meal-kcal-tag { font-size:12px; font-weight:700; color:var(--orange); opacity:0; transition:opacity .2s; }
 .meal-card--done .meal-kcal-tag { opacity:1; }
 .meal-card__body { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+.card--collapsed .meal-card__body,
+.card--collapsed .plan-card__body { display:none; }
+.meal-collapse-btn { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:2px 4px; flex-shrink:0; transition:transform .2s; line-height:1; }
+.card--collapsed .meal-collapse-btn { transform:rotate(-90deg); }
 .meal-desc { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:7px; padding:8px 10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px; resize:none; }
 .meal-desc:focus { outline:none; border-color:rgba(100,220,255,0.35); }
 .meal-macros { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
