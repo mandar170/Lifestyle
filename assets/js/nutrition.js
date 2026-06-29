@@ -392,9 +392,10 @@ function renderFoodPickerContent(ctx) {
       f.protein_per_100g  != null ? f.protein_per_100g  + 'g p'  : null,
     ].filter(Boolean).join(' · ');
     const unit = f.unit || 'g';
+    const perLabel = unit === 'unité' ? '/ unité' : `/100${unit}`;
     return `<div class="preset-item" onclick="selectFoodForPicker('${ctx}','${f.id}')">
       <span class="preset-item__name">${f.name}</span>
-      <span class="preset-item__meta">${meta} /100${unit}</span>
+      <span class="preset-item__meta">${meta} ${perLabel}</span>
     </div>`;
   }).join('');
 }
@@ -1553,14 +1554,12 @@ function renderFoodList() {
       </div>` : '';
 
     return `<div class="food-grid-card${isEditing ? ' food-grid-card--editing' : ''}">
-      <div class="food-grid-card__name">${f.name}</div>
-      <div class="food-grid-card__row2">
-        <span class="food-grid-card__macros">${macros || '—'}</span>
-        <span class="food-grid-card__unit">${unit}</span>
-        <div class="food-grid-card__actions">
-          <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏️</button>
-          <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
-        </div>
+      <span class="food-grid-card__name">${f.name}</span>
+      <span class="food-grid-card__macros">${macros || '—'}</span>
+      <span class="food-grid-card__unit">${unit}</span>
+      <div class="food-grid-card__actions">
+        <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏️</button>
+        <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
       </div>
       ${editForm}
     </div>`;
