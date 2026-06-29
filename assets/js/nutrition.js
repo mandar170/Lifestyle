@@ -35,6 +35,7 @@ let foods       = [];
 let tags        = [];
 let foodTagLinks = {};   // food_id → tag_id[]
 let pantryItems = [];
+let shoppingRenderItems = [];
 let mealFoodItems = {};
 let mealSubEntries = {};
 const foodPickerState = {};
@@ -597,7 +598,7 @@ function buildPlanCards() {
       <div class="plan-card__header">
         <span class="meal-label">${label}</span>
         <span class="plan-kcal-tag" id="pkcal-tag-${key}">— kcal</span>
-        <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">→ Journal</button>
+        <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">✓ Enregistrer</button>
       </div>
       <div class="plan-card__body">
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
@@ -871,12 +872,7 @@ async function applyMealPlanToJournal(mealType) {
     }
   }
 
-  showToast('Repas ajouté au journal ✓', 'success');
-  journalDate = planDate;
-  document.getElementById('j-date').value = planDate;
-  switchNutritionTab('journal');
-  await loadJournalData();
-  syncNutritionTable(journalDate);
+  showToast('Repas enregistré au journal ✓', 'success');
 }
 
 // ── Pantry ─────────────────────────────────────────────────
@@ -894,13 +890,34 @@ function renderPantryList() {
   }
   const foodPantry = pantryItems.filter(p => p.item_type === 'food');
   const subPantry  = pantryItems.filter(p => p.item_type === 'substitute');
+
+  // Group foods by tag
+  const tagGroups = {};
+  foodPantry.forEach(p => {
+    const tagIds   = foodTagLinks[p.food_id] || [];
+    const tag      = tagIds.length ? tags.find(t => t.id === tagIds[0]) : null;
+    const tagName  = tag?.name  || 'Autres';
+    const tagColor = tag?.color || '#64748b';
+    if (!tagGroups[tagName]) tagGroups[tagName] = { color: tagColor, items: [] };
+    tagGroups[tagName].items.push(p);
+  });
+  const tagKeys = Object.keys(tagGroups).sort((a, b) => {
+    if (a === 'Autres') return 1;
+    if (b === 'Autres') return -1;
+    return a.localeCompare(b);
+  });
+
   let html = '';
-  if (foodPantry.length) {
-    html += '<div style="margin-bottom:6px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">🥗 Aliments</div>';
-    html += foodPantry.map(p => renderPantryRow(p)).join('');
-  }
+  tagKeys.forEach(tagName => {
+    const g = tagGroups[tagName];
+    html += `<div style="margin-bottom:4px;margin-top:12px;font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;display:flex;align-items:center;gap:6px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
+    </div>`;
+    html += g.items.map(p => renderPantryRow(p)).join('');
+  });
+
   if (subPantry.length) {
-    html += '<div style="margin-bottom:6px;margin-top:16px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">💊 Substituts</div>';
+    html += '<div style="margin-bottom:4px;margin-top:16px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">💊 Substituts</div>';
     html += subPantry.map(p => renderPantryRow(p)).join('');
   }
   container.innerHTML = html;
@@ -1094,13 +1111,13 @@ async function generateShoppingList() {
     const pantryItem = pantrySnap.find(p => p.food_id === foodId);
     const inStock    = pantryItem?.quantity || 0;
     const toBuy      = Math.max(0, need.totalQty - inStock);
-    if (toBuy > 0) shoppingItems.push({ ...need, inStock, toBuy: Math.round(toBuy * 10) / 10 });
+    if (toBuy > 0) shoppingItems.push({ ...need, food_id: foodId, sub_id: null, inStock, toBuy: Math.round(toBuy * 10) / 10 });
   });
   Object.entries(subNeeds).forEach(([subId, need]) => {
     const pantryItem = pantrySnap.find(p => p.substitute_id === subId);
     const inStock    = pantryItem?.quantity || 0;
     const toBuy      = Math.max(0, need.totalQty - inStock);
-    if (toBuy > 0) shoppingItems.push({ ...need, inStock, toBuy: Math.ceil(toBuy) });
+    if (toBuy > 0) shoppingItems.push({ ...need, food_id: null, sub_id: subId, inStock, toBuy: Math.ceil(toBuy) });
   });
 
   checkedShoppingItems = new Set();
@@ -1123,7 +1140,6 @@ function renderShoppingList(items) {
     groups[tagName].items.push(item);
   });
 
-  // Sort: Substituts last, Autres second-to-last, others alphabetical
   const keys = Object.keys(groups).sort((a, b) => {
     if (a === 'Substituts') return 1;
     if (b === 'Substituts') return -1;
@@ -1132,6 +1148,7 @@ function renderShoppingList(items) {
     return a.localeCompare(b);
   });
 
+  shoppingRenderItems = [];
   container.innerHTML = keys.map(tagName => {
     const g = groups[tagName];
     return `<div class="shopping-group">
@@ -1139,34 +1156,83 @@ function renderShoppingList(items) {
         <span class="shopping-group__dot" style="background:${g.color};"></span>${tagName}
       </div>
       ${g.items.map(item => {
-        const key = `${item.name}`;
-        const checked = checkedShoppingItems.has(key);
-        return `<div class="shopping-item${checked ? '" style="opacity:.45;' : '"'}>
-          <div class="shopping-item__check${checked ? ' shopping-item__check--done' : ''}" onclick="toggleShoppingCheck('${key.replace(/'/g,"\\'")}')" title="Cocher">${checked ? '✓' : ''}</div>
-          <span class="shopping-item__name" style="${checked ? 'text-decoration:line-through;' : ''}">${item.name}</span>
+        const idx     = shoppingRenderItems.length;
+        shoppingRenderItems.push(item);
+        const checked = checkedShoppingItems.has(item.name);
+        return `<div class="shopping-item${checked ? ' shopping-item--done' : ''}" id="si-${idx}">
+          <div class="shopping-item__check${checked ? ' shopping-item__check--done' : ''}"
+               onclick="showBuyForm(${idx})" title="Valider l'achat"
+               ${checked ? 'style="pointer-events:none;"' : ''}>${checked ? '✓' : '+'}</div>
+          <span class="shopping-item__name">${item.name}</span>
           <span class="shopping-item__qty">${item.toBuy} ${item.unit}</span>
           ${item.inStock > 0 ? `<span class="shopping-item__stock">en stock: ${item.inStock}</span>` : ''}
+          <div class="shopping-buy-form" id="sbf-${idx}" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:6px 0;">
+            <input type="number" id="sbf-qty-${idx}" value="${item.toBuy}" min="0" step="0.1"
+              style="width:72px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 8px;color:var(--text);font-size:13px;text-align:center;" />
+            <span style="font-size:12px;color:var(--text-dim);">${item.unit}</span>
+            <button class="btn btn--primary btn--sm" onclick="confirmBuy(${idx})">Ajouter au stock</button>
+            <button class="btn btn--ghost btn--sm" onclick="cancelBuyForm(${idx})">✕</button>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
   }).join('');
 }
 
-function toggleShoppingCheck(key) {
-  if (checkedShoppingItems.has(key)) checkedShoppingItems.delete(key);
-  else checkedShoppingItems.add(key);
-  // Re-render just the item's styling
-  document.querySelectorAll('.shopping-item').forEach(el => {
-    const nameEl  = el.querySelector('.shopping-item__name');
-    const checkEl = el.querySelector('.shopping-item__check');
-    if (!nameEl) return;
-    const itemKey = nameEl.textContent;
-    const done    = checkedShoppingItems.has(itemKey);
-    el.style.opacity = done ? '0.45' : '';
-    nameEl.style.textDecoration = done ? 'line-through' : '';
-    checkEl.classList.toggle('shopping-item__check--done', done);
-    checkEl.textContent = done ? '✓' : '';
-  });
+function showBuyForm(idx) {
+  const form = document.getElementById(`sbf-${idx}`);
+  if (!form) return;
+  form.style.display = 'flex';
+  const input = document.getElementById(`sbf-qty-${idx}`);
+  if (input) { input.select(); input.focus(); }
+}
+
+function cancelBuyForm(idx) {
+  const form = document.getElementById(`sbf-${idx}`);
+  if (form) form.style.display = 'none';
+}
+
+async function confirmBuy(idx) {
+  const item = shoppingRenderItems[idx];
+  if (!item) return;
+  const input = document.getElementById(`sbf-qty-${idx}`);
+  const qty   = parseFloat(input?.value);
+  if (!qty || qty <= 0) { showToast('Entrez une quantité', 'error'); return; }
+
+  const existing = pantryItems.find(p =>
+    (item.food_id && p.food_id === item.food_id) ||
+    (item.sub_id  && p.substitute_id === item.sub_id)
+  );
+
+  if (existing) {
+    const newQty = parseFloat(((existing.quantity || 0) + qty).toFixed(2));
+    const { error } = await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    existing.quantity = newQty;
+  } else {
+    const isFood = !!item.food_id;
+    const entry  = {
+      item_type:    isFood ? 'food' : 'substitute',
+      food_id:      isFood ? item.food_id : null,
+      substitute_id: !isFood ? item.sub_id : null,
+      name:         item.name,
+      quantity:     qty,
+      unit:         item.unit,
+    };
+    const { data, error } = await db.from('pantry_items').insert(entry).select().single();
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    if (data) pantryItems.push(data);
+  }
+
+  checkedShoppingItems.add(item.name);
+  cancelBuyForm(idx);
+  const el = document.getElementById(`si-${idx}`);
+  if (el) {
+    el.classList.add('shopping-item--done');
+    const check = el.querySelector('.shopping-item__check');
+    if (check) { check.classList.add('shopping-item__check--done'); check.textContent = '✓'; check.style.pointerEvents = 'none'; }
+  }
+  showToast(`${item.name} ajouté au stock`, 'success');
 }
 
 // ── Gestion — Goals ────────────────────────────────────────
