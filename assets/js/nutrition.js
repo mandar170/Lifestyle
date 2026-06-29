@@ -65,7 +65,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initJournal();
 
-  await Promise.all([loadSubstitutes(), loadFoods(), loadTags(), loadGoals(), loadEquivalences()]);
+  await Promise.all([loadFoods(), loadTags(), loadGoals(), loadEquivalences()]);
+  renderFoodList(); // re-render after tags are loaded
 });
 
 // ── Tabs ───────────────────────────────────────────────────
@@ -188,11 +189,7 @@ function buildMealCards() {
         <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
       </div>
       <div class="meal-card__body">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleSubstitutePicker('${key}')">💊 Substitut</button>
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">🥗 Aliment</button>
-        </div>
-        <div class="preset-picker" id="sp-${key}"></div>
+        <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
         <div class="food-picker" id="fp-meal-${key}">
           <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
           <div class="food-picker-list" id="fp-list-meal-${key}"></div>
@@ -203,7 +200,6 @@ function buildMealCards() {
           </div>
         </div>
         <div class="meal-food-items" id="mfi-${key}"></div>
-        <div class="meal-sub-items" id="msi-${key}"></div>
         <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
         <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
         <div class="meal-macros">
@@ -219,10 +215,9 @@ function buildMealCards() {
 }
 
 async function loadJournalData() {
-  const [{ data: meals }, { data: foodItems }, { data: subItems }] = await Promise.all([
+  const [{ data: meals }, { data: foodItems }] = await Promise.all([
     db.from('meals').select('*').eq('date', journalDate),
     db.from('meal_food_items').select('*').eq('date', journalDate),
-    db.from('meal_substitute_entries').select('*').eq('date', journalDate),
   ]);
   mealFoodItems = {};
   (foodItems || []).forEach(item => {
@@ -230,12 +225,8 @@ async function loadJournalData() {
     mealFoodItems[item.meal_type].push(item);
   });
   mealSubEntries = {};
-  (subItems || []).forEach(item => {
-    if (!mealSubEntries[item.meal_type]) mealSubEntries[item.meal_type] = [];
-    mealSubEntries[item.meal_type].push(item);
-  });
   renderMealCards(meals || []);
-  MEAL_TYPES.forEach(({ key }) => { renderMealFoodItems(key); renderMealSubEntries(key); });
+  MEAL_TYPES.forEach(({ key }) => { renderMealFoodItems(key); });
   loadWater();
 }
 
@@ -489,9 +480,9 @@ function renderMealFoodItems(mealType) {
         <button class="btn btn--primary btn--sm" onclick="confirmFoodQtyEdit('${mealType}','${item.id}')">OK</button>
         <button class="btn btn--ghost btn--sm" onclick="cancelFoodQtyEdit('${item.id}')">✕</button>
       </div>
-      <div style="display:flex;gap:4px;margin-left:auto;">
-        <button class="btn btn--ghost btn--sm" onclick="editMealFoodItemQty('${item.id}')" title="Modifier">✏️</button>
-        <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removeMealFoodItem('${mealType}','${item.id}')">✕</button>
+      <div style="display:flex;gap:3px;margin-left:auto;">
+        <button class="btn btn--ghost btn--xs" onclick="editMealFoodItemQty('${item.id}')">✏️</button>
+        <button class="btn btn--ghost btn--xs" style="color:rgba(248,113,113,0.8);" onclick="removeMealFoodItem('${mealType}','${item.id}')">✕</button>
       </div>
     </div>`).join('');
 }
@@ -659,11 +650,7 @@ function buildPlanCards() {
         <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">✓ Enregistrer</button>
       </div>
       <div class="plan-card__body">
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="togglePlanSubPicker('${key}')">💊 Substitut</button>
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">🥗 Aliment</button>
-        </div>
-        <div class="preset-picker" id="psp-${key}"></div>
+        <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
         <div class="food-picker" id="fp-plan-${key}">
           <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
           <div class="food-picker-list" id="fp-list-plan-${key}"></div>
@@ -674,27 +661,19 @@ function buildPlanCards() {
           </div>
         </div>
         <div class="meal-food-items" id="pfi-${key}"></div>
-        <div class="meal-sub-items" id="psi-${key}"></div>
       </div>
     </div>`).join('');
 }
 
 async function loadPlanData() {
-  const [{ data: items }, { data: subs }] = await Promise.all([
-    db.from('meal_plan_items').select('*').eq('plan_date', planDate),
-    db.from('meal_plan_sub_entries').select('*').eq('plan_date', planDate),
-  ]);
+  const { data: items } = await db.from('meal_plan_items').select('*').eq('plan_date', planDate);
   planFoodItems = {};
   (items || []).forEach(item => {
     if (!planFoodItems[item.meal_type]) planFoodItems[item.meal_type] = [];
     planFoodItems[item.meal_type].push(item);
   });
   planSubEntries = {};
-  (subs || []).forEach(s => {
-    if (!planSubEntries[s.meal_type]) planSubEntries[s.meal_type] = [];
-    planSubEntries[s.meal_type].push(s);
-  });
-  MEAL_TYPES.forEach(({ key }) => { renderPlanFoodItems(key); renderPlanSubEntries(key); });
+  MEAL_TYPES.forEach(({ key }) => { renderPlanFoodItems(key); });
 }
 
 async function applyFoodToPlan(ctx) {
@@ -782,9 +761,9 @@ function renderPlanFoodItems(mealType) {
         <button class="btn btn--primary btn--sm" onclick="confirmPlanQtyEdit('${mealType}','${item.id}')">OK</button>
         <button class="btn btn--ghost btn--sm" onclick="cancelPlanQtyEdit('${item.id}')">✕</button>
       </div>
-      <div style="display:flex;gap:4px;margin-left:auto;">
-        <button class="btn btn--ghost btn--sm" onclick="editPlanFoodItemQty('${item.id}')">✏️</button>
-        <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removePlanFoodItem('${mealType}','${item.id}')">✕</button>
+      <div style="display:flex;gap:3px;margin-left:auto;">
+        <button class="btn btn--ghost btn--xs" onclick="editPlanFoodItemQty('${item.id}')">✏️</button>
+        <button class="btn btn--ghost btn--xs" style="color:rgba(248,113,113,0.8);" onclick="removePlanFoodItem('${mealType}','${item.id}')">✕</button>
       </div>
     </div>`).join('');
 }
@@ -917,21 +896,12 @@ async function applyMealPlanToJournal(mealType) {
       fat_g: i.fat_g, fiber_g: i.fiber_g,
     }))));
   }
-  if (subs.length) {
-    ops.push(db.from('meal_substitute_entries').insert(subs.map(s => ({
-      date: planDate, meal_type: mealType,
-      substitute_id: s.substitute_id, substitute_name: s.substitute_name,
-      included: s.included, calories: s.calories, protein_g: s.protein_g,
-      carbs_g: s.carbs_g, fat_g: s.fat_g, fiber_g: s.fiber_g,
-    }))));
-  }
   const results = await Promise.all(ops);
   const firstErr = results.find(r => r.error)?.error;
   if (firstErr) { showToast(`Erreur : ${firstErr.message}`, 'error'); return; }
 
   const { data: allItems } = await db.from('meal_food_items').select('*').eq('date', planDate).eq('meal_type', mealType);
-  const addSubs = subs.filter(s => !s.included);
-  const t = [...(allItems || []), ...addSubs].reduce((acc, i) => ({
+  const t = (allItems || []).reduce((acc, i) => ({
     calories:  acc.calories  + (i.calories  || 0),
     protein_g: acc.protein_g + (i.protein_g || 0),
     carbs_g:   acc.carbs_g   + (i.carbs_g   || 0),
@@ -956,15 +926,6 @@ async function applyMealPlanToJournal(mealType) {
       const pantryItem = pantryItems.find(p => p.food_id === item.food_id);
       if (pantryItem) {
         const newQty = Math.max(0, pantryItem.quantity - (item.grams || 0));
-        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-        pantryItem.quantity = newQty;
-      }
-    }
-    for (const sub of subs.filter(s => !s.included)) {
-      if (!sub.substitute_id) continue;
-      const pantryItem = pantryItems.find(p => p.substitute_id === sub.substitute_id);
-      if (pantryItem) {
-        const newQty = Math.max(0, pantryItem.quantity - 1);
         await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
         pantryItem.quantity = newQty;
       }
@@ -1598,7 +1559,7 @@ function renderFoodList() {
       </div>
       ${macros ? `<div class="food-grid-card__macros">${macros}</div>` : ''}
       <div class="food-grid-card__actions">
-        <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏</button>
+        <button class="habit-manage-btn habit-manage-btn--edit" onclick="startFoodEdit('${f.id}')">✏️</button>
         <button class="preset-item__del" onclick="deleteFood('${f.id}')">✕</button>
       </div>
       ${editForm}
@@ -1793,7 +1754,7 @@ function renderEquivalenceList() {
         <span class="preset-item__name">${foodA.name}</span>
         <span class="preset-item__meta"> ${lo}–${hi} ${unitA} ${dir} ${qtyB} ${foodB.name}</span>${autoTag}
       </div>
-      <button class="habit-manage-btn habit-manage-btn--edit" style="margin-right:4px;" onclick="startEquivalenceEdit('${eq.id}')">✏</button>
+      <button class="habit-manage-btn habit-manage-btn--edit" style="margin-right:4px;" onclick="startEquivalenceEdit('${eq.id}')">✏️</button>
       <button class="preset-item__del" onclick="deleteEquivalence('${eq.id}')">✕</button>
     </div>`;
   }).join('');

@@ -203,6 +203,7 @@ button, input, select, textarea { font-family: inherit; }
   transform: translateY(-2px);
 }
 .btn--sm { padding: 8px 18px; font-size: 12px; }
+.btn--xs { padding: 2px 7px; font-size: 12px; line-height: 1.4; }
 
 /* SECTION */
 section { position: relative; z-index: 1; padding: 100px 0; }
