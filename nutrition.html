@@ -180,6 +180,32 @@
         <div id="food-list"><p class="preset-list-empty">Chargement…</p></div>
       </div>
 
+      <!-- Équivalences -->
+      <div class="section-card" style="margin-bottom:24px;">
+        <div class="section-card__header"><span class="section-card__title">🔄 Équivalences</span></div>
+        <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Ex : 30g de blanc d'œuf = 1 œuf. La plage ±tolérance définit la fourchette acceptable par unité.</p>
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="eq-food-a" class="np-input" style="flex:2;min-width:140px;"></select>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+              <input type="number" id="eq-ratio" class="np-input" placeholder="ratio" min="0" step="0.1" style="width:70px;padding:6px 6px;text-align:center;" />
+              <span style="font-size:12px;color:var(--text-dim);">±</span>
+              <input type="number" id="eq-tolerance" class="np-input" placeholder="tol." min="0" step="0.1" style="width:60px;padding:6px 6px;text-align:center;" />
+            </div>
+            <span style="font-size:13px;color:var(--text-dim);flex-shrink:0;">= 1</span>
+            <select id="eq-food-b" class="np-input" style="flex:2;min-width:140px;"></select>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);cursor:pointer;">
+              <input type="checkbox" id="eq-both-ways" checked style="accent-color:var(--primary);" />
+              Dans les deux sens (↔)
+            </label>
+            <button class="btn btn--primary btn--sm" onclick="saveEquivalence()">+ Ajouter</button>
+          </div>
+        </div>
+        <div id="equivalence-list"></div>
+      </div>
+
       <!-- Substituts -->
       <div class="section-card" style="margin-bottom:24px;">
         <div class="section-card__header"><span class="section-card__title">💊 Substituts RNPC</span></div>
@@ -217,6 +243,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=7"></script>
+  <script src="assets/js/nutrition.js?v=8"></script>
 </body>
 </html>
