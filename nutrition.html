@@ -42,7 +42,7 @@
               <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(500)">+500</button>
             </div>
             <div style="display:flex;gap:4px;">
-              <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
+              <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;min-width:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
               <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
             </div>
           </div>
@@ -225,7 +225,7 @@
       </div>
 
       <!-- Tags -->
-      <div class="section-card">
+      <div class="section-card" style="margin-bottom:24px;">
         <div class="section-card__header">
           <span class="section-card__title">Tags aliments</span>
         </div>
@@ -237,12 +237,44 @@
         <div id="tag-list"></div>
       </div>
 
+      <!-- Équivalences -->
+      <div class="section-card">
+        <div class="section-card__header"><span class="section-card__title">🔄 Équivalences</span></div>
+        <p style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Ex : 30g de blanc d'œuf = 1 œuf. La plage ±tolérance définit la fourchette acceptable par unité.</p>
+        <div style="display:grid;gap:8px;margin-bottom:16px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="eq-food-a" class="np-input" style="flex:2;min-width:140px;"></select>
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+              <input type="number" id="eq-ratio" class="np-input" placeholder="ratio" min="0" step="0.1" style="width:70px;padding:6px 6px;text-align:center;" />
+              <span style="font-size:12px;color:var(--text-dim);">±</span>
+              <input type="number" id="eq-tolerance" class="np-input" placeholder="tol." min="0" step="0.1" style="width:60px;padding:6px 6px;text-align:center;" />
+            </div>
+            <span style="font-size:13px;color:var(--text-dim);flex-shrink:0;">=</span>
+            <input type="number" id="eq-qty-b" class="np-input" placeholder="qté" min="0.1" step="0.1" value="1" style="width:60px;padding:6px 6px;text-align:center;flex-shrink:0;" />
+            <select id="eq-food-b" class="np-input" style="flex:2;min-width:140px;"></select>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);cursor:pointer;">
+              <input type="checkbox" id="eq-both-ways" checked style="accent-color:var(--primary);" />
+              Dans les deux sens (↔)
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-dim);cursor:pointer;">
+              <input type="checkbox" id="eq-auto-add" style="accent-color:var(--primary);" />
+              Ajout auto A quand B ajouté
+            </label>
+            <button id="eq-save-btn" class="btn btn--primary btn--sm" onclick="saveEquivalence()">+ Ajouter</button>
+            <button id="eq-cancel-btn" class="btn btn--ghost btn--sm" onclick="cancelEquivalenceEdit()" style="display:none;">Annuler</button>
+          </div>
+        </div>
+        <div id="equivalence-list"></div>
+      </div>
+
     </div>
 
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=8"></script>
+  <script src="assets/js/nutrition.js?v=9"></script>
 </body>
 </html>
