@@ -53,6 +53,7 @@ let selectedTagsForNewFood = [];
 let editingFoodTags = {};  // foodId → tag_id[] (for edit mode)
 let pantrySelectedItem = null;
 let checkedShoppingItems = new Set();
+let editingEquivalenceId = null;
 
 // ── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -108,8 +109,7 @@ function renderMiniCalendar(containerId, year, month, selectedStr, todayStr, cal
     if (d < 1 || d > totalDays) {
       cells += '<span class="mcal__day mcal__day--empty"></span>';
     } else {
-      const dateObj = new Date(year, month, d);
-      const dStr    = dateObj.toISOString().split('T')[0];
+      const dStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       let cls = 'mcal__day';
       if (dStr === todayStr)    cls += ' mcal__day--today';
       if (dStr === selectedStr) cls += ' mcal__day--sel';
@@ -980,20 +980,21 @@ async function applyMealPlanToJournal(mealType) {
         const isB = eq.both_ways && eq.food_id_b === item.food_id;
         if (!isA && !isB) continue;
 
+        const qtyB = eq.qty_b || 1;
+        const gramsPerUnit = eq.ratio / qtyB;
         if (isA) {
-          // e.g. consuming blanc d'œuf → deduct eggs
-          const units = Math.round(item.grams / eq.ratio);
+          // consuming food_a (grams) → deduct food_b (units)
+          const units = Math.round(item.grams / gramsPerUnit);
           if (units <= 0) continue;
-          const perUnit = item.grams / units;
-          if (Math.abs(perUnit - eq.ratio) > eq.tolerance) continue;
+          if (Math.abs((item.grams / units) - gramsPerUnit) > eq.tolerance) continue;
           const target = pantryItems.find(p => p.food_id === eq.food_id_b);
           if (!target) continue;
           const newQty = Math.max(0, target.quantity - units);
           await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
           target.quantity = newQty;
         } else {
-          // e.g. consuming an egg → deduct blanc d'œuf grams
-          const gramsA = item.grams * eq.ratio;
+          // consuming food_b (units) → deduct food_a (grams)
+          const gramsA = item.grams * gramsPerUnit;
           const target = pantryItems.find(p => p.food_id === eq.food_id_a);
           if (!target) continue;
           const newQty = Math.max(0, target.quantity - gramsA);
@@ -1039,18 +1040,21 @@ function renderPantryList() {
     return a.localeCompare(b);
   });
 
-  let html = '';
-  tagKeys.forEach(tagName => {
+  let foodHtml = tagKeys.map(tagName => {
     const g = tagGroups[tagName];
-    html += `<div style="margin-bottom:4px;margin-top:12px;font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;display:flex;align-items:center;gap:6px;">
-      <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
+    return `<div class="tag-col-group">
+      <div style="margin-bottom:4px;font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;display:flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
+      </div>
+      ${g.items.map(p => renderPantryRow(p)).join('')}
     </div>`;
-    html += `<div class="pantry-grid">${g.items.map(p => renderPantryRow(p)).join('')}</div>`;
-  });
+  }).join('');
+
+  let html = `<div class="tag-col-layout">${foodHtml}</div>`;
 
   if (subPantry.length) {
     html += '<div style="margin-bottom:4px;margin-top:16px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">💊 Substituts</div>';
-    html += `<div class="pantry-grid">${subPantry.map(p => renderPantryRow(p)).join('')}</div>`;
+    html += subPantry.map(p => renderPantryRow(p)).join('');
   }
   container.innerHTML = html;
 }
@@ -1143,6 +1147,28 @@ async function addPantryItem() {
   }
 
   showToast(`${pantrySelectedItem.name} mis à jour dans le stock`, 'success');
+
+  // Auto-add food_a equivalents when food_b is added
+  if (isFood) {
+    const autoEqs = equivalences.filter(eq => eq.food_id_b === pantrySelectedItem.id && eq.auto_add_food_a);
+    for (const eq of autoEqs) {
+      const gramsA = qty * (eq.ratio / (eq.qty_b || 1));
+      const foodAFood = foods.find(f => f.id === eq.food_id_a);
+      if (!foodAFood) continue;
+      // Reload pantry to get current state before checking
+      const { data: currentPantry } = await db.from('pantry_items').select('*').eq('food_id', eq.food_id_a).single();
+      if (currentPantry) {
+        await db.from('pantry_items').update({ quantity: currentPantry.quantity + gramsA, updated_at: new Date().toISOString() }).eq('id', currentPantry.id);
+      } else {
+        await db.from('pantry_items').insert({
+          item_type: 'food', food_id: eq.food_id_a,
+          name: foodAFood.name, quantity: gramsA, unit: foodAFood.unit || 'g',
+        });
+      }
+      showToast(`${foodAFood.name} ajouté automatiquement (${gramsA.toFixed(0)}${foodAFood.unit || 'g'})`, 'success');
+    }
+  }
+
   hidePantryForm();
   await loadPantry();
 }
@@ -1579,15 +1605,15 @@ function renderFoodList() {
     </div>`;
   };
 
-  container.innerHTML = tagKeys.map(tagName => {
+  container.innerHTML = `<div class="tag-col-layout">${tagKeys.map(tagName => {
     const g = tagGroups[tagName];
-    return `<div style="margin-bottom:16px;">
+    return `<div class="tag-col-group">
       <div style="font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0 6px;display:flex;align-items:center;gap:6px;">
         <span style="width:8px;height:8px;border-radius:50%;background:${g.color};display:inline-block;flex-shrink:0;"></span>${tagName}
       </div>
-      <div class="food-grid">${g.items.map(renderFoodCard).join('')}</div>
+      <div class="food-col-stack">${g.items.map(renderFoodCard).join('')}</div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 }
 
 function renderEditFoodTagChips(foodId) {
@@ -1756,36 +1782,79 @@ function renderEquivalenceList() {
     const foodA = foods.find(f => f.id === eq.food_id_a);
     const foodB = foods.find(f => f.id === eq.food_id_b);
     if (!foodA || !foodB) return '';
-    const unitA  = foodA.unit || 'g';
-    const lo     = parseFloat((eq.ratio - eq.tolerance).toFixed(2));
-    const hi     = parseFloat((eq.ratio + eq.tolerance).toFixed(2));
-    const dir    = eq.both_ways ? '↔' : '→';
+    const unitA   = foodA.unit || 'g';
+    const qtyB    = eq.qty_b || 1;
+    const lo      = parseFloat((eq.ratio - eq.tolerance).toFixed(2));
+    const hi      = parseFloat((eq.ratio + eq.tolerance).toFixed(2));
+    const dir     = eq.both_ways ? '↔' : '→';
+    const autoTag = eq.auto_add_food_a ? ' <span style="font-size:10px;color:var(--primary);">🔁 auto</span>' : '';
     return `<div class="preset-item">
       <div style="flex:1;min-width:0;">
         <span class="preset-item__name">${foodA.name}</span>
-        <span class="preset-item__meta"> ${lo}–${hi} ${unitA} ${dir} 1 ${foodB.name}</span>
+        <span class="preset-item__meta"> ${lo}–${hi} ${unitA} ${dir} ${qtyB} ${foodB.name}</span>${autoTag}
       </div>
+      <button class="habit-manage-btn habit-manage-btn--edit" style="margin-right:4px;" onclick="startEquivalenceEdit('${eq.id}')">✏</button>
       <button class="preset-item__del" onclick="deleteEquivalence('${eq.id}')">✕</button>
     </div>`;
   }).join('');
 }
 
+function startEquivalenceEdit(id) {
+  const eq = equivalences.find(e => e.id === id);
+  if (!eq) return;
+  editingEquivalenceId = id;
+  const setVal = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
+  const setChk = (elId, val) => { const el = document.getElementById(elId); if (el) el.checked = val; };
+  setVal('eq-food-a', eq.food_id_a);
+  setVal('eq-food-b', eq.food_id_b);
+  setVal('eq-ratio', eq.ratio);
+  setVal('eq-tolerance', eq.tolerance || 0);
+  setVal('eq-qty-b', eq.qty_b || 1);
+  setChk('eq-both-ways', eq.both_ways ?? true);
+  setChk('eq-auto-add', eq.auto_add_food_a ?? false);
+  const btn = document.getElementById('eq-save-btn');
+  if (btn) btn.textContent = '✓ Mettre à jour';
+  const cancel = document.getElementById('eq-cancel-btn');
+  if (cancel) cancel.style.display = '';
+  document.getElementById('eq-food-a')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelEquivalenceEdit() {
+  editingEquivalenceId = null;
+  ['eq-food-a','eq-food-b','eq-ratio','eq-tolerance'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const qtyEl = document.getElementById('eq-qty-b'); if (qtyEl) qtyEl.value = '1';
+  const btn = document.getElementById('eq-save-btn'); if (btn) btn.textContent = '+ Ajouter';
+  const cancel = document.getElementById('eq-cancel-btn'); if (cancel) cancel.style.display = 'none';
+}
+
 async function saveEquivalence() {
-  const foodAId   = document.getElementById('eq-food-a')?.value;
-  const foodBId   = document.getElementById('eq-food-b')?.value;
-  const ratio     = parseFloat(document.getElementById('eq-ratio')?.value);
-  const tolerance = parseFloat(document.getElementById('eq-tolerance')?.value) || 0;
-  const bothWays  = document.getElementById('eq-both-ways')?.checked ?? true;
+  const foodAId    = document.getElementById('eq-food-a')?.value;
+  const foodBId    = document.getElementById('eq-food-b')?.value;
+  const ratio      = parseFloat(document.getElementById('eq-ratio')?.value);
+  const tolerance  = parseFloat(document.getElementById('eq-tolerance')?.value) || 0;
+  const qtyB       = parseFloat(document.getElementById('eq-qty-b')?.value) || 1;
+  const bothWays   = document.getElementById('eq-both-ways')?.checked ?? true;
+  const autoAdd    = document.getElementById('eq-auto-add')?.checked ?? false;
 
   if (!foodAId || !foodBId)  { showToast('Sélectionnez les deux aliments', 'error'); return; }
   if (foodAId === foodBId)   { showToast('Les deux aliments doivent être différents', 'error'); return; }
   if (!ratio || ratio <= 0)  { showToast('Entrez un ratio valide', 'error'); return; }
 
-  const { error } = await db.from('food_equivalences').insert({ food_id_a: foodAId, food_id_b: foodBId, ratio, tolerance, both_ways: bothWays });
+  const payload = { food_id_a: foodAId, food_id_b: foodBId, ratio, tolerance, qty_b: qtyB, both_ways: bothWays, auto_add_food_a: autoAdd };
+
+  let error;
+  if (editingEquivalenceId) {
+    ({ error } = await db.from('food_equivalences').update(payload).eq('id', editingEquivalenceId));
+    if (!error) showToast('Équivalence mise à jour', 'success');
+  } else {
+    ({ error } = await db.from('food_equivalences').insert(payload));
+    if (!error) showToast('Équivalence enregistrée', 'success');
+  }
   if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
-  showToast('Équivalence enregistrée', 'success');
-  document.getElementById('eq-ratio').value     = '';
-  document.getElementById('eq-tolerance').value = '';
+
+  cancelEquivalenceEdit();
   await loadEquivalences();
 }
 
@@ -1797,8 +1866,14 @@ async function deleteEquivalence(id) {
 }
 
 // ── Utils ──────────────────────────────────────────────────
-function today()          { return new Date().toISOString().split('T')[0]; }
-function daysAgo(n)       { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().split('T')[0]; }
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate()-n);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 function numF(v)          { return v!==undefined&&v!==''?parseFloat(v)||null:null; }
 function numI(v)          { return v!==undefined&&v!==''?parseInt(v)||null:null; }
 function formatDate(str)  { return new Date(str+'T12:00:00').toLocaleDateString('fr-FR',{ day:'2-digit', month:'short', year:'2-digit' }); }
