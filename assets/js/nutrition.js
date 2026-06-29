@@ -187,13 +187,17 @@ function buildMealCards() {
         <div class="meal-check" id="chk-${key}">✓</div>
         <span class="meal-label">${label}</span>
         <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
+        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="event.stopPropagation();saveMeal('${key}')">Enregistrer</button>
+        <button class="meal-collapse-btn" onclick="event.stopPropagation();toggleCardCollapse('mc-${key}')">▼</button>
       </div>
-      <div class="meal-card__body">
-        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);cursor:pointer;margin-bottom:6px;">
-          <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
-          Déduire du stock
-        </label>
-        <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
+      <div class="meal-card__body" id="mc-body-${key}">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
+          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);cursor:pointer;">
+            <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
+            Déduire du stock
+          </label>
+        </div>
         <div class="food-picker" id="fp-meal-${key}">
           <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
           <div class="food-picker-list" id="fp-list-meal-${key}"></div>
@@ -213,7 +217,6 @@ function buildMealCards() {
           <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
           <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
         </div>
-        <button class="btn btn--primary btn--sm" style="margin-top:4px;" onclick="saveMeal('${key}')">Enregistrer</button>
       </div>
     </div>`).join('');
 }
@@ -323,7 +326,8 @@ function updateDailyTotals(meals) {
   setEl('j-total-kcal', n ? Math.round(sum('calories')).toLocaleString('fr-FR') : '—');
   const kcalEl = document.getElementById('j-total-kcal');
   if (kcalEl && nutritionGoals?.calories && n) {
-    kcalEl.style.color = sum('calories') > nutritionGoals.calories * 1.05 ? '#ef4444' : '';
+    const ratio = sum('calories') / nutritionGoals.calories;
+    kcalEl.style.color = ratio > 1.1 ? '#ef4444' : ratio > 1 ? '#f97316' : '#22c55e';
   } else if (kcalEl) {
     kcalEl.style.color = '';
   }
@@ -349,7 +353,7 @@ function renderGoalsProgress(totKcal, totProt) {
   if (nutritionGoals.calories) {
     const rawPct = Math.round(totKcal / nutritionGoals.calories * 100);
     const pct = Math.min(100, rawPct);
-    const color = rawPct > 105 ? '#ef4444' : rawPct >= 90 ? '#22c55e' : rawPct >= 60 ? '#f97316' : '#64dcff';
+    const color = rawPct > 110 ? '#ef4444' : rawPct > 100 ? '#f97316' : '#22c55e';
     bars.push(`<div class="goals-progress-bar">
       <div class="goals-progress-bar__label"><span>Calories</span><span style="color:${color};">${Math.round(totKcal)} / ${nutritionGoals.calories} kcal</span></div>
       <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
@@ -699,8 +703,9 @@ function buildPlanCards() {
         <span class="meal-label">${label}</span>
         <span class="plan-kcal-tag" id="pkcal-tag-${key}">— kcal</span>
         <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">✓ Enregistrer</button>
+        <button class="meal-collapse-btn" onclick="toggleCardCollapse('pmc-${key}')">▼</button>
       </div>
-      <div class="plan-card__body">
+      <div class="plan-card__body" id="pmc-body-${key}">
         <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
         <div class="food-picker" id="fp-plan-${key}">
           <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
@@ -714,6 +719,12 @@ function buildPlanCards() {
         <div class="meal-food-items" id="pfi-${key}"></div>
       </div>
     </div>`).join('');
+}
+
+function toggleCardCollapse(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.classList.toggle('card--collapsed');
 }
 
 async function loadPlanData() {
@@ -779,7 +790,7 @@ function updatePlanDailyTotals() {
     const goal = nutritionGoals?.calories;
     if (goal && hasData) {
       const ratio = kcal / goal;
-      kcalEl.style.color = ratio > 1.15 ? '#ef4444' : ratio > 1.05 ? '#f97316' : 'var(--primary)';
+      kcalEl.style.color = ratio > 1.1 ? '#ef4444' : ratio > 1 ? '#f97316' : '#22c55e';
     } else {
       kcalEl.style.color = '';
     }
@@ -1039,12 +1050,9 @@ function renderPantryList() {
     container.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:32px 0;">Stock vide. Ajoutez vos aliments et substituts.</p>';
     return;
   }
-  const foodPantry = pantryItems.filter(p => p.item_type === 'food');
-  const subPantry  = pantryItems.filter(p => p.item_type === 'substitute');
 
-  // Group foods by tag
   const tagGroups = {};
-  foodPantry.forEach(p => {
+  pantryItems.forEach(p => {
     const tagIds   = foodTagLinks[p.food_id] || [];
     const tag      = tagIds.length ? tags.find(t => t.id === tagIds[0]) : null;
     const tagName  = tag?.name  || 'Autres';
@@ -1058,7 +1066,7 @@ function renderPantryList() {
     return a.localeCompare(b);
   });
 
-  let foodHtml = tagKeys.map(tagName => {
+  const html = tagKeys.map(tagName => {
     const g = tagGroups[tagName];
     return `<div class="tag-col-group">
       <div style="margin-bottom:4px;font-size:11px;color:${g.color};text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;display:flex;align-items:center;gap:6px;">
@@ -1068,13 +1076,7 @@ function renderPantryList() {
     </div>`;
   }).join('');
 
-  let html = `<div class="tag-col-layout">${foodHtml}</div>`;
-
-  if (subPantry.length) {
-    html += '<div style="margin-bottom:4px;margin-top:16px;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;padding:4px 0;">💊 Substituts</div>';
-    html += subPantry.map(p => renderPantryRow(p)).join('');
-  }
-  container.innerHTML = html;
+  container.innerHTML = `<div class="tag-col-layout">${html}</div>`;
 }
 
 function renderPantryRow(p) {
