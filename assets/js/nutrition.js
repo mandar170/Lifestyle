@@ -189,6 +189,10 @@ function buildMealCards() {
         <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
       </div>
       <div class="meal-card__body">
+        <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);cursor:pointer;margin-bottom:6px;">
+          <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
+          Déduire du stock
+        </label>
         <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
         <div class="food-picker" id="fp-meal-${key}">
           <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
@@ -317,6 +321,12 @@ function updateDailyTotals(meals) {
   const sum  = f => done.reduce((s, m) => s + (m[f] || 0), 0);
   const n    = done.length;
   setEl('j-total-kcal', n ? Math.round(sum('calories')).toLocaleString('fr-FR') : '—');
+  const kcalEl = document.getElementById('j-total-kcal');
+  if (kcalEl && nutritionGoals?.calories && n) {
+    kcalEl.style.color = sum('calories') > nutritionGoals.calories * 1.05 ? '#ef4444' : '';
+  } else if (kcalEl) {
+    kcalEl.style.color = '';
+  }
   setEl('j-total-prot', n ? sum('protein_g').toFixed(1) : '—');
   setEl('j-total-gluc', n ? sum('carbs_g').toFixed(1)   : '—');
   setEl('j-total-lip',  n ? sum('fat_g').toFixed(1)     : '—');
@@ -337,8 +347,9 @@ function renderGoalsProgress(totKcal, totProt) {
   if (!el || !nutritionGoals) return;
   const bars = [];
   if (nutritionGoals.calories) {
-    const pct = Math.min(100, Math.round(totKcal / nutritionGoals.calories * 100));
-    const color = pct >= 90 ? '#22c55e' : pct >= 60 ? '#f97316' : '#64dcff';
+    const rawPct = Math.round(totKcal / nutritionGoals.calories * 100);
+    const pct = Math.min(100, rawPct);
+    const color = rawPct > 105 ? '#ef4444' : rawPct >= 90 ? '#22c55e' : rawPct >= 60 ? '#f97316' : '#64dcff';
     bars.push(`<div class="goals-progress-bar">
       <div class="goals-progress-bar__label"><span>Calories</span><span style="color:${color};">${Math.round(totKcal)} / ${nutritionGoals.calories} kcal</span></div>
       <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
@@ -458,6 +469,39 @@ async function applyFoodToJournal(ctx) {
     if (!mealFoodItems[key]) mealFoodItems[key] = [];
     mealFoodItems[key].push(data);
     renderMealFoodItems(key);
+
+    if (document.getElementById(`deduct-meal-${key}`)?.checked) {
+      const pantryItem = pantryItems.find(p => p.food_id === food.id);
+      if (pantryItem) {
+        const newQty = Math.max(0, pantryItem.quantity - qty);
+        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
+        pantryItem.quantity = newQty;
+      }
+      for (const eq of equivalences) {
+        const isA = eq.food_id_a === food.id;
+        const isB = eq.both_ways && eq.food_id_b === food.id;
+        if (!isA && !isB) continue;
+        const qtyB = eq.qty_b || 1;
+        const gramsPerUnit = eq.ratio / qtyB;
+        if (isA) {
+          const units = Math.round(qty / gramsPerUnit);
+          if (units <= 0) continue;
+          if (Math.abs((qty / units) - gramsPerUnit) > eq.tolerance) continue;
+          const target = pantryItems.find(p => p.food_id === eq.food_id_b);
+          if (!target) continue;
+          const newQty = Math.max(0, target.quantity - units);
+          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+          target.quantity = newQty;
+        } else {
+          const gramsA = qty * gramsPerUnit;
+          const target = pantryItems.find(p => p.food_id === eq.food_id_a);
+          if (!target) continue;
+          const newQty = Math.max(0, target.quantity - gramsA);
+          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+          target.quantity = newQty;
+        }
+      }
+    }
   }
 
   document.getElementById(`fp-grams-${ctx}`).value = '';
@@ -692,7 +736,8 @@ async function applyFoodToPlan(ctx) {
   if (!qty || qty <= 0){ showToast('Indique la quantité', 'error'); return; }
 
   const key    = ctx.slice(5);
-  const factor = qty / 100;
+  const isUnit = (food.unit || 'g') === 'unité';
+  const factor = isUnit ? qty : qty / 100;
   const item   = {
     plan_date: planDate, meal_type: key, food_id: food.id, food_name: food.name, grams: qty,
     calories:  food.calories_per_100g != null ? Math.round(food.calories_per_100g * factor) : null,
@@ -759,12 +804,15 @@ function renderPlanFoodItems(mealType) {
   }
   updatePlanDailyTotals();
   if (!items.length) { container.innerHTML = ''; return; }
-  container.innerHTML = items.map(item => `
-    <div class="meal-food-item" id="pfi-item-${item.id}">
+  container.innerHTML = items.map(item => {
+    const fd = foods.find(f => f.id === item.food_id);
+    const unit = fd?.unit || 'g';
+    const qtyLabel = unit === 'unité' ? `${item.grams} unité` : `${item.grams}${unit}`;
+    return `<div class="meal-food-item" id="pfi-item-${item.id}">
       <div class="meal-food-item__label">${item.food_name}</div>
-      <div class="meal-food-item__meta">${item.grams}g · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
+      <div class="meal-food-item__meta">${qtyLabel} · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
       <div class="meal-food-item__edit-input" id="pfi-edit-${item.id}" style="display:none;">
-        <input type="number" id="pfi-qty-${item.id}" class="np-input" placeholder="g" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmPlanQtyEdit('${mealType}','${item.id}')" />
+        <input type="number" id="pfi-qty-${item.id}" class="np-input" placeholder="${unit}" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmPlanQtyEdit('${mealType}','${item.id}')" />
         <button class="btn btn--primary btn--sm" onclick="confirmPlanQtyEdit('${mealType}','${item.id}')">OK</button>
         <button class="btn btn--ghost btn--sm" onclick="cancelPlanQtyEdit('${item.id}')">✕</button>
       </div>
@@ -772,7 +820,8 @@ function renderPlanFoodItems(mealType) {
         <button class="btn btn--ghost btn--xs" onclick="editPlanFoodItemQty('${item.id}')">✏️</button>
         <button class="btn btn--ghost btn--xs" style="color:rgba(248,113,113,0.8);" onclick="removePlanFoodItem('${mealType}','${item.id}')">✕</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function editPlanFoodItemQty(itemId) {
@@ -790,7 +839,8 @@ async function confirmPlanQtyEdit(mealType, itemId) {
   const newQty = parseFloat(document.getElementById(`pfi-qty-${itemId}`)?.value);
   if (!newQty || newQty <= 0) { showToast('Indique la quantité', 'error'); return; }
   const food   = foods.find(f => f.id === item.food_id);
-  const factor = newQty / 100;
+  const isUnit = (food?.unit || 'g') === 'unité';
+  const factor = isUnit ? newQty : newQty / 100;
   const updated = {
     grams: newQty,
     calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
