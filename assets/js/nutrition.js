@@ -40,6 +40,7 @@ let tags        = [];
 let foodTagLinks = {};   // food_id → tag_id[]
 let pantryItems = [];
 let shoppingRenderItems = [];
+let equivalences = [];
 let mealFoodItems = {};
 let mealSubEntries = {};
 const foodPickerState = {};
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initJournal();
 
-  await Promise.all([loadSubstitutes(), loadFoods(), loadTags(), loadGoals()]);
+  await Promise.all([loadSubstitutes(), loadFoods(), loadTags(), loadGoals(), loadEquivalences()]);
 });
 
 // ── Tabs ───────────────────────────────────────────────────
@@ -970,6 +971,39 @@ async function applyMealPlanToJournal(mealType) {
     }
   }
 
+  // Deduct via food equivalences
+  if (document.getElementById('plan-deduct-stock')?.checked) {
+    for (const item of items) {
+      if (!item.food_id || !item.grams) continue;
+      for (const eq of equivalences) {
+        const isA = eq.food_id_a === item.food_id;
+        const isB = eq.both_ways && eq.food_id_b === item.food_id;
+        if (!isA && !isB) continue;
+
+        if (isA) {
+          // e.g. consuming blanc d'œuf → deduct eggs
+          const units = Math.round(item.grams / eq.ratio);
+          if (units <= 0) continue;
+          const perUnit = item.grams / units;
+          if (Math.abs(perUnit - eq.ratio) > eq.tolerance) continue;
+          const target = pantryItems.find(p => p.food_id === eq.food_id_b);
+          if (!target) continue;
+          const newQty = Math.max(0, target.quantity - units);
+          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+          target.quantity = newQty;
+        } else {
+          // e.g. consuming an egg → deduct blanc d'œuf grams
+          const gramsA = item.grams * eq.ratio;
+          const target = pantryItems.find(p => p.food_id === eq.food_id_a);
+          if (!target) continue;
+          const newQty = Math.max(0, target.quantity - gramsA);
+          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+          target.quantity = newQty;
+        }
+      }
+    }
+  }
+
   showToast('Repas enregistré au journal ✓', 'success');
 }
 
@@ -1460,6 +1494,7 @@ async function loadFoods() {
   const { data } = await db.from('foods').select('*').order('name');
   foods = data || [];
   renderFoodList();
+  populateEquivalenceFoodSelects();
 }
 
 function renderFoodList() {
@@ -1691,6 +1726,74 @@ async function deleteMealSubstitute(id) {
   if (error) { showToast('Erreur', 'error'); return; }
   showToast('Substitut supprimé', 'success');
   await loadSubstitutes();
+}
+
+// ── Équivalences ───────────────────────────────────────────
+async function loadEquivalences() {
+  const { data } = await db.from('food_equivalences').select('*').order('created_at');
+  equivalences = data || [];
+  renderEquivalenceList();
+  populateEquivalenceFoodSelects();
+}
+
+function populateEquivalenceFoodSelects() {
+  const sorted = [...foods].sort((a, b) => a.name.localeCompare(b.name));
+  const opts = `<option value="">— aliment —</option>` + sorted.map(f => `<option value="${f.id}">${f.name} (${f.unit || 'g'})</option>`).join('');
+  ['eq-food-a', 'eq-food-b'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
+
+function renderEquivalenceList() {
+  const container = document.getElementById('equivalence-list');
+  if (!container) return;
+  if (!equivalences.length) {
+    container.innerHTML = '<p class="preset-list-empty">Aucune équivalence configurée.</p>';
+    return;
+  }
+  container.innerHTML = equivalences.map(eq => {
+    const foodA = foods.find(f => f.id === eq.food_id_a);
+    const foodB = foods.find(f => f.id === eq.food_id_b);
+    if (!foodA || !foodB) return '';
+    const unitA  = foodA.unit || 'g';
+    const lo     = parseFloat((eq.ratio - eq.tolerance).toFixed(2));
+    const hi     = parseFloat((eq.ratio + eq.tolerance).toFixed(2));
+    const dir    = eq.both_ways ? '↔' : '→';
+    return `<div class="preset-item">
+      <div style="flex:1;min-width:0;">
+        <span class="preset-item__name">${foodA.name}</span>
+        <span class="preset-item__meta"> ${lo}–${hi} ${unitA} ${dir} 1 ${foodB.name}</span>
+      </div>
+      <button class="preset-item__del" onclick="deleteEquivalence('${eq.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function saveEquivalence() {
+  const foodAId   = document.getElementById('eq-food-a')?.value;
+  const foodBId   = document.getElementById('eq-food-b')?.value;
+  const ratio     = parseFloat(document.getElementById('eq-ratio')?.value);
+  const tolerance = parseFloat(document.getElementById('eq-tolerance')?.value) || 0;
+  const bothWays  = document.getElementById('eq-both-ways')?.checked ?? true;
+
+  if (!foodAId || !foodBId)  { showToast('Sélectionnez les deux aliments', 'error'); return; }
+  if (foodAId === foodBId)   { showToast('Les deux aliments doivent être différents', 'error'); return; }
+  if (!ratio || ratio <= 0)  { showToast('Entrez un ratio valide', 'error'); return; }
+
+  const { error } = await db.from('food_equivalences').insert({ food_id_a: foodAId, food_id_b: foodBId, ratio, tolerance, both_ways: bothWays });
+  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
+  showToast('Équivalence enregistrée', 'success');
+  document.getElementById('eq-ratio').value     = '';
+  document.getElementById('eq-tolerance').value = '';
+  await loadEquivalences();
+}
+
+async function deleteEquivalence(id) {
+  const { error } = await db.from('food_equivalences').delete().eq('id', id);
+  if (error) { showToast('Erreur', 'error'); return; }
+  showToast('Équivalence supprimée', 'success');
+  await loadEquivalences();
 }
 
 // ── Utils ──────────────────────────────────────────────────
