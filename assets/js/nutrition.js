@@ -423,7 +423,8 @@ async function applyFoodToJournal(ctx) {
 
   const isMeal = ctx.startsWith('meal-');
   const key    = isMeal ? ctx.slice(5) : null;
-  const factor = qty / 100;
+  const isUnit = (food.unit || 'g') === 'unité';
+  const factor = isUnit ? qty : qty / 100;
 
   const calcKcal = food.calories_per_100g != null ? food.calories_per_100g * factor : null;
   const calcProt = food.protein_per_100g  != null ? food.protein_per_100g  * factor : null;
@@ -472,12 +473,15 @@ function renderMealFoodItems(mealType) {
   const descEl = document.getElementById(`desc-${mealType}`);
   if (descEl && items.length) descEl.value = items.map(i => i.food_name).join(', ');
   if (!items.length) { container.innerHTML = ''; return; }
-  container.innerHTML = items.map(item => `
-    <div class="meal-food-item" id="mfi-item-${item.id}">
+  container.innerHTML = items.map(item => {
+    const fd = foods.find(f => f.id === item.food_id);
+    const unit = fd?.unit || 'g';
+    const qtyLabel = unit === 'unité' ? `${item.grams} unité` : `${item.grams}${unit}`;
+    return `<div class="meal-food-item" id="mfi-item-${item.id}">
       <div class="meal-food-item__label">${item.food_name}</div>
-      <div class="meal-food-item__meta">${item.grams}g · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
+      <div class="meal-food-item__meta">${qtyLabel} · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
       <div class="meal-food-item__edit-input" id="mfi-edit-${item.id}" style="display:none;">
-        <input type="number" id="mfi-qty-${item.id}" class="np-input" placeholder="g" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmFoodQtyEdit('${mealType}','${item.id}')" />
+        <input type="number" id="mfi-qty-${item.id}" class="np-input" placeholder="${unit}" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmFoodQtyEdit('${mealType}','${item.id}')" />
         <button class="btn btn--primary btn--sm" onclick="confirmFoodQtyEdit('${mealType}','${item.id}')">OK</button>
         <button class="btn btn--ghost btn--sm" onclick="cancelFoodQtyEdit('${item.id}')">✕</button>
       </div>
@@ -485,7 +489,8 @@ function renderMealFoodItems(mealType) {
         <button class="btn btn--ghost btn--xs" onclick="editMealFoodItemQty('${item.id}')">✏️</button>
         <button class="btn btn--ghost btn--xs" style="color:rgba(248,113,113,0.8);" onclick="removeMealFoodItem('${mealType}','${item.id}')">✕</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function editMealFoodItemQty(itemId) {
@@ -504,7 +509,8 @@ async function confirmFoodQtyEdit(mealType, itemId) {
   const newQty = parseFloat(document.getElementById(`mfi-qty-${itemId}`)?.value);
   if (!newQty || newQty <= 0) { showToast('Indique la quantité', 'error'); return; }
   const food   = foods.find(f => f.id === item.food_id);
-  const factor = newQty / 100;
+  const isUnit = (food?.unit || 'g') === 'unité';
+  const factor = isUnit ? newQty : newQty / 100;
   const updated = {
     grams:     newQty,
     calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
