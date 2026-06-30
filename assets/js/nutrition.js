@@ -750,6 +750,12 @@ function buildPlanCards() {
     </div>`).join('');
 }
 
+function toggleCardCollapse(cardId) {
+  const card = document.getElementById(cardId);
+  if (!card) return;
+  card.classList.toggle('card--collapsed');
+}
+
 async function loadPlanData() {
   const [{ data: items }, { data: plans }] = await Promise.all([
     db.from('meal_plan_items').select('*').eq('plan_date', planDate),
