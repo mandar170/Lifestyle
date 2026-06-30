@@ -63,10 +63,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const dateParam = new URLSearchParams(window.location.search).get('date');
   if (dateParam) journalDate = dateParam;
 
-  initJournal();
-
-  await Promise.all([loadFoods(), loadTags(), loadGoals(), loadEquivalences()]);
+  await loadFoods();
+  await Promise.all([loadTags(), loadGoals(), loadEquivalences()]);
   renderFoodList(); // re-render after tags are loaded
+
+  initJournal();
 });
 
 // ── Tabs ───────────────────────────────────────────────────
@@ -185,15 +186,17 @@ function buildMealCards() {
     <div class="meal-card" id="mc-${key}">
       <div class="meal-card__header">
         <span class="meal-label">${label}</span>
-        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="saveMeal('${key}')">Enregistrer</button>
+        <div class="meal-card__header-actions">
+          <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="saveMeal('${key}')">Enregistrer</button>
+          <label class="meal-deduct-label">
+            <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
+            Déduire du stock
+          </label>
+        </div>
       </div>
       <div class="meal-card__body" id="mc-body-${key}">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
-          <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);cursor:pointer;">
-            <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
-            Déduire du stock
-          </label>
         </div>
         <div class="food-picker" id="fp-meal-${key}">
           <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
@@ -748,12 +751,6 @@ function buildPlanCards() {
         </div>
       </div>
     </div>`).join('');
-}
-
-function toggleCardCollapse(cardId) {
-  const card = document.getElementById(cardId);
-  if (!card) return;
-  card.classList.toggle('card--collapsed');
 }
 
 async function loadPlanData() {
