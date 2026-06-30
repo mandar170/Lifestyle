@@ -215,7 +215,7 @@ function mealCardHTML({ key, label }) {
           </button>
           <div class="meal-card__detail">
             <div class="meal-food-items" id="mfi-${key}"></div>
-            <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" oninput="markMealCardDirty('${key}')" />
+            <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" oninput="this.dataset.auto='0';markMealCardDirty('${key}')" />
             <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
             <div class="meal-macros">
               <input type="number" id="kcal-${key}" placeholder="—" min="0" oninput="markMealCardDirty('${key}')" />
@@ -310,15 +310,17 @@ function renderMealCards(meals) {
   meals.forEach(m => { byType[m.meal_type] = m; });
   MEAL_TYPES.forEach(({ key }) => {
     const m = byType[key];
+    const descEl = document.getElementById(`desc-${key}`);
+    descEl.dataset.auto = '0';
     if (m) {
-      document.getElementById(`desc-${key}`).value = m.description || '';
+      descEl.value = m.description || '';
       document.getElementById(`kcal-${key}`).value = m.calories    ?? '';
       document.getElementById(`prot-${key}`).value = m.protein_g   ?? '';
       document.getElementById(`gluc-${key}`).value = m.carbs_g     ?? '';
       document.getElementById(`lip-${key}`).value  = m.fat_g       ?? '';
       document.getElementById(`fib-${key}`).value  = m.fiber_g     ?? '';
     } else {
-      document.getElementById(`desc-${key}`).value = '';
+      descEl.value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
     }
     const hasUnsavedItems = (mealFoodItems[key] || []).length || (mealSubEntries[key] || []).length;
@@ -537,7 +539,10 @@ function renderMealFoodItems(mealType) {
   if (!container) return;
   const items = mealFoodItems[mealType] || [];
   const descEl = document.getElementById(`desc-${mealType}`);
-  if (descEl) descEl.value = items.length ? items.map(i => i.food_name).join(', ') : '';
+  if (descEl) {
+    if (items.length) { descEl.value = items.map(i => i.food_name).join(', '); descEl.dataset.auto = '1'; }
+    else if (descEl.dataset.auto === '1') { descEl.value = ''; descEl.dataset.auto = '0'; }
+  }
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => {
     const fd = foods.find(f => f.id === item.food_id);
@@ -768,7 +773,7 @@ function planCardHTML({ key, label }) {
           </button>
           <div class="meal-card__detail">
             <div class="meal-food-items" id="pfi-${key}"></div>
-            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" oninput="markPlanCardDirty('${key}')" />
+            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" oninput="this.dataset.auto='0';markPlanCardDirty('${key}')" />
             <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
             <div class="meal-macros">
               <input type="number" id="pkcal-${key}" placeholder="—" min="0" oninput="markPlanCardDirty('${key}')" />
@@ -811,7 +816,9 @@ async function loadPlanData() {
     document.getElementById(`pgluc-${key}`).value = p?.carbs_g   ?? '';
     document.getElementById(`plip-${key}`).value  = p?.fat_g     ?? '';
     document.getElementById(`pfib-${key}`).value  = p?.fiber_g   ?? '';
-    document.getElementById(`pdesc-${key}`).value = p?.description || '';
+    const pdescEl = document.getElementById(`pdesc-${key}`);
+    pdescEl.value = p?.description || '';
+    pdescEl.dataset.auto = '0';
     renderPlanFoodItems(key);
     const hasUnsavedItems = (planFoodItems[key] || []).length || (planSubEntries[key] || []).length;
     setCardState(`pmc-${key}`, p ? 'saved' : (hasUnsavedItems ? 'dirty' : 'empty'));
@@ -905,7 +912,10 @@ function renderPlanFoodItems(mealType) {
   if (!container) return;
   const items  = planFoodItems[mealType] || [];
   const descEl = document.getElementById(`pdesc-${mealType}`);
-  if (descEl) descEl.value = items.length ? items.map(i => i.food_name).join(', ') : '';
+  if (descEl) {
+    if (items.length) { descEl.value = items.map(i => i.food_name).join(', '); descEl.dataset.auto = '1'; }
+    else if (descEl.dataset.auto === '1') { descEl.value = ''; descEl.dataset.auto = '0'; }
+  }
   updatePlanDailyTotals();
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => {
