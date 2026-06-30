@@ -215,14 +215,14 @@ function mealCardHTML({ key, label }) {
           </button>
           <div class="meal-card__detail">
             <div class="meal-food-items" id="mfi-${key}"></div>
-            <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
+            <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" oninput="markMealCardDirty('${key}')" />
             <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
             <div class="meal-macros">
-              <input type="number" id="kcal-${key}" placeholder="—" min="0" />
-              <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" />
-              <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" />
-              <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
-              <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
+              <input type="number" id="kcal-${key}" placeholder="—" min="0" oninput="markMealCardDirty('${key}')" />
+              <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" oninput="markMealCardDirty('${key}')" />
+              <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" oninput="markMealCardDirty('${key}')" />
+              <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" oninput="markMealCardDirty('${key}')" />
+              <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" oninput="markMealCardDirty('${key}')" />
             </div>
           </div>
         </div>
@@ -243,6 +243,15 @@ function toggleCardCollapse(sectionId) {
   if (!el) return;
   el.classList.toggle('meal-detail-section--collapsed');
 }
+
+function setCardState(cardId, state) {
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  el.classList.remove('card-state--dirty', 'card-state--saved');
+  if (state === 'dirty' || state === 'saved') el.classList.add(`card-state--${state}`);
+}
+function markMealCardDirty(key)  { setCardState(`mc-${key}`,  'dirty'); }
+function markPlanCardDirty(key)  { setCardState(`pmc-${key}`, 'dirty'); }
 
 function adjustMealMacroInputs(idPrefix, key, d) {
   const set = (field, val) => {
@@ -312,6 +321,8 @@ function renderMealCards(meals) {
       document.getElementById(`desc-${key}`).value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
     }
+    const hasUnsavedItems = (mealFoodItems[key] || []).length || (mealSubEntries[key] || []).length;
+    setCardState(`mc-${key}`, m ? 'saved' : (hasUnsavedItems ? 'dirty' : 'empty'));
   });
   updateDailyTotals(meals);
 }
@@ -479,6 +490,7 @@ async function applyFoodToJournal(ctx) {
     if (!mealFoodItems[key]) mealFoodItems[key] = [];
     mealFoodItems[key].push(data);
     renderMealFoodItems(key);
+    markMealCardDirty(key);
 
     if (document.getElementById(`deduct-meal-${key}`)?.checked) {
       const pantryItem = pantryItems.find(p => p.food_id === food.id);
@@ -584,6 +596,7 @@ async function confirmFoodQtyEdit(mealType, itemId) {
   });
   Object.assign(item, updated);
   renderMealFoodItems(mealType);
+  markMealCardDirty(mealType);
   showToast('Quantité mise à jour', 'success');
 }
 
@@ -602,6 +615,7 @@ async function removeMealFoodItem(mealType, itemId) {
   }
   mealFoodItems[mealType] = (mealFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
   renderMealFoodItems(mealType);
+  markMealCardDirty(mealType);
   showToast('Aliment supprimé', 'success');
 }
 
@@ -648,6 +662,7 @@ async function applySubstitute(subId, mealType) {
   addTo('kcal', s.calories); addTo('prot', s.protein_g);
   addTo('gluc', s.carbs_g); addTo('lip', s.fat_g); addTo('fib', s.fiber_g);
   renderMealSubEntries(mealType);
+  markMealCardDirty(mealType);
   showToast(`${s.name} ajouté`, 'success');
 }
 
@@ -685,6 +700,7 @@ async function toggleSubEntry(mealType, entryId) {
   adj('gluc', item.carbs_g); adj('lip', item.fat_g); adj('fib', item.fiber_g);
   item.included = nowIncluded;
   renderMealSubEntries(mealType);
+  markMealCardDirty(mealType);
 }
 
 async function removeSubEntry(mealType, entryId) {
@@ -706,6 +722,7 @@ async function removeSubEntry(mealType, entryId) {
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   mealSubEntries[mealType] = items.filter(i => String(i.id) !== String(entryId));
   renderMealSubEntries(mealType);
+  markMealCardDirty(mealType);
   showToast('Substitut retiré', 'success');
 }
 
@@ -751,14 +768,14 @@ function planCardHTML({ key, label }) {
           </button>
           <div class="meal-card__detail">
             <div class="meal-food-items" id="pfi-${key}"></div>
-            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" />
+            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" oninput="markPlanCardDirty('${key}')" />
             <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
             <div class="meal-macros">
-              <input type="number" id="pkcal-${key}" placeholder="—" min="0" />
-              <input type="number" id="pprot-${key}" placeholder="—" min="0" step="0.1" />
-              <input type="number" id="pgluc-${key}" placeholder="—" min="0" step="0.1" />
-              <input type="number" id="plip-${key}"  placeholder="—" min="0" step="0.1" />
-              <input type="number" id="pfib-${key}"  placeholder="—" min="0" step="0.1" />
+              <input type="number" id="pkcal-${key}" placeholder="—" min="0" oninput="markPlanCardDirty('${key}')" />
+              <input type="number" id="pprot-${key}" placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
+              <input type="number" id="pgluc-${key}" placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
+              <input type="number" id="plip-${key}"  placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
+              <input type="number" id="pfib-${key}"  placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
             </div>
           </div>
         </div>
@@ -796,6 +813,8 @@ async function loadPlanData() {
     document.getElementById(`pfib-${key}`).value  = p?.fiber_g   ?? '';
     document.getElementById(`pdesc-${key}`).value = p?.description || '';
     renderPlanFoodItems(key);
+    const hasUnsavedItems = (planFoodItems[key] || []).length || (planSubEntries[key] || []).length;
+    setCardState(`pmc-${key}`, p ? 'saved' : (hasUnsavedItems ? 'dirty' : 'empty'));
   });
 }
 
@@ -812,6 +831,7 @@ async function savePlanMeal(mealType) {
   };
   const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  setCardState(`pmc-${mealType}`, 'saved');
   showToast('Plan repas enregistré', 'success');
 }
 
@@ -843,6 +863,7 @@ async function applyFoodToPlan(ctx) {
   document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
   delete foodPickerState[ctx];
   renderPlanFoodItems(key);
+  markPlanCardDirty(key);
   showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté au plan`, 'success');
   maybeRefreshShopping();
 }
@@ -943,6 +964,7 @@ async function confirmPlanQtyEdit(mealType, itemId) {
   });
   Object.assign(item, updated);
   renderPlanFoodItems(mealType);
+  markPlanCardDirty(mealType);
   showToast('Quantité mise à jour', 'success');
   maybeRefreshShopping();
 }
@@ -962,6 +984,7 @@ async function removePlanFoodItem(mealType, itemId) {
   }
   planFoodItems[mealType] = (planFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
   renderPlanFoodItems(mealType);
+  markPlanCardDirty(mealType);
   showToast('Aliment retiré du plan', 'success');
   maybeRefreshShopping();
 }
@@ -998,6 +1021,7 @@ async function addSubToPlan(mealType, subId) {
   planSubEntries[mealType].push(data);
   renderPlanSubEntries(mealType);
   renderPlanFoodItems(mealType);
+  markPlanCardDirty(mealType);
   showToast(`${s.name} ajouté au plan`, 'success');
   maybeRefreshShopping();
 }
@@ -1027,6 +1051,7 @@ async function togglePlanSubEntry(mealType, entryId) {
   item.included = nowIncluded;
   renderPlanSubEntries(mealType);
   renderPlanFoodItems(mealType);
+  markPlanCardDirty(mealType);
 }
 
 async function removePlanSubEntry(mealType, entryId) {
@@ -1035,6 +1060,7 @@ async function removePlanSubEntry(mealType, entryId) {
   planSubEntries[mealType] = (planSubEntries[mealType] || []).filter(i => String(i.id) !== String(entryId));
   renderPlanSubEntries(mealType);
   renderPlanFoodItems(mealType);
+  markPlanCardDirty(mealType);
   showToast('Substitut retiré du plan', 'success');
   maybeRefreshShopping();
 }
