@@ -11,6 +11,9 @@ const MEAL_TYPES = [
   { key: 'evening_snack',   label: 'Collation soir' },
 ];
 
+const MEAL_COL_LEFT  = ['breakfast', 'lunch', 'dinner'];
+const MEAL_COL_RIGHT = ['morning_snack', 'afternoon_snack', 'evening_snack'];
+
 const MEAL_COLORS = {
   breakfast:'#64dcff', morning_snack:'#a855f7', lunch:'#22c55e',
   afternoon_snack:'#facc15', dinner:'#f97316', evening_snack:'#22d3ee',
@@ -181,22 +184,20 @@ function initJournal() {
   loadJournalData();
 }
 
-function buildMealCards() {
-  document.getElementById('meals-grid').innerHTML = MEAL_TYPES.map(({ key, label }) => `
+function mealCardHTML({ key, label }) {
+  return `
     <div class="meal-card" id="mc-${key}">
       <div class="meal-card__header">
         <span class="meal-label">${label}</span>
-        <div class="meal-card__header-actions">
-          <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="saveMeal('${key}')">Enregistrer</button>
+        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="saveMeal('${key}')">Enregistrer</button>
+      </div>
+      <div class="meal-card__body" id="mc-body-${key}">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
           <label class="meal-deduct-label">
             <input type="checkbox" id="deduct-meal-${key}" checked style="accent-color:var(--primary);" />
             Déduire du stock
           </label>
-        </div>
-      </div>
-      <div class="meal-card__body" id="mc-body-${key}">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('meal-${key}')">+ Ajouter un aliment</button>
         </div>
         <div class="food-picker" id="fp-meal-${key}">
           <input type="text" class="np-input food-search" id="fp-search-meal-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('meal-${key}')" />
@@ -226,7 +227,15 @@ function buildMealCards() {
           </div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+}
+
+function buildMealCards() {
+  const left  = MEAL_TYPES.filter(m => MEAL_COL_LEFT.includes(m.key));
+  const right = MEAL_TYPES.filter(m => MEAL_COL_RIGHT.includes(m.key));
+  document.getElementById('meals-grid').innerHTML =
+    `<div class="meals-grid__col">${left.map(mealCardHTML).join('')}</div>` +
+    `<div class="meals-grid__col">${right.map(mealCardHTML).join('')}</div>`;
 }
 
 function toggleCardCollapse(sectionId) {
@@ -710,8 +719,8 @@ function initPlan() {
   loadPlanData();
 }
 
-function buildPlanCards() {
-  document.getElementById('plan-cards-grid').innerHTML = MEAL_TYPES.map(({ key, label }) => `
+function planCardHTML({ key, label }) {
+  return `
     <div class="plan-card" id="pmc-${key}">
       <div class="plan-card__header">
         <span class="meal-label">${label}</span>
@@ -719,8 +728,12 @@ function buildPlanCards() {
         <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="savePlanMeal('${key}')">Enregistrer</button>
       </div>
       <div class="plan-card__body" id="pmc-body-${key}">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
           <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
+          <label class="meal-deduct-label">
+            <input type="checkbox" id="deduct-plan-${key}" checked style="accent-color:var(--primary);" />
+            Déduire du stock
+          </label>
         </div>
         <div class="food-picker" id="fp-plan-${key}">
           <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
@@ -750,7 +763,15 @@ function buildPlanCards() {
           </div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+}
+
+function buildPlanCards() {
+  const left  = MEAL_TYPES.filter(m => MEAL_COL_LEFT.includes(m.key));
+  const right = MEAL_TYPES.filter(m => MEAL_COL_RIGHT.includes(m.key));
+  document.getElementById('plan-cards-grid').innerHTML =
+    `<div class="plan-cards-grid__col">${left.map(planCardHTML).join('')}</div>` +
+    `<div class="plan-cards-grid__col">${right.map(planCardHTML).join('')}</div>`;
 }
 
 async function loadPlanData() {
@@ -1056,7 +1077,7 @@ async function applyMealPlanToJournal(mealType) {
   }, { onConflict: 'date,meal_type' });
 
   // Deduct from pantry (if toggle is on)
-  if (document.getElementById('plan-deduct-stock')?.checked) {
+  if (document.getElementById(`deduct-plan-${mealType}`)?.checked) {
     for (const item of items) {
       if (!item.food_id) continue;
       const pantryItem = pantryItems.find(p => p.food_id === item.food_id);
@@ -1069,7 +1090,7 @@ async function applyMealPlanToJournal(mealType) {
   }
 
   // Deduct via food equivalences
-  if (document.getElementById('plan-deduct-stock')?.checked) {
+  if (document.getElementById(`deduct-plan-${mealType}`)?.checked) {
     for (const item of items) {
       if (!item.food_id || !item.grams) continue;
       for (const eq of equivalences) {
