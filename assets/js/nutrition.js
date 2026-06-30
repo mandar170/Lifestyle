@@ -183,12 +183,9 @@ function initJournal() {
 function buildMealCards() {
   document.getElementById('meals-grid').innerHTML = MEAL_TYPES.map(({ key, label }) => `
     <div class="meal-card" id="mc-${key}">
-      <div class="meal-card__header" onclick="toggleMealDone('${key}')">
-        <div class="meal-check" id="chk-${key}">✓</div>
+      <div class="meal-card__header">
         <span class="meal-label">${label}</span>
-        <span class="meal-kcal-tag" id="kcal-tag-${key}">— kcal</span>
-        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="event.stopPropagation();saveMeal('${key}')">Enregistrer</button>
-        <button class="meal-collapse-btn" onclick="event.stopPropagation();toggleCardCollapse('mc-${key}')">▼</button>
+        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="saveMeal('${key}')">Enregistrer</button>
       </div>
       <div class="meal-card__body" id="mc-body-${key}">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -207,18 +204,44 @@ function buildMealCards() {
             <button class="btn btn--primary btn--sm" onclick="applyFoodToJournal('meal-${key}')">+ Ajouter</button>
           </div>
         </div>
-        <div class="meal-food-items" id="mfi-${key}"></div>
-        <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
-        <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
-        <div class="meal-macros">
-          <input type="number" id="kcal-${key}" placeholder="—" min="0" />
-          <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" />
-          <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" />
-          <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
-          <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
+        <div class="meal-detail-section" id="mds-${key}">
+          <button class="meal-detail-toggle" onclick="toggleCardCollapse('mds-${key}')">
+            <span class="meal-collapse-chevron">▼</span>
+            <span class="meal-detail-label">Détail repas</span>
+          </button>
+          <div class="meal-card__detail">
+            <div class="meal-food-items" id="mfi-${key}"></div>
+            <input type="text" class="meal-desc" id="desc-${key}" placeholder="Contenu du repas…" />
+            <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
+            <div class="meal-macros">
+              <input type="number" id="kcal-${key}" placeholder="—" min="0" />
+              <input type="number" id="prot-${key}" placeholder="—" min="0" step="0.1" />
+              <input type="number" id="gluc-${key}" placeholder="—" min="0" step="0.1" />
+              <input type="number" id="lip-${key}"  placeholder="—" min="0" step="0.1" />
+              <input type="number" id="fib-${key}"  placeholder="—" min="0" step="0.1" />
+            </div>
+          </div>
         </div>
       </div>
     </div>`).join('');
+}
+
+function toggleCardCollapse(sectionId) {
+  const el = document.getElementById(sectionId);
+  if (!el) return;
+  el.classList.toggle('meal-detail-section--collapsed');
+}
+
+function adjustMealMacroInputs(idPrefix, key, d) {
+  const set = (field, val) => {
+    if (val == null) return;
+    const el = document.getElementById(`${idPrefix}${field}-${key}`);
+    if (!el) return;
+    const cur  = parseFloat(el.value) || 0;
+    const next = Math.max(0, cur + val);
+    el.value = field === 'kcal' ? Math.round(next) : parseFloat(next.toFixed(1));
+  };
+  set('kcal', d.kcal); set('prot', d.prot); set('gluc', d.gluc); set('lip', d.lip); set('fib', d.fib);
 }
 
 async function loadJournalData() {
@@ -265,10 +288,7 @@ function renderMealCards(meals) {
   const byType = {};
   meals.forEach(m => { byType[m.meal_type] = m; });
   MEAL_TYPES.forEach(({ key }) => {
-    const m    = byType[key];
-    const card = document.getElementById(`mc-${key}`);
-    const chk  = document.getElementById(`chk-${key}`);
-    const tag  = document.getElementById(`kcal-tag-${key}`);
+    const m = byType[key];
     if (m) {
       document.getElementById(`desc-${key}`).value = m.description || '';
       document.getElementById(`kcal-${key}`).value = m.calories    ?? '';
@@ -276,35 +296,18 @@ function renderMealCards(meals) {
       document.getElementById(`gluc-${key}`).value = m.carbs_g     ?? '';
       document.getElementById(`lip-${key}`).value  = m.fat_g       ?? '';
       document.getElementById(`fib-${key}`).value  = m.fiber_g     ?? '';
-      card.classList.toggle('meal-card--done', !!m.done);
-      chk.classList.toggle('meal-check--done', !!m.done);
-      tag.textContent = m.calories ? `${m.calories} kcal` : '— kcal';
     } else {
       document.getElementById(`desc-${key}`).value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
-      card.classList.remove('meal-card--done');
-      chk.classList.remove('meal-check--done');
-      tag.textContent = '— kcal';
     }
   });
   updateDailyTotals(meals);
-}
-
-async function toggleMealDone(mealType) {
-  const card   = document.getElementById(`mc-${mealType}`);
-  const isDone = card.classList.contains('meal-card--done');
-  const { data: existing } = await db.from('meals').select('id').eq('date', journalDate).eq('meal_type', mealType).maybeSingle();
-  if (existing) await db.from('meals').update({ done: !isDone }).eq('id', existing.id);
-  else await db.from('meals').upsert({ date: journalDate, meal_type: mealType, done: true }, { onConflict: 'date,meal_type' });
-  await loadJournalData();
-  syncNutritionTable(journalDate);
 }
 
 async function saveMeal(mealType) {
   const entry = {
     date:        journalDate,
     meal_type:   mealType,
-    done:        document.getElementById(`mc-${mealType}`).classList.contains('meal-card--done'),
     description: document.getElementById(`desc-${mealType}`).value.trim() || null,
     calories:    numI(document.getElementById(`kcal-${mealType}`).value),
     protein_g:   numF(document.getElementById(`prot-${mealType}`).value),
@@ -320,9 +323,8 @@ async function saveMeal(mealType) {
 }
 
 function updateDailyTotals(meals) {
-  const done = meals.filter(m => m.done);
-  const sum  = f => done.reduce((s, m) => s + (m[f] || 0), 0);
-  const n    = done.length;
+  const sum  = f => meals.reduce((s, m) => s + (m[f] || 0), 0);
+  const n    = meals.length;
   setEl('j-total-kcal', n ? Math.round(sum('calories')).toLocaleString('fr-FR') : '—');
   const kcalEl = document.getElementById('j-total-kcal');
   if (kcalEl && nutritionGoals?.calories && n) {
@@ -371,15 +373,15 @@ function renderGoalsProgress(totKcal, totProt) {
 }
 
 async function syncNutritionTable(date) {
-  const { data: meals } = await db.from('meals').select('*').eq('date', date);
-  const done = (meals || []).filter(m => m.done);
+  const { data } = await db.from('meals').select('*').eq('date', date);
+  const meals = data || [];
   await db.from('nutrition').upsert({
     date,
-    calories:  Math.round(done.reduce((s,m) => s + (m.calories   || 0), 0)) || null,
-    protein_g: done.reduce((s,m) => s + (m.protein_g || 0), 0) || null,
-    carbs_g:   done.reduce((s,m) => s + (m.carbs_g   || 0), 0) || null,
-    fat_g:     done.reduce((s,m) => s + (m.fat_g     || 0), 0) || null,
-    fiber_g:   done.reduce((s,m) => s + (m.fiber_g   || 0), 0) || null,
+    calories:  Math.round(meals.reduce((s,m) => s + (m.calories   || 0), 0)) || null,
+    protein_g: meals.reduce((s,m) => s + (m.protein_g || 0), 0) || null,
+    carbs_g:   meals.reduce((s,m) => s + (m.carbs_g   || 0), 0) || null,
+    fat_g:     meals.reduce((s,m) => s + (m.fat_g     || 0), 0) || null,
+    fiber_g:   meals.reduce((s,m) => s + (m.fiber_g   || 0), 0) || null,
   }, { onConflict: 'date' });
 }
 
@@ -408,8 +410,10 @@ function renderFoodPickerContent(ctx) {
     ].filter(Boolean).join(' · ');
     const unit = f.unit || 'g';
     const perLabel = unit === 'unité' ? '/ unité' : `/100${unit}`;
+    const tagIds   = foodTagLinks[f.id] || [];
+    const tagColor = tagIds.length ? (tags.find(t => t.id === tagIds[0])?.color || '#64748b') : '#64748b';
     return `<div class="preset-item" onclick="selectFoodForPicker('${ctx}','${f.id}')">
-      <span class="preset-item__name">${f.name}</span>
+      <span class="preset-item__name"><span class="preset-item__dot" style="background:${tagColor};"></span>${f.name}</span>
       <span class="preset-item__meta">${meta} ${perLabel}</span>
     </div>`;
   }).join('');
@@ -447,18 +451,8 @@ async function applyFoodToJournal(ctx) {
   const calcLip  = food.fat_per_100g      != null ? food.fat_per_100g      * factor : null;
   const calcFib  = food.fiber_per_100g    != null ? food.fiber_per_100g    * factor : null;
 
-  const addTo = (fieldId, added) => {
-    if (added == null) return;
-    const el = document.getElementById(fieldId);
-    if (!el) return;
-    const current = parseFloat(el.value) || 0;
-    el.value = fieldId.startsWith('kcal') ? Math.round(current + added) : parseFloat((current + added).toFixed(1));
-  };
-
   if (isMeal) {
-    const getId = f => `${f}-${key}`;
-    addTo(getId('kcal'), calcKcal); addTo(getId('prot'), calcProt);
-    addTo(getId('gluc'), calcGluc); addTo(getId('lip'),  calcLip); addTo(getId('fib'), calcFib);
+    adjustMealMacroInputs('', key, { kcal: calcKcal, prot: calcProt, gluc: calcGluc, lip: calcLip, fib: calcFib });
 
     const item = {
       date: journalDate, meal_type: key, food_id: food.id, food_name: food.name, grams: qty,
@@ -519,7 +513,7 @@ function renderMealFoodItems(mealType) {
   if (!container) return;
   const items = mealFoodItems[mealType] || [];
   const descEl = document.getElementById(`desc-${mealType}`);
-  if (descEl && items.length) descEl.value = items.map(i => i.food_name).join(', ');
+  if (descEl) descEl.value = items.length ? items.map(i => i.food_name).join(', ') : '';
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => {
     const fd = foods.find(f => f.id === item.food_id);
@@ -569,14 +563,31 @@ async function confirmFoodQtyEdit(mealType, itemId) {
   };
   const { error } = await db.from('meal_food_items').update(updated).eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  adjustMealMacroInputs('', mealType, {
+    kcal: updated.calories  != null && item.calories  != null ? updated.calories  - item.calories  : null,
+    prot: updated.protein_g != null && item.protein_g != null ? updated.protein_g - item.protein_g : null,
+    gluc: updated.carbs_g   != null && item.carbs_g   != null ? updated.carbs_g   - item.carbs_g   : null,
+    lip:  updated.fat_g     != null && item.fat_g     != null ? updated.fat_g     - item.fat_g     : null,
+    fib:  updated.fiber_g   != null && item.fiber_g   != null ? updated.fiber_g   - item.fiber_g   : null,
+  });
   Object.assign(item, updated);
   renderMealFoodItems(mealType);
   showToast('Quantité mise à jour', 'success');
 }
 
 async function removeMealFoodItem(mealType, itemId) {
+  const item = (mealFoodItems[mealType] || []).find(i => String(i.id) === String(itemId));
   const { error } = await db.from('meal_food_items').delete().eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  if (item) {
+    adjustMealMacroInputs('', mealType, {
+      kcal: item.calories  != null ? -item.calories  : null,
+      prot: item.protein_g != null ? -item.protein_g : null,
+      gluc: item.carbs_g   != null ? -item.carbs_g   : null,
+      lip:  item.fat_g     != null ? -item.fat_g     : null,
+      fib:  item.fiber_g   != null ? -item.fiber_g   : null,
+    });
+  }
   mealFoodItems[mealType] = (mealFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
   renderMealFoodItems(mealType);
   showToast('Aliment supprimé', 'success');
@@ -701,12 +712,13 @@ function buildPlanCards() {
     <div class="plan-card" id="pmc-${key}">
       <div class="plan-card__header">
         <span class="meal-label">${label}</span>
-        <span class="plan-kcal-tag" id="pkcal-tag-${key}">— kcal</span>
-        <button class="btn btn--primary btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')">✓ Enregistrer</button>
-        <button class="meal-collapse-btn" onclick="toggleCardCollapse('pmc-${key}')">▼</button>
+        <button class="btn btn--ghost btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')" title="Copier vers le journal">→ Journal</button>
+        <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="savePlanMeal('${key}')">Enregistrer</button>
       </div>
       <div class="plan-card__body" id="pmc-body-${key}">
-        <button class="btn btn--ghost btn--sm preset-pick-btn" style="margin-bottom:4px;" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
+        </div>
         <div class="food-picker" id="fp-plan-${key}">
           <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
           <div class="food-picker-list" id="fp-list-plan-${key}"></div>
@@ -716,26 +728,67 @@ function buildPlanCards() {
             <button class="btn btn--primary btn--sm" onclick="applyFoodToPlan('plan-${key}')">+ Ajouter</button>
           </div>
         </div>
-        <div class="meal-food-items" id="pfi-${key}"></div>
+        <div class="meal-detail-section" id="pmds-${key}">
+          <button class="meal-detail-toggle" onclick="toggleCardCollapse('pmds-${key}')">
+            <span class="meal-collapse-chevron">▼</span>
+            <span class="meal-detail-label">Détail repas</span>
+          </button>
+          <div class="meal-card__detail">
+            <div class="meal-food-items" id="pfi-${key}"></div>
+            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" />
+            <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
+            <div class="meal-macros">
+              <input type="number" id="pkcal-${key}" placeholder="—" min="0" />
+              <input type="number" id="pprot-${key}" placeholder="—" min="0" step="0.1" />
+              <input type="number" id="pgluc-${key}" placeholder="—" min="0" step="0.1" />
+              <input type="number" id="plip-${key}"  placeholder="—" min="0" step="0.1" />
+              <input type="number" id="pfib-${key}"  placeholder="—" min="0" step="0.1" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>`).join('');
 }
 
-function toggleCardCollapse(cardId) {
-  const card = document.getElementById(cardId);
-  if (!card) return;
-  card.classList.toggle('card--collapsed');
-}
-
 async function loadPlanData() {
-  const { data: items } = await db.from('meal_plan_items').select('*').eq('plan_date', planDate);
+  const [{ data: items }, { data: plans }] = await Promise.all([
+    db.from('meal_plan_items').select('*').eq('plan_date', planDate),
+    db.from('meal_plans').select('*').eq('plan_date', planDate),
+  ]);
   planFoodItems = {};
   (items || []).forEach(item => {
     if (!planFoodItems[item.meal_type]) planFoodItems[item.meal_type] = [];
     planFoodItems[item.meal_type].push(item);
   });
   planSubEntries = {};
-  MEAL_TYPES.forEach(({ key }) => { renderPlanFoodItems(key); });
+  const byType = {};
+  (plans || []).forEach(p => { byType[p.meal_type] = p; });
+  MEAL_TYPES.forEach(({ key }) => {
+    const p = byType[key];
+    document.getElementById(`pkcal-${key}`).value = p?.calories  ?? '';
+    document.getElementById(`pprot-${key}`).value = p?.protein_g ?? '';
+    document.getElementById(`pgluc-${key}`).value = p?.carbs_g   ?? '';
+    document.getElementById(`plip-${key}`).value  = p?.fat_g     ?? '';
+    document.getElementById(`pfib-${key}`).value  = p?.fiber_g   ?? '';
+    document.getElementById(`pdesc-${key}`).value = p?.description || '';
+    renderPlanFoodItems(key);
+  });
+}
+
+async function savePlanMeal(mealType) {
+  const entry = {
+    plan_date:   planDate,
+    meal_type:   mealType,
+    description: document.getElementById(`pdesc-${mealType}`).value.trim() || null,
+    calories:    numI(document.getElementById(`pkcal-${mealType}`).value),
+    protein_g:   numF(document.getElementById(`pprot-${mealType}`).value),
+    carbs_g:     numF(document.getElementById(`pgluc-${mealType}`).value),
+    fat_g:       numF(document.getElementById(`plip-${mealType}`).value),
+    fiber_g:     numF(document.getElementById(`pfib-${mealType}`).value),
+  };
+  const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  showToast('Plan repas enregistré', 'success');
 }
 
 async function applyFoodToPlan(ctx) {
@@ -761,6 +814,7 @@ async function applyFoodToPlan(ctx) {
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   if (!planFoodItems[key]) planFoodItems[key] = [];
   planFoodItems[key].push(data);
+  adjustMealMacroInputs('p', key, { kcal: data.calories, prot: data.protein_g, gluc: data.carbs_g, lip: data.fat_g, fib: data.fiber_g });
   document.getElementById(`fp-grams-${ctx}`).value = '';
   document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
   delete foodPickerState[ctx];
@@ -803,16 +857,10 @@ function updatePlanDailyTotals() {
 
 function renderPlanFoodItems(mealType) {
   const container = document.getElementById(`pfi-${mealType}`);
-  const tag       = document.getElementById(`pkcal-tag-${mealType}`);
   if (!container) return;
-  const items = planFoodItems[mealType] || [];
-  if (tag) {
-    const foodKcal = items.reduce((s, i) => s + (i.calories || 0), 0);
-    const subKcal  = (planSubEntries[mealType] || []).filter(s => !s.included).reduce((s, i) => s + (i.calories || 0), 0);
-    const total = foodKcal + subKcal;
-    const hasSomething = items.length || (planSubEntries[mealType] || []).length;
-    tag.textContent = hasSomething ? `${total} kcal` : '— kcal';
-  }
+  const items  = planFoodItems[mealType] || [];
+  const descEl = document.getElementById(`pdesc-${mealType}`);
+  if (descEl) descEl.value = items.length ? items.map(i => i.food_name).join(', ') : '';
   updatePlanDailyTotals();
   if (!items.length) { container.innerHTML = ''; return; }
   container.innerHTML = items.map(item => {
@@ -862,6 +910,13 @@ async function confirmPlanQtyEdit(mealType, itemId) {
   };
   const { error } = await db.from('meal_plan_items').update(updated).eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  adjustMealMacroInputs('p', mealType, {
+    kcal: updated.calories  != null && item.calories  != null ? updated.calories  - item.calories  : null,
+    prot: updated.protein_g != null && item.protein_g != null ? updated.protein_g - item.protein_g : null,
+    gluc: updated.carbs_g   != null && item.carbs_g   != null ? updated.carbs_g   - item.carbs_g   : null,
+    lip:  updated.fat_g     != null && item.fat_g     != null ? updated.fat_g     - item.fat_g     : null,
+    fib:  updated.fiber_g   != null && item.fiber_g   != null ? updated.fiber_g   - item.fiber_g   : null,
+  });
   Object.assign(item, updated);
   renderPlanFoodItems(mealType);
   showToast('Quantité mise à jour', 'success');
@@ -869,8 +924,18 @@ async function confirmPlanQtyEdit(mealType, itemId) {
 }
 
 async function removePlanFoodItem(mealType, itemId) {
+  const item = (planFoodItems[mealType] || []).find(i => String(i.id) === String(itemId));
   const { error } = await db.from('meal_plan_items').delete().eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  if (item) {
+    adjustMealMacroInputs('p', mealType, {
+      kcal: item.calories  != null ? -item.calories  : null,
+      prot: item.protein_g != null ? -item.protein_g : null,
+      gluc: item.carbs_g   != null ? -item.carbs_g   : null,
+      lip:  item.fat_g     != null ? -item.fat_g     : null,
+      fib:  item.fiber_g   != null ? -item.fiber_g   : null,
+    });
+  }
   planFoodItems[mealType] = (planFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
   renderPlanFoodItems(mealType);
   showToast('Aliment retiré du plan', 'success');
@@ -1113,18 +1178,14 @@ function renderPantrySearch() {
   const results = document.getElementById('pantry-search-results');
   if (!search) { results.style.display = 'none'; results.innerHTML = ''; return; }
 
-  const foodMatches = foods.filter(f => f.name.toLowerCase().includes(search)).slice(0, 6);
-  const subMatches  = substitutes.filter(s => s.name.toLowerCase().includes(search)).slice(0, 4);
-  const all = [
-    ...foodMatches.map(f => ({ type:'food', id:f.id, name:f.name, unit:f.unit||'g' })),
-    ...subMatches.map(s => ({ type:'substitute', id:s.id, name:s.name, unit:'unité' })),
-  ];
+  const foodMatches = foods.filter(f => f.name.toLowerCase().includes(search)).slice(0, 8);
+  const all = foodMatches.map(f => ({ type:'food', id:f.id, name:f.name, unit:f.unit||'g' }));
 
   if (!all.length) { results.style.display = 'none'; return; }
   results.innerHTML = all.map(m => `
     <div class="preset-item" onclick="selectPantryItem('${m.type}','${m.id}','${m.name.replace(/'/g,"\\'")}','${m.unit}')">
       <span class="preset-item__name">${m.name}</span>
-      <span class="preset-item__meta">${m.type === 'food' ? '🥗' : '💊'} ${m.unit}</span>
+      <span class="preset-item__meta">🥗 ${m.unit}</span>
     </div>`).join('');
   results.style.display = 'block';
 }

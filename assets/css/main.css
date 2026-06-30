@@ -1378,22 +1378,19 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 /* ===========================================================
    MEAL CARDS
    =========================================================== */
-.meals-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; }
+.meals-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; align-items:start; }
 @media(max-width:700px){ .meals-grid { grid-template-columns:1fr; } }
 .meal-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; transition:border-color .2s,background .2s; }
-.meal-card--done { border-color:rgba(100,220,255,0.28); background:rgba(100,220,255,0.03); }
-.meal-card__header { display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; user-select:none; }
-.meal-check { width:20px; height:20px; border-radius:50%; border:2px solid rgba(100,220,255,0.35); display:flex; align-items:center; justify-content:center; font-size:10px; flex-shrink:0; transition:all .2s; color:transparent; }
-.meal-check--done { background:#64dcff; border-color:#64dcff; color:#07070e; }
+.meal-card__header { display:flex; align-items:center; gap:10px; padding:12px 14px; }
 .meal-label { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.07em; text-transform:uppercase; flex:1; color:var(--text-muted,#94a3b8); }
-.meal-card--done .meal-label { color:var(--primary); }
-.meal-kcal-tag { font-size:12px; font-weight:700; color:var(--orange); opacity:0; transition:opacity .2s; }
-.meal-card--done .meal-kcal-tag { opacity:1; }
 .meal-card__body { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
-.card--collapsed .meal-card__body,
-.card--collapsed .plan-card__body { display:none; }
-.meal-collapse-btn { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:11px; padding:2px 4px; flex-shrink:0; transition:transform .2s; line-height:1; }
-.card--collapsed .meal-collapse-btn { transform:rotate(-90deg); }
+.meal-detail-section { display:flex; flex-direction:column; gap:8px; }
+.meal-detail-toggle { display:flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer; padding:4px 0; width:100%; text-align:left; }
+.meal-detail-label { font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; }
+.meal-collapse-chevron { font-size:10px; color:var(--text-dim); display:inline-block; transition:transform .2s; }
+.meal-detail-section--collapsed .meal-collapse-chevron { transform:rotate(-90deg); }
+.meal-detail-section--collapsed .meal-card__detail { display:none; }
+.meal-card__detail { display:flex; flex-direction:column; gap:8px; }
 .meal-desc { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:7px; padding:8px 10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px; resize:none; }
 .meal-desc:focus { outline:none; border-color:rgba(100,220,255,0.35); }
 .meal-macros { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
@@ -1424,7 +1421,8 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 .preset-picker--open { display:flex; }
 .preset-item { display:flex; align-items:center; gap:8px; padding:8px 10px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; cursor:pointer; transition:background .15s,border-color .15s; }
 .preset-item:hover { background:rgba(100,220,255,0.06); border-color:rgba(100,220,255,0.2); }
-.preset-item__name { flex:1; font-size:13px; color:var(--text); }
+.preset-item__name { flex:1; font-size:13px; color:var(--text); display:flex; align-items:center; }
+.preset-item__dot { width:7px; height:7px; border-radius:50%; margin-right:7px; flex-shrink:0; display:inline-block; }
 .preset-item__meta { font-size:11px; color:var(--text-dim); white-space:nowrap; }
 .preset-item__del { background:none; border:none; color:rgba(248,113,113,0.4); cursor:pointer; font-size:14px; padding:2px 4px; flex-shrink:0; }
 .preset-item__del:hover { color:#f87171; }
@@ -1542,11 +1540,10 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
    =========================================================== */
 .sub-toggle { width:20px; height:20px; border-radius:5px; border:1.5px solid rgba(100,220,255,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:transparent; flex-shrink:0; transition:background .15s,border-color .15s,color .15s; }
 .sub-toggle--on { background:rgba(100,220,255,0.3); border-color:var(--primary); color:var(--primary); }
-.plan-cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; }
+.plan-cards-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; align-items:start; }
 @media(max-width:700px){ .plan-cards-grid { grid-template-columns:1fr; } }
 .plan-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; }
 .plan-card__header { display:flex; align-items:center; gap:8px; padding:12px 14px; background:rgba(255,255,255,0.01); }
-.plan-kcal-tag { font-size:12px; font-weight:700; color:var(--orange); }
 .plan-card__body { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
 .meal-food-items { display:flex; flex-direction:column; gap:4px; }
 .meal-food-item { display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.2); border-radius:6px; flex-wrap:wrap; }
