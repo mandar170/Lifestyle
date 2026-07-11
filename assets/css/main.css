@@ -1382,8 +1382,9 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 .meals-grid__col { display:flex; flex-direction:column; gap:14px; flex:1; min-width:0; }
 @media(max-width:700px){ .meals-grid { flex-direction:column; } }
 .meal-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; transition:border-color .2s,background .2s; }
-.meal-card.card-state--dirty, .plan-card.card-state--dirty { border-color:#f97316; }
-.meal-card.card-state--saved, .plan-card.card-state--saved { border-color:#22c55e; }
+.meal-card.card-state--dirty    { border-color:#f97316; }
+.meal-card.card-state--planned  { border-color:#64dcff; }
+.meal-card.card-state--saved    { border-color:#22c55e; }
 .meal-card__header { display:flex; align-items:center; gap:10px; padding:12px 14px; }
 .meal-label { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.07em; text-transform:uppercase; flex:1; color:var(--text-muted,#94a3b8); }
 .meal-deduct-label { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim); cursor:pointer; white-space:nowrap; }
@@ -1544,12 +1545,6 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
    =========================================================== */
 .sub-toggle { width:20px; height:20px; border-radius:5px; border:1.5px solid rgba(100,220,255,0.3); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:transparent; flex-shrink:0; transition:background .15s,border-color .15s,color .15s; }
 .sub-toggle--on { background:rgba(100,220,255,0.3); border-color:var(--primary); color:var(--primary); }
-.plan-cards-grid { display:flex; align-items:flex-start; gap:14px; margin-bottom:24px; }
-.plan-cards-grid__col { display:flex; flex-direction:column; gap:14px; flex:1; min-width:0; }
-@media(max-width:700px){ .plan-cards-grid { flex-direction:column; } }
-.plan-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07); border-radius:12px; overflow:hidden; transition:border-color .2s,background .2s; }
-.plan-card__header { display:flex; align-items:center; gap:8px; padding:12px 14px; background:rgba(255,255,255,0.01); }
-.plan-card__body { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
 .meal-food-items { display:flex; flex-direction:column; gap:4px; }
 .meal-food-item { display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(34,197,94,0.05); border:1px solid rgba(34,197,94,0.2); border-radius:6px; flex-wrap:wrap; }
 .meal-food-item__label { flex:1; font-size:12px; color:var(--text); font-weight:500; min-width:0; }

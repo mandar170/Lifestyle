@@ -21,7 +21,6 @@
 
     <div class="tabs" role="tablist">
       <button class="tab-btn active" data-tab="journal">📝 Journal</button>
-      <button class="tab-btn" data-tab="planification">📅 Plan</button>
       <button class="tab-btn" data-tab="pantry">🥫 Pantry</button>
       <button class="tab-btn" data-tab="courses">🛒 Courses</button>
       <button class="tab-btn" data-tab="gestion">⚙️ Gestion</button>
@@ -57,27 +56,6 @@
           </div>
           <div id="goals-progress"></div>
           <div class="meals-grid" id="meals-grid"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ===== PLANIFICATION ===== -->
-    <div class="tab-panel" id="panel-planification">
-      <div class="tab-cal-layout">
-        <div class="tab-cal-sidebar">
-          <div id="p-cal-container"></div>
-        </div>
-        <div class="tab-cal-main">
-          <div id="plan-daily-totals" style="display:none;margin-bottom:12px;">
-            <div class="daily-totals">
-              <div class="daily-totals__item"><div class="daily-totals__val" id="pt-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
-              <div class="daily-totals__item"><div class="daily-totals__val" id="pt-total-prot">—</div><div class="daily-totals__lbl">Prot (g)</div></div>
-              <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--yellow" id="pt-total-gluc">—</div><div class="daily-totals__lbl">Gluc (g)</div></div>
-              <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="pt-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
-              <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="pt-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
-            </div>
-          </div>
-          <div class="plan-cards-grid" id="plan-cards-grid"></div>
         </div>
       </div>
     </div>
@@ -225,6 +203,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=20"></script>
+  <script src="assets/js/nutrition.js?v=21"></script>
 </body>
 </html>

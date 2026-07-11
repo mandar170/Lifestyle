@@ -1,5 +1,5 @@
 // ============================================================
-// NUTRITION — Journal, Planification, Pantry, Courses, Gestion
+// NUTRITION — Journal, Pantry, Courses, Gestion
 // ============================================================
 
 const MEAL_TYPES = [
@@ -30,12 +30,8 @@ const C = {
 
 // ── State ──────────────────────────────────────────────────
 let journalDate    = today();
-let planDate       = today();
 let journalCalYear = null;
 let journalCalMonth= null;
-let planCalYear    = null;
-let planCalMonth   = null;
-let planInitialized = false;
 let mealPresets = [];
 let substitutes = [];
 let foods       = [];
@@ -47,8 +43,6 @@ let equivalences = [];
 let mealFoodItems = {};
 let mealSubEntries = {};
 const foodPickerState = {};
-let planFoodItems  = {};
-let planSubEntries = {};
 let editingPresetId = null;
 let editingFoodId   = null;
 let nutritionGoals  = null;
@@ -82,7 +76,6 @@ function initTabs() {
       btn.classList.add('active');
       document.getElementById(`panel-${btn.dataset.tab}`).classList.add('active');
       const t = btn.dataset.tab;
-      if (t === 'planification' && !planInitialized) { initPlan(); planInitialized = true; }
       if (t === 'pantry') loadPantry();
       if (t === 'courses') { generateShoppingList(); }
     });
@@ -138,40 +131,20 @@ function renderMiniCalendar(containerId, year, month, selectedStr, todayStr, cal
 function renderJournalCalendar() {
   renderMiniCalendar('j-cal-container', journalCalYear, journalCalMonth, journalDate, today(), 'J');
 }
-function renderPlanCalendar() {
-  renderMiniCalendar('p-cal-container', planCalYear, planCalMonth, planDate, today(), 'P');
-}
-
 function calNav(calType, delta) {
-  if (calType === 'J') {
-    journalCalMonth += delta;
-    if (journalCalMonth < 0)  { journalCalMonth = 11; journalCalYear--;  }
-    if (journalCalMonth > 11) { journalCalMonth = 0;  journalCalYear++;  }
-    renderJournalCalendar();
-  } else {
-    planCalMonth += delta;
-    if (planCalMonth < 0)  { planCalMonth = 11; planCalYear--;  }
-    if (planCalMonth > 11) { planCalMonth = 0;  planCalYear++;  }
-    renderPlanCalendar();
-  }
+  journalCalMonth += delta;
+  if (journalCalMonth < 0)  { journalCalMonth = 11; journalCalYear--;  }
+  if (journalCalMonth > 11) { journalCalMonth = 0;  journalCalYear++;  }
+  renderJournalCalendar();
 }
 
 function calDayClick(calType, dateStr) {
-  if (calType === 'J') {
-    journalDate = dateStr;
-    const d = new Date(dateStr + 'T12:00:00');
-    journalCalYear  = d.getFullYear();
-    journalCalMonth = d.getMonth();
-    renderJournalCalendar();
-    loadJournalData();
-  } else {
-    planDate = dateStr;
-    const d  = new Date(dateStr + 'T12:00:00');
-    planCalYear  = d.getFullYear();
-    planCalMonth = d.getMonth();
-    renderPlanCalendar();
-    loadPlanData();
-  }
+  journalDate = dateStr;
+  const d = new Date(dateStr + 'T12:00:00');
+  journalCalYear  = d.getFullYear();
+  journalCalMonth = d.getMonth();
+  renderJournalCalendar();
+  loadJournalData();
 }
 
 // ── Journal ────────────────────────────────────────────────
@@ -189,7 +162,8 @@ function mealCardHTML({ key, label }) {
     <div class="meal-card" id="mc-${key}">
       <div class="meal-card__header">
         <span class="meal-label">${label}</span>
-        <button class="btn btn--primary btn--sm" style="font-size:11px;margin-left:auto;" onclick="saveMeal('${key}')">Enregistrer</button>
+        <button class="btn btn--ghost btn--sm" style="font-size:11px;margin-left:auto;" onclick="planMeal('${key}')">Enregistrer</button>
+        <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="saveMeal('${key}')">Ajouter</button>
       </div>
       <div class="meal-card__body" id="mc-body-${key}">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -247,11 +221,10 @@ function toggleCardCollapse(sectionId) {
 function setCardState(cardId, state) {
   const el = document.getElementById(cardId);
   if (!el) return;
-  el.classList.remove('card-state--dirty', 'card-state--saved');
-  if (state === 'dirty' || state === 'saved') el.classList.add(`card-state--${state}`);
+  el.classList.remove('card-state--dirty', 'card-state--planned', 'card-state--saved');
+  if (state === 'dirty' || state === 'planned' || state === 'saved') el.classList.add(`card-state--${state}`);
 }
-function markMealCardDirty(key)  { setCardState(`mc-${key}`,  'dirty'); }
-function markPlanCardDirty(key)  { setCardState(`pmc-${key}`, 'dirty'); }
+function markMealCardDirty(key) { setCardState(`mc-${key}`, 'dirty'); }
 
 function adjustMealMacroInputs(idPrefix, key, d) {
   const set = (field, val) => {
@@ -266,9 +239,10 @@ function adjustMealMacroInputs(idPrefix, key, d) {
 }
 
 async function loadJournalData() {
-  const [{ data: meals }, { data: foodItems }] = await Promise.all([
+  const [{ data: meals }, { data: foodItems }, { data: plans }] = await Promise.all([
     db.from('meals').select('*').eq('date', journalDate),
     db.from('meal_food_items').select('*').eq('date', journalDate),
+    db.from('meal_plans').select('*').eq('plan_date', journalDate),
   ]);
   mealFoodItems = {};
   (foodItems || []).forEach(item => {
@@ -276,7 +250,7 @@ async function loadJournalData() {
     mealFoodItems[item.meal_type].push(item);
   });
   mealSubEntries = {};
-  renderMealCards(meals || []);
+  renderMealCards(meals || [], plans || []);
   MEAL_TYPES.forEach(({ key }) => { renderMealFoodItems(key); });
   loadWater();
 }
@@ -305,26 +279,30 @@ function addWater(ml) {
   input.value = (parseInt(input.value) || 0) + ml;
 }
 
-function renderMealCards(meals) {
+function renderMealCards(meals, plans = []) {
   const byType = {};
   meals.forEach(m => { byType[m.meal_type] = m; });
+  const planByType = {};
+  plans.forEach(p => { planByType[p.meal_type] = p; });
   MEAL_TYPES.forEach(({ key }) => {
     const m = byType[key];
+    const p = planByType[key];
     const descEl = document.getElementById(`desc-${key}`);
     descEl.dataset.auto = '0';
-    if (m) {
-      descEl.value = m.description || '';
-      document.getElementById(`kcal-${key}`).value = m.calories    ?? '';
-      document.getElementById(`prot-${key}`).value = m.protein_g   ?? '';
-      document.getElementById(`gluc-${key}`).value = m.carbs_g     ?? '';
-      document.getElementById(`lip-${key}`).value  = m.fat_g       ?? '';
-      document.getElementById(`fib-${key}`).value  = m.fiber_g     ?? '';
+    const src = m || p;
+    if (src) {
+      descEl.value = src.description || '';
+      document.getElementById(`kcal-${key}`).value = src.calories    ?? '';
+      document.getElementById(`prot-${key}`).value = src.protein_g   ?? '';
+      document.getElementById(`gluc-${key}`).value = src.carbs_g     ?? '';
+      document.getElementById(`lip-${key}`).value  = src.fat_g       ?? '';
+      document.getElementById(`fib-${key}`).value  = src.fiber_g     ?? '';
     } else {
       descEl.value = '';
       ['kcal','prot','gluc','lip','fib'].forEach(f => { document.getElementById(`${f}-${key}`).value = ''; });
     }
     const hasUnsavedItems = (mealFoodItems[key] || []).length || (mealSubEntries[key] || []).length;
-    setCardState(`mc-${key}`, m ? 'saved' : (hasUnsavedItems ? 'dirty' : 'empty'));
+    setCardState(`mc-${key}`, m ? 'saved' : (p ? 'planned' : (hasUnsavedItems ? 'dirty' : 'empty')));
   });
   updateDailyTotals(meals);
 }
@@ -342,9 +320,26 @@ async function saveMeal(mealType) {
   };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  showToast('Repas enregistré', 'success');
+  showToast('Repas ajouté au journal ✓', 'success');
   await loadJournalData();
   syncNutritionTable(journalDate);
+}
+
+async function planMeal(mealType) {
+  const entry = {
+    plan_date:   journalDate,
+    meal_type:   mealType,
+    description: document.getElementById(`desc-${mealType}`).value.trim() || null,
+    calories:    numI(document.getElementById(`kcal-${mealType}`).value),
+    protein_g:   numF(document.getElementById(`prot-${mealType}`).value),
+    carbs_g:     numF(document.getElementById(`gluc-${mealType}`).value),
+    fat_g:       numF(document.getElementById(`lip-${mealType}`).value),
+    fiber_g:     numF(document.getElementById(`fib-${mealType}`).value),
+  };
+  const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  setCardState(`mc-${mealType}`, 'planned');
+  showToast('Repas enregistré (plan)', 'success');
 }
 
 function updateDailyTotals(meals) {
@@ -729,437 +724,6 @@ async function removeSubEntry(mealType, entryId) {
   renderMealSubEntries(mealType);
   markMealCardDirty(mealType);
   showToast('Substitut retiré', 'success');
-}
-
-// ── Planification ──────────────────────────────────────────
-function initPlan() {
-  const d = new Date(planDate + 'T12:00:00');
-  planCalYear  = d.getFullYear();
-  planCalMonth = d.getMonth();
-  renderPlanCalendar();
-  buildPlanCards();
-  loadPlanData();
-}
-
-function planCardHTML({ key, label }) {
-  return `
-    <div class="plan-card" id="pmc-${key}">
-      <div class="plan-card__header">
-        <span class="meal-label">${label}</span>
-        <button class="btn btn--ghost btn--sm" style="margin-left:auto;font-size:11px;" onclick="applyMealPlanToJournal('${key}')" title="Copier vers le journal">→ Journal</button>
-        <button class="btn btn--primary btn--sm" style="font-size:11px;" onclick="savePlanMeal('${key}')">Enregistrer</button>
-      </div>
-      <div class="plan-card__body" id="pmc-body-${key}">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('plan-${key}')">+ Ajouter un aliment</button>
-          <label class="meal-deduct-label">
-            <input type="checkbox" id="deduct-plan-${key}" checked style="accent-color:var(--primary);" />
-            Déduire du stock
-          </label>
-        </div>
-        <div class="food-picker" id="fp-plan-${key}">
-          <input type="text" class="np-input food-search" id="fp-search-plan-${key}" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('plan-${key}')" />
-          <div class="food-picker-list" id="fp-list-plan-${key}"></div>
-          <div class="food-weight-row" id="fp-weight-plan-${key}" style="display:none;">
-            <span id="fp-fname-plan-${key}" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
-            <input type="number" id="fp-grams-plan-${key}" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToPlan('plan-${key}')" />
-            <button class="btn btn--primary btn--sm" onclick="applyFoodToPlan('plan-${key}')">+ Ajouter</button>
-          </div>
-        </div>
-        <div class="meal-detail-section" id="pmds-${key}">
-          <button class="meal-detail-toggle" onclick="toggleCardCollapse('pmds-${key}')">
-            <span class="meal-collapse-chevron">▼</span>
-            <span class="meal-detail-label">Détail repas</span>
-          </button>
-          <div class="meal-card__detail">
-            <div class="meal-food-items" id="pfi-${key}"></div>
-            <input type="text" class="meal-desc" id="pdesc-${key}" placeholder="Contenu du repas…" oninput="this.dataset.auto='0';markPlanCardDirty('${key}')" />
-            <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
-            <div class="meal-macros">
-              <input type="number" id="pkcal-${key}" placeholder="—" min="0" oninput="markPlanCardDirty('${key}')" />
-              <input type="number" id="pprot-${key}" placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
-              <input type="number" id="pgluc-${key}" placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
-              <input type="number" id="plip-${key}"  placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
-              <input type="number" id="pfib-${key}"  placeholder="—" min="0" step="0.1" oninput="markPlanCardDirty('${key}')" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-}
-
-function buildPlanCards() {
-  const left  = MEAL_TYPES.filter(m => MEAL_COL_LEFT.includes(m.key));
-  const right = MEAL_TYPES.filter(m => MEAL_COL_RIGHT.includes(m.key));
-  document.getElementById('plan-cards-grid').innerHTML =
-    `<div class="plan-cards-grid__col">${left.map(planCardHTML).join('')}</div>` +
-    `<div class="plan-cards-grid__col">${right.map(planCardHTML).join('')}</div>`;
-}
-
-async function loadPlanData() {
-  const [{ data: items }, { data: plans }] = await Promise.all([
-    db.from('meal_plan_items').select('*').eq('plan_date', planDate),
-    db.from('meal_plans').select('*').eq('plan_date', planDate),
-  ]);
-  planFoodItems = {};
-  (items || []).forEach(item => {
-    if (!planFoodItems[item.meal_type]) planFoodItems[item.meal_type] = [];
-    planFoodItems[item.meal_type].push(item);
-  });
-  planSubEntries = {};
-  const byType = {};
-  (plans || []).forEach(p => { byType[p.meal_type] = p; });
-  MEAL_TYPES.forEach(({ key }) => {
-    const p = byType[key];
-    document.getElementById(`pkcal-${key}`).value = p?.calories  ?? '';
-    document.getElementById(`pprot-${key}`).value = p?.protein_g ?? '';
-    document.getElementById(`pgluc-${key}`).value = p?.carbs_g   ?? '';
-    document.getElementById(`plip-${key}`).value  = p?.fat_g     ?? '';
-    document.getElementById(`pfib-${key}`).value  = p?.fiber_g   ?? '';
-    const pdescEl = document.getElementById(`pdesc-${key}`);
-    pdescEl.value = p?.description || '';
-    pdescEl.dataset.auto = '0';
-    renderPlanFoodItems(key);
-    const hasUnsavedItems = (planFoodItems[key] || []).length || (planSubEntries[key] || []).length;
-    setCardState(`pmc-${key}`, p ? 'saved' : (hasUnsavedItems ? 'dirty' : 'empty'));
-  });
-}
-
-async function savePlanMeal(mealType) {
-  const entry = {
-    plan_date:   planDate,
-    meal_type:   mealType,
-    description: document.getElementById(`pdesc-${mealType}`).value.trim() || null,
-    calories:    numI(document.getElementById(`pkcal-${mealType}`).value),
-    protein_g:   numF(document.getElementById(`pprot-${mealType}`).value),
-    carbs_g:     numF(document.getElementById(`pgluc-${mealType}`).value),
-    fat_g:       numF(document.getElementById(`plip-${mealType}`).value),
-    fiber_g:     numF(document.getElementById(`pfib-${mealType}`).value),
-  };
-  const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  setCardState(`pmc-${mealType}`, 'saved');
-  showToast('Plan repas enregistré', 'success');
-}
-
-async function applyFoodToPlan(ctx) {
-  const state = foodPickerState[ctx];
-  if (!state?.selectedId) return;
-  const food  = foods.find(f => f.id === state.selectedId);
-  const qty   = parseFloat(document.getElementById(`fp-grams-${ctx}`)?.value);
-  if (!food)           { showToast('Sélectionne un aliment', 'error'); return; }
-  if (!qty || qty <= 0){ showToast('Indique la quantité', 'error'); return; }
-
-  const key    = ctx.slice(5);
-  const isUnit = (food.unit || 'g') === 'unité';
-  const factor = isUnit ? qty : qty / 100;
-  const item   = {
-    plan_date: planDate, meal_type: key, food_id: food.id, food_name: food.name, grams: qty,
-    calories:  food.calories_per_100g != null ? Math.round(food.calories_per_100g * factor) : null,
-    protein_g: food.protein_per_100g  != null ? parseFloat((food.protein_per_100g  * factor).toFixed(1)) : null,
-    carbs_g:   food.carbs_per_100g    != null ? parseFloat((food.carbs_per_100g    * factor).toFixed(1)) : null,
-    fat_g:     food.fat_per_100g      != null ? parseFloat((food.fat_per_100g      * factor).toFixed(1)) : null,
-    fiber_g:   food.fiber_per_100g    != null ? parseFloat((food.fiber_per_100g    * factor).toFixed(1)) : null,
-  };
-  const { data, error } = await db.from('meal_plan_items').insert(item).select().single();
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  if (!planFoodItems[key]) planFoodItems[key] = [];
-  planFoodItems[key].push(data);
-  adjustMealMacroInputs('p', key, { kcal: data.calories, prot: data.protein_g, gluc: data.carbs_g, lip: data.fat_g, fib: data.fiber_g });
-  document.getElementById(`fp-grams-${ctx}`).value = '';
-  document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
-  delete foodPickerState[ctx];
-  renderPlanFoodItems(key);
-  markPlanCardDirty(key);
-  showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté au plan`, 'success');
-  maybeRefreshShopping();
-}
-
-function updatePlanDailyTotals() {
-  let kcal = 0, prot = 0, gluc = 0, lip = 0, fib = 0, hasData = false;
-  MEAL_TYPES.forEach(({ key }) => {
-    [...(planFoodItems[key] || []), ...(planSubEntries[key] || []).filter(s => !s.included)].forEach(i => {
-      kcal += i.calories  || 0;
-      prot += i.protein_g || 0;
-      gluc += i.carbs_g   || 0;
-      lip  += i.fat_g     || 0;
-      fib  += i.fiber_g   || 0;
-      hasData = true;
-    });
-  });
-  const container = document.getElementById('plan-daily-totals');
-  if (container) container.style.display = hasData ? '' : 'none';
-
-  const kcalEl = document.getElementById('pt-total-kcal');
-  if (kcalEl) {
-    kcalEl.textContent = hasData ? Math.round(kcal).toLocaleString('fr-FR') : '—';
-    const goal = nutritionGoals?.calories;
-    if (goal && hasData) {
-      const ratio = kcal / goal;
-      kcalEl.style.color = ratio > 1.1 ? '#ef4444' : ratio > 1 ? '#f97316' : '#22c55e';
-    } else {
-      kcalEl.style.color = '';
-    }
-  }
-  setEl('pt-total-prot', hasData ? prot.toFixed(1) : '—');
-  setEl('pt-total-gluc', hasData ? gluc.toFixed(1) : '—');
-  setEl('pt-total-lip',  hasData ? lip.toFixed(1)  : '—');
-  setEl('pt-total-fib',  hasData ? fib.toFixed(1)  : '—');
-}
-
-function renderPlanFoodItems(mealType) {
-  const container = document.getElementById(`pfi-${mealType}`);
-  if (!container) return;
-  const items  = planFoodItems[mealType] || [];
-  const descEl = document.getElementById(`pdesc-${mealType}`);
-  if (descEl) {
-    if (items.length) { descEl.value = items.map(i => i.food_name).join(', '); descEl.dataset.auto = '1'; }
-    else if (descEl.dataset.auto === '1') { descEl.value = ''; descEl.dataset.auto = '0'; }
-  }
-  updatePlanDailyTotals();
-  if (!items.length) { container.innerHTML = ''; return; }
-  container.innerHTML = items.map(item => {
-    const fd = foods.find(f => f.id === item.food_id);
-    const unit = fd?.unit || 'g';
-    const qtyLabel = unit === 'unité' ? `${item.grams} unité` : `${item.grams}${unit}`;
-    return `<div class="meal-food-item" id="pfi-item-${item.id}">
-      <div class="meal-food-item__label">${item.food_name}</div>
-      <div class="meal-food-item__meta">${qtyLabel} · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
-      <div class="meal-food-item__edit-input" id="pfi-edit-${item.id}" style="display:none;">
-        <input type="number" id="pfi-qty-${item.id}" class="np-input" placeholder="${unit}" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmPlanQtyEdit('${mealType}','${item.id}')" />
-        <button class="btn btn--primary btn--sm" onclick="confirmPlanQtyEdit('${mealType}','${item.id}')">OK</button>
-        <button class="btn btn--ghost btn--sm" onclick="cancelPlanQtyEdit('${item.id}')">✕</button>
-      </div>
-      <div style="display:flex;gap:3px;margin-left:auto;">
-        <button class="btn btn--ghost btn--xs" onclick="editPlanFoodItemQty('${item.id}')">✏️</button>
-        <button class="btn btn--ghost btn--xs" style="color:rgba(248,113,113,0.8);" onclick="removePlanFoodItem('${mealType}','${item.id}')">✕</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function editPlanFoodItemQty(itemId) {
-  const el = document.getElementById(`pfi-edit-${itemId}`);
-  if (el) { el.style.display = 'flex'; document.getElementById(`pfi-qty-${itemId}`)?.focus(); }
-}
-function cancelPlanQtyEdit(itemId) {
-  const el = document.getElementById(`pfi-edit-${itemId}`);
-  if (el) el.style.display = 'none';
-}
-
-async function confirmPlanQtyEdit(mealType, itemId) {
-  const item = (planFoodItems[mealType] || []).find(i => String(i.id) === String(itemId));
-  if (!item) return;
-  const newQty = parseFloat(document.getElementById(`pfi-qty-${itemId}`)?.value);
-  if (!newQty || newQty <= 0) { showToast('Indique la quantité', 'error'); return; }
-  const food   = foods.find(f => f.id === item.food_id);
-  const isUnit = (food?.unit || 'g') === 'unité';
-  const factor = isUnit ? newQty : newQty / 100;
-  const updated = {
-    grams: newQty,
-    calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
-    protein_g: food ? parseFloat((food.protein_per_100g * factor).toFixed(1)) : item.protein_g,
-    carbs_g:   food ? parseFloat((food.carbs_per_100g   * factor).toFixed(1)) : item.carbs_g,
-    fat_g:     food ? parseFloat((food.fat_per_100g     * factor).toFixed(1)) : item.fat_g,
-    fiber_g:   food ? parseFloat((food.fiber_per_100g   * factor).toFixed(1)) : item.fiber_g,
-  };
-  const { error } = await db.from('meal_plan_items').update(updated).eq('id', itemId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  adjustMealMacroInputs('p', mealType, {
-    kcal: updated.calories  != null && item.calories  != null ? updated.calories  - item.calories  : null,
-    prot: updated.protein_g != null && item.protein_g != null ? updated.protein_g - item.protein_g : null,
-    gluc: updated.carbs_g   != null && item.carbs_g   != null ? updated.carbs_g   - item.carbs_g   : null,
-    lip:  updated.fat_g     != null && item.fat_g     != null ? updated.fat_g     - item.fat_g     : null,
-    fib:  updated.fiber_g   != null && item.fiber_g   != null ? updated.fiber_g   - item.fiber_g   : null,
-  });
-  Object.assign(item, updated);
-  renderPlanFoodItems(mealType);
-  markPlanCardDirty(mealType);
-  showToast('Quantité mise à jour', 'success');
-  maybeRefreshShopping();
-}
-
-async function removePlanFoodItem(mealType, itemId) {
-  const item = (planFoodItems[mealType] || []).find(i => String(i.id) === String(itemId));
-  const { error } = await db.from('meal_plan_items').delete().eq('id', itemId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  if (item) {
-    adjustMealMacroInputs('p', mealType, {
-      kcal: item.calories  != null ? -item.calories  : null,
-      prot: item.protein_g != null ? -item.protein_g : null,
-      gluc: item.carbs_g   != null ? -item.carbs_g   : null,
-      lip:  item.fat_g     != null ? -item.fat_g     : null,
-      fib:  item.fiber_g   != null ? -item.fiber_g   : null,
-    });
-  }
-  planFoodItems[mealType] = (planFoodItems[mealType] || []).filter(i => String(i.id) !== String(itemId));
-  renderPlanFoodItems(mealType);
-  markPlanCardDirty(mealType);
-  showToast('Aliment retiré du plan', 'success');
-  maybeRefreshShopping();
-}
-
-// ── Plan substitutes ───────────────────────────────────────
-function togglePlanSubPicker(mealType) {
-  const picker = document.getElementById(`psp-${mealType}`);
-  if (!picker) return;
-  const isOpen = picker.classList.contains('preset-picker--open');
-  document.querySelectorAll('.preset-picker, .food-picker').forEach(p => p.classList.remove('preset-picker--open'));
-  if (isOpen) return;
-  picker.innerHTML = substitutes.length
-    ? substitutes.map(s => `
-        <div class="preset-item" onclick="addSubToPlan('${mealType}','${s.id}')">
-          <span class="preset-item__name">${s.name}</span>
-          <span class="preset-item__meta">${[s.calories?s.calories+' kcal':null,s.protein_g?s.protein_g+'g P':null].filter(Boolean).join(' · ')}</span>
-        </div>`).join('')
-    : '<p class="preset-list-empty">Aucun substitut — allez dans Gestion.</p>';
-  picker.classList.add('preset-picker--open');
-}
-
-async function addSubToPlan(mealType, subId) {
-  const s = substitutes.find(x => x.id === subId);
-  if (!s) return;
-  document.getElementById(`psp-${mealType}`)?.classList.remove('preset-picker--open');
-  const item = {
-    plan_date: planDate, meal_type: mealType, substitute_id: s.id, substitute_name: s.name,
-    included: false, calories: s.calories || null, protein_g: s.protein_g || null,
-    carbs_g: s.carbs_g || null, fat_g: s.fat_g || null, fiber_g: s.fiber_g || null,
-  };
-  const { data, error } = await db.from('meal_plan_sub_entries').insert(item).select().single();
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  if (!planSubEntries[mealType]) planSubEntries[mealType] = [];
-  planSubEntries[mealType].push(data);
-  renderPlanSubEntries(mealType);
-  renderPlanFoodItems(mealType);
-  markPlanCardDirty(mealType);
-  showToast(`${s.name} ajouté au plan`, 'success');
-  maybeRefreshShopping();
-}
-
-function renderPlanSubEntries(mealType) {
-  const container = document.getElementById(`psi-${mealType}`);
-  if (!container) return;
-  updatePlanDailyTotals();
-  const items = planSubEntries[mealType] || [];
-  if (!items.length) { container.innerHTML = ''; return; }
-  container.innerHTML = items.map(item => `
-    <div class="meal-sub-item" id="psi-item-${item.id}">
-      <span style="font-size:13px;">💊</span>
-      <span class="meal-sub-item__name">${item.substitute_name}</span>
-      <span class="meal-sub-item__meta">${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</span>
-      <button class="meal-sub-toggle${item.included ? ' meal-sub-toggle--on' : ''}" onclick="togglePlanSubEntry('${mealType}','${item.id}')">${item.included ? '✓ comprises' : '+ à ajouter'}</button>
-      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removePlanSubEntry('${mealType}','${item.id}')">✕</button>
-    </div>`).join('');
-}
-
-async function togglePlanSubEntry(mealType, entryId) {
-  const item = (planSubEntries[mealType] || []).find(i => String(i.id) === String(entryId));
-  if (!item) return;
-  const nowIncluded = !item.included;
-  const { error } = await db.from('meal_plan_sub_entries').update({ included: nowIncluded }).eq('id', entryId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  item.included = nowIncluded;
-  renderPlanSubEntries(mealType);
-  renderPlanFoodItems(mealType);
-  markPlanCardDirty(mealType);
-}
-
-async function removePlanSubEntry(mealType, entryId) {
-  const { error } = await db.from('meal_plan_sub_entries').delete().eq('id', entryId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  planSubEntries[mealType] = (planSubEntries[mealType] || []).filter(i => String(i.id) !== String(entryId));
-  renderPlanSubEntries(mealType);
-  renderPlanFoodItems(mealType);
-  markPlanCardDirty(mealType);
-  showToast('Substitut retiré du plan', 'success');
-  maybeRefreshShopping();
-}
-
-async function applyMealPlanToJournal(mealType) {
-  const items = planFoodItems[mealType] || [];
-  const subs  = planSubEntries[mealType] || [];
-  if (!items.length && !subs.length) { showToast('Aucun aliment planifié pour ce repas', 'error'); return; }
-
-  const ops = [];
-  if (items.length) {
-    ops.push(db.from('meal_food_items').insert(items.map(i => ({
-      date: planDate, meal_type: mealType,
-      food_id: i.food_id, food_name: i.food_name, grams: i.grams,
-      calories: i.calories, protein_g: i.protein_g, carbs_g: i.carbs_g,
-      fat_g: i.fat_g, fiber_g: i.fiber_g,
-    }))));
-  }
-  const results = await Promise.all(ops);
-  const firstErr = results.find(r => r.error)?.error;
-  if (firstErr) { showToast(`Erreur : ${firstErr.message}`, 'error'); return; }
-
-  const { data: allItems } = await db.from('meal_food_items').select('*').eq('date', planDate).eq('meal_type', mealType);
-  const t = (allItems || []).reduce((acc, i) => ({
-    calories:  acc.calories  + (i.calories  || 0),
-    protein_g: acc.protein_g + (i.protein_g || 0),
-    carbs_g:   acc.carbs_g   + (i.carbs_g   || 0),
-    fat_g:     acc.fat_g     + (i.fat_g     || 0),
-    fiber_g:   acc.fiber_g   + (i.fiber_g   || 0),
-  }), { calories:0, protein_g:0, carbs_g:0, fat_g:0, fiber_g:0 });
-
-  await db.from('meals').upsert({
-    date: planDate, meal_type: mealType, done: true,
-    description: (allItems || []).map(i => i.food_name).join(', '),
-    calories:  Math.round(t.calories),
-    protein_g: parseFloat(t.protein_g.toFixed(1)),
-    carbs_g:   parseFloat(t.carbs_g.toFixed(1)),
-    fat_g:     parseFloat(t.fat_g.toFixed(1)),
-    fiber_g:   parseFloat(t.fiber_g.toFixed(1)),
-  }, { onConflict: 'date,meal_type' });
-
-  // Deduct from pantry (if toggle is on)
-  if (document.getElementById(`deduct-plan-${mealType}`)?.checked) {
-    for (const item of items) {
-      if (!item.food_id) continue;
-      const pantryItem = pantryItems.find(p => p.food_id === item.food_id);
-      if (pantryItem) {
-        const newQty = Math.max(0, pantryItem.quantity - (item.grams || 0));
-        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-        pantryItem.quantity = newQty;
-      }
-    }
-  }
-
-  // Deduct via food equivalences
-  if (document.getElementById(`deduct-plan-${mealType}`)?.checked) {
-    for (const item of items) {
-      if (!item.food_id || !item.grams) continue;
-      for (const eq of equivalences) {
-        const isA = eq.food_id_a === item.food_id;
-        const isB = eq.both_ways && eq.food_id_b === item.food_id;
-        if (!isA && !isB) continue;
-
-        const qtyB = eq.qty_b || 1;
-        const gramsPerUnit = eq.ratio / qtyB;
-        if (isA) {
-          // consuming food_a (grams) → deduct food_b (units)
-          const units = Math.round(item.grams / gramsPerUnit);
-          if (units <= 0) continue;
-          if (Math.abs((item.grams / units) - gramsPerUnit) > eq.tolerance) continue;
-          const target = pantryItems.find(p => p.food_id === eq.food_id_b);
-          if (!target) continue;
-          const newQty = Math.max(0, target.quantity - units);
-          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-          target.quantity = newQty;
-        } else {
-          // consuming food_b (units) → deduct food_a (grams)
-          const gramsA = item.grams * gramsPerUnit;
-          const target = pantryItems.find(p => p.food_id === eq.food_id_a);
-          if (!target) continue;
-          const newQty = Math.max(0, target.quantity - gramsA);
-          await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-          target.quantity = newQty;
-        }
-      }
-    }
-  }
-
-  showToast('Repas enregistré au journal ✓', 'success');
 }
 
 // ── Pantry ─────────────────────────────────────────────────
