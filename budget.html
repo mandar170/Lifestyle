@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budget — mandar170</title>
+  <meta name="description" content="Suivi budgétaire personnel : transactions, graphiques et catégories de dépenses." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💶</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
@@ -27,7 +32,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-card__label">Revenus ce mois</div>
-        <div class="stat-card__value" style="color:#22c55e;" id="stat-revenus">— €</div>
+        <div class="stat-card__value" style="color:var(--green);" id="stat-revenus">— €</div>
       </div>
       <div class="stat-card">
         <div class="stat-card__label">Variation du mois</div>
@@ -67,7 +72,7 @@
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px;">
+      <div class="budget-charts-grid">
         <!-- Donut catégories -->
         <div class="section-card">
           <div class="section-card__header">
@@ -229,10 +234,10 @@
 
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
-  <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/budget.js?v=4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+  <script defer src="assets/js/config.js?v=11"></script>
+  <script defer src="assets/js/budget.js?v=4"></script>
 </body>
 </html>

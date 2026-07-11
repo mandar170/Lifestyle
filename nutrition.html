@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nutrition — mandar170</title>
+  <meta name="description" content="Journal nutritionnel personnel : repas, macros, pantry et liste de courses." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
@@ -20,10 +25,10 @@
   <main class="container" style="padding-top:12px;padding-bottom:60px;">
 
     <div class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="journal">📝 Journal</button>
-      <button class="tab-btn" data-tab="pantry">🥫 Pantry</button>
-      <button class="tab-btn" data-tab="courses">🛒 Courses</button>
-      <button class="tab-btn" data-tab="gestion">⚙️ Gestion</button>
+      <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-journal"  data-tab="journal">📝 Journal</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-pantry"   data-tab="pantry">🥫 Pantry</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-courses"  data-tab="courses">🛒 Courses</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-gestion"  data-tab="gestion">⚙️ Gestion</button>
     </div>
 
     <!-- ===== JOURNAL ===== -->
@@ -201,8 +206,8 @@
 
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="assets/js/config.js?v=11"></script>
-  <script src="assets/js/nutrition.js?v=21"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script defer src="assets/js/config.js?v=11"></script>
+  <script defer src="assets/js/nutrition.js?v=21"></script>
 </body>
 </html>

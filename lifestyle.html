@@ -4,13 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lifestyle — mandar170</title>
+  <meta name="description" content="Tableau de bord personnel : habitudes, activité physique, mensurations et journal nutritionnel." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
 <body>
 
   <header class="fit-header">
     <div class="container fit-header__inner">
-      <span class="fit-header__logo">LIFESTYLE</span>
+      <div class="fit-header__brand">
+        <span class="fit-header__logo">LIFESTYLE</span>
+      </div>
       <a href="personal.html" class="fit-header__back">← Hub personnel</a>
     </div>
   </header>
@@ -24,10 +31,11 @@
     </div>
 
     <nav class="tabs" role="tablist">
-      <button class="tab-btn active" data-tab="dashboard">Vue d'ensemble</button>
-      <button class="tab-btn" data-tab="calendrier">Calendrier</button>
-      <button class="tab-btn" data-tab="habitudes">Habitudes</button>
-      <button class="tab-btn" data-tab="suivi">Suivi</button>
+      <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-dashboard"  data-tab="dashboard">Vue d'ensemble</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-calendrier" data-tab="calendrier">Calendrier</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-habitudes"  data-tab="habitudes">Habitudes</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-suivi"      data-tab="suivi">Suivi</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-export"     data-tab="export">Export</button>
     </nav>
 
     <!-- ════ DASHBOARD ════ -->
@@ -37,13 +45,13 @@
         <!-- Nutrition -->
         <div class="dash-card">
           <div class="dash-card__hdr">
-            <h3 class="dash-card__title" style="color:#f97316;">🍽️ Nutrition</h3>
+            <h3 class="dash-card__title" style="color:var(--orange);">🍽️ Nutrition</h3>
             <button class="btn btn--ghost btn--sm" onclick="window.location.href='nutrition.html'">Voir →</button>
           </div>
           <div class="dash-stats-mini">
-            <div><span class="dash-val" style="color:#f97316;" id="d-kcal">—</span><span class="dash-lbl">kcal auj.</span></div>
+            <div><span class="dash-val" style="color:var(--orange);" id="d-kcal">—</span><span class="dash-lbl">kcal auj.</span></div>
             <div><span class="dash-val" id="d-prot">—</span><span class="dash-lbl">prot (g)</span></div>
-            <div><span class="dash-val" style="color:#a855f7;" id="d-lip">—</span><span class="dash-lbl">lip (g)</span></div>
+            <div><span class="dash-val" style="color:var(--purple);" id="d-lip">—</span><span class="dash-lbl">lip (g)</span></div>
           </div>
           <div class="dash-chart-wrap"><canvas id="dash-nutri-chart"></canvas></div>
         </div>
@@ -51,13 +59,13 @@
         <!-- Habitudes -->
         <div class="dash-card">
           <div class="dash-card__hdr">
-            <h3 class="dash-card__title" style="color:#64dcff;">✅ Habitudes</h3>
+            <h3 class="dash-card__title" style="color:var(--primary);">✅ Habitudes</h3>
             <button class="btn btn--ghost btn--sm" onclick="switchTab('habitudes')">Voir →</button>
           </div>
           <div class="dash-stats-mini">
             <div><span class="dash-val" id="d-hab-today">—</span><span class="dash-lbl">auj.</span></div>
-            <div><span class="dash-val" style="color:#f97316;" id="d-hab-streak">—</span><span class="dash-lbl">streak</span></div>
-            <div><span class="dash-val" style="color:#a855f7;" id="d-hab-rate">—</span><span class="dash-lbl">taux 7j</span></div>
+            <div><span class="dash-val" style="color:var(--orange);" id="d-hab-streak">—</span><span class="dash-lbl">streak</span></div>
+            <div><span class="dash-val" style="color:var(--purple);" id="d-hab-rate">—</span><span class="dash-lbl">taux 7j</span></div>
           </div>
           <div class="dash-chart-wrap"><canvas id="dash-habits-chart"></canvas></div>
         </div>
@@ -65,13 +73,13 @@
         <!-- Mouvement / Pas -->
         <div class="dash-card">
           <div class="dash-card__hdr">
-            <h3 class="dash-card__title" style="color:#22c55e;">🏃 Mouvement</h3>
+            <h3 class="dash-card__title" style="color:var(--green);">🏃 Mouvement</h3>
             <button class="btn btn--ghost btn--sm" onclick="switchTab('suivi','mouvement')">Voir →</button>
           </div>
           <div class="dash-stats-mini">
-            <div><span class="dash-val" style="color:#22c55e;" id="d-steps">—</span><span class="dash-lbl">pas auj.</span></div>
+            <div><span class="dash-val" style="color:var(--green);" id="d-steps">—</span><span class="dash-lbl">pas auj.</span></div>
             <div><span class="dash-val" id="d-steps-avg">—</span><span class="dash-lbl">moy. 7j</span></div>
-            <div><span class="dash-val" style="color:#f97316;" id="d-last-act">—</span><span class="dash-lbl">dernière act.</span></div>
+            <div><span class="dash-val" style="color:var(--orange);" id="d-last-act">—</span><span class="dash-lbl">dernière act.</span></div>
           </div>
           <div class="dash-chart-wrap"><canvas id="dash-steps-chart"></canvas></div>
         </div>
@@ -79,11 +87,11 @@
         <!-- Mensurations -->
         <div class="dash-card">
           <div class="dash-card__hdr">
-            <h3 class="dash-card__title" style="color:#a855f7;">📏 Mensurations</h3>
+            <h3 class="dash-card__title" style="color:var(--purple);">📏 Mensurations</h3>
             <button class="btn btn--ghost btn--sm" onclick="switchTab('suivi','mensurations')">Voir →</button>
           </div>
           <div class="dash-stats-mini">
-            <div><span class="dash-val" style="color:#a855f7;" id="d-weight">—</span><span class="dash-lbl">poids (kg)</span></div>
+            <div><span class="dash-val" style="color:var(--purple);" id="d-weight">—</span><span class="dash-lbl">poids (kg)</span></div>
             <div><span class="dash-val" id="d-weight-delta" style="font-size:14px;">—</span><span class="dash-lbl">vs 30j</span></div>
           </div>
           <div class="dash-chart-wrap"><canvas id="dash-weight-chart"></canvas></div>
@@ -396,12 +404,12 @@
 
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
-  <script src="assets/js/config.js?v=10"></script>
-  <script src="assets/js/lifestyle.js?v=29"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2/dist/jspdf.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3/dist/jspdf.plugin.autotable.min.js"></script>
+  <script defer src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+  <script defer src="assets/js/config.js?v=10"></script>
+  <script defer src="assets/js/lifestyle.js?v=29"></script>
 </body>
 </html>
