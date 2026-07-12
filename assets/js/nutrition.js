@@ -31,7 +31,6 @@ const C = {
 let journalDate      = today();   // currently selected day (for totals/water)
 let journalWeekStart = null;      // Monday of the displayed week
 let mealPresets = [];
-let substitutes = [];
 let foods       = [];
 let tags        = [];
 let foodTagLinks = {};   // food_id → tag_id[]
@@ -41,7 +40,6 @@ let equivalences = [];
 let weekMeals      = {}; // weekMeals[date][mealType]      = row
 let weekPlans      = {}; // weekPlans[date][mealType]       = row
 let weekFoodItems  = {}; // weekFoodItems[date][mealType]   = row[]
-let weekSubEntries = {}; // weekSubEntries[date][mealType]  = row[]
 let modalCtx      = null; // { date, mealType } — meal currently open in the modal
 let modalSnapshot = null; // last-committed field values, for dirty-check on close
 const foodPickerState = {};
@@ -139,11 +137,10 @@ function selectDay(dateStr) {
 async function loadWeekData() {
   const dates = weekDates(journalWeekStart);
   const start = dates[0], end = dates[6];
-  const [{ data: meals }, { data: plans }, { data: items }, { data: subs }] = await Promise.all([
+  const [{ data: meals }, { data: plans }, { data: items }] = await Promise.all([
     db.from('meals').select('*').gte('date', start).lte('date', end),
     db.from('meal_plans').select('*').gte('plan_date', start).lte('plan_date', end),
     db.from('meal_food_items').select('*').gte('date', start).lte('date', end),
-    db.from('meal_substitute_entries').select('*').gte('date', start).lte('date', end),
   ]);
   weekMeals = {};
   (meals || []).forEach(m => {
@@ -160,12 +157,6 @@ async function loadWeekData() {
     if (!weekFoodItems[i.date]) weekFoodItems[i.date] = {};
     if (!weekFoodItems[i.date][i.meal_type]) weekFoodItems[i.date][i.meal_type] = [];
     weekFoodItems[i.date][i.meal_type].push(i);
-  });
-  weekSubEntries = {};
-  (subs || []).forEach(s => {
-    if (!weekSubEntries[s.date]) weekSubEntries[s.date] = {};
-    if (!weekSubEntries[s.date][s.meal_type]) weekSubEntries[s.date][s.meal_type] = [];
-    weekSubEntries[s.date][s.meal_type].push(s);
   });
 
   setEl('jw-label', `Semaine du ${formatDateShort(start)} au ${formatDateShort(end)}`);
@@ -207,9 +198,8 @@ function addWater(ml) {
 // ── Journal — meal aggregate / display helpers ──────────────
 function sumMealAggregate(dateStr, mealType) {
   const items = (weekFoodItems[dateStr] && weekFoodItems[dateStr][mealType]) || [];
-  const subs  = ((weekSubEntries[dateStr] && weekSubEntries[dateStr][mealType]) || []).filter(s => s.included);
-  const has   = items.length || subs.length;
-  const sum   = f => items.reduce((s, i) => s + (i[f] || 0), 0) + subs.reduce((s, i) => s + (i[f] || 0), 0);
+  const has   = items.length > 0;
+  const sum   = f => items.reduce((s, i) => s + (i[f] || 0), 0);
   return {
     description: items.length ? items.map(i => i.food_name).join(', ') : null,
     calories:  has ? Math.round(sum('calories'))  : null,
@@ -260,8 +250,10 @@ function renderMealTable() {
     return `<tr><th class="meal-table__row-label" style="color:${MEAL_COLORS[key]};">${label}</th>${cells}</tr>`;
   }).join('');
 
+  const colgroup = `<colgroup><col class="meal-table__corner" />${dates.map(() => '<col />').join('')}</colgroup>`;
+
   const table = document.getElementById('meal-table');
-  if (table) table.innerHTML = `<thead><tr><th class="meal-table__corner"></th>${headerCells}</tr></thead><tbody>${rows}</tbody>`;
+  if (table) table.innerHTML = `${colgroup}<thead><tr><th class="meal-table__corner"></th>${headerCells}</tr></thead><tbody>${rows}</tbody>`;
 }
 
 function mealCellHTML(dateStr, mealType) {
@@ -275,9 +267,11 @@ function mealCellHTML(dateStr, mealType) {
     btn = `<button class="meal-cell__quick-btn meal-cell__quick-btn--primary" onclick="quickAddMeal('${dateStr}','${mealType}',event)">Ajouter</button>`;
   }
   return `<td class="meal-cell meal-cell--${disp.state}" onclick="openMealModal('${dateStr}','${mealType}')">
-    <div class="meal-cell__foods">${foodsPreview}</div>
-    ${macroPreview ? `<div class="meal-cell__macro">${macroPreview}</div>` : ''}
-    ${btn}
+    <div class="meal-cell__inner">
+      <div class="meal-cell__foods">${foodsPreview}</div>
+      ${macroPreview ? `<div class="meal-cell__macro">${macroPreview}</div>` : ''}
+      ${btn}
+    </div>
   </td>`;
 }
 
@@ -372,17 +366,6 @@ async function syncNutritionTable(date) {
 }
 
 // ── Food picker (journal) ───────────────────────────────────
-function toggleFoodPicker(ctx) {
-  const picker = document.getElementById(`fp-${ctx}`);
-  if (!picker) return;
-  const isOpen = picker.classList.contains('preset-picker--open');
-  document.querySelectorAll('.preset-picker, .food-picker').forEach(p => p.classList.remove('preset-picker--open'));
-  if (isOpen) return;
-  picker.classList.add('preset-picker--open');
-  renderFoodPickerContent(ctx);
-  setTimeout(() => document.getElementById(`fp-search-${ctx}`)?.focus(), 50);
-}
-
 function renderFoodPickerContent(ctx) {
   const search = (document.getElementById(`fp-search-${ctx}`)?.value || '').toLowerCase();
   const listEl = document.getElementById(`fp-list-${ctx}`);
@@ -589,109 +572,6 @@ async function removeMealFoodItem(itemId) {
   showToast('Aliment supprimé', 'success');
 }
 
-// ── Substitutes in modal ────────────────────────────────────
-function toggleSubstitutePicker() {
-  const picker = document.getElementById('sp-modal');
-  if (!picker) return;
-  const isOpen = picker.classList.contains('preset-picker--open');
-  document.querySelectorAll('.preset-picker, .food-picker').forEach(p => p.classList.remove('preset-picker--open'));
-  if (isOpen) return;
-  picker.innerHTML = substitutes.length
-    ? substitutes.map(s => `
-        <div class="preset-item" onclick="applySubstitute('${s.id}')">
-          <span class="preset-item__name">${s.name}</span>
-          <span class="preset-item__meta">${[s.calories?s.calories+'kcal':null,s.protein_g?s.protein_g+'g p':null].filter(Boolean).join(' · ')}</span>
-        </div>`).join('')
-    : '<p class="preset-list-empty">Aucun substitut — allez dans Gestion.</p>';
-  picker.classList.add('preset-picker--open');
-}
-
-async function applySubstitute(subId) {
-  const s = substitutes.find(x => x.id === subId);
-  if (!s || !modalCtx) return;
-  const { date, mealType } = modalCtx;
-  document.getElementById('sp-modal')?.classList.remove('preset-picker--open');
-  const item = {
-    date, meal_type: mealType,
-    substitute_id: s.id, substitute_name: s.name,
-    included: false,
-    calories: s.calories || null, protein_g: s.protein_g || null,
-    carbs_g: s.carbs_g || null, fat_g: s.fat_g || null, fiber_g: s.fiber_g || null,
-  };
-  const { data, error } = await db.from('meal_substitute_entries').insert(item).select().single();
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  if (!weekSubEntries[date]) weekSubEntries[date] = {};
-  if (!weekSubEntries[date][mealType]) weekSubEntries[date][mealType] = [];
-  weekSubEntries[date][mealType].push(data);
-
-  adjustMealMacroInputs('modal', { kcal: s.calories, prot: s.protein_g, gluc: s.carbs_g, lip: s.fat_g, fib: s.fiber_g });
-  renderMealSubEntriesModal();
-  updateModalDirtyIndicator();
-  showToast(`${s.name} ajouté`, 'success');
-}
-
-function renderMealSubEntriesModal() {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  const container = document.getElementById('msi-modal');
-  if (!container) return;
-  const items = (weekSubEntries[date] && weekSubEntries[date][mealType]) || [];
-  if (!items.length) { container.innerHTML = ''; return; }
-  container.innerHTML = items.map(item => `
-    <div class="meal-sub-item" id="msi-item-${item.id}">
-      <span style="font-size:13px;">💊</span>
-      <span class="meal-sub-item__name">${item.substitute_name}</span>
-      <span class="meal-sub-item__meta">${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</span>
-      <button class="meal-sub-toggle${item.included ? ' meal-sub-toggle--on' : ''}" onclick="toggleSubEntry('${item.id}')">${item.included ? '✓ comprises' : '+ à ajouter'}</button>
-      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.8);" onclick="removeSubEntry('${item.id}')">✕</button>
-    </div>`).join('');
-}
-
-async function toggleSubEntry(entryId) {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  const items = (weekSubEntries[date] && weekSubEntries[date][mealType]) || [];
-  const item  = items.find(i => String(i.id) === String(entryId));
-  if (!item) return;
-  const nowIncluded = !item.included;
-  const { error } = await db.from('meal_substitute_entries').update({ included: nowIncluded }).eq('id', entryId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  const sign = nowIncluded ? -1 : 1;
-  adjustMealMacroInputs('modal', {
-    kcal: item.calories  != null ? sign * item.calories  : null,
-    prot: item.protein_g != null ? sign * item.protein_g : null,
-    gluc: item.carbs_g   != null ? sign * item.carbs_g   : null,
-    lip:  item.fat_g     != null ? sign * item.fat_g     : null,
-    fib:  item.fiber_g   != null ? sign * item.fiber_g   : null,
-  });
-  item.included = nowIncluded;
-  renderMealSubEntriesModal();
-  updateModalDirtyIndicator();
-}
-
-async function removeSubEntry(entryId) {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  const items = (weekSubEntries[date] && weekSubEntries[date][mealType]) || [];
-  const item  = items.find(i => String(i.id) === String(entryId));
-  if (!item) return;
-  if (!item.included) {
-    adjustMealMacroInputs('modal', {
-      kcal: item.calories  != null ? -item.calories  : null,
-      prot: item.protein_g != null ? -item.protein_g : null,
-      gluc: item.carbs_g   != null ? -item.carbs_g   : null,
-      lip:  item.fat_g     != null ? -item.fat_g     : null,
-      fib:  item.fiber_g   != null ? -item.fiber_g   : null,
-    });
-  }
-  const { error } = await db.from('meal_substitute_entries').delete().eq('id', entryId);
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  weekSubEntries[date][mealType] = items.filter(i => String(i.id) !== String(entryId));
-  renderMealSubEntriesModal();
-  updateModalDirtyIndicator();
-  showToast('Substitut retiré', 'success');
-}
-
 // ── Meal modal — open / close / save ────────────────────────
 function readModalFields() {
   return {
@@ -747,14 +627,11 @@ function openMealModal(dateStr, mealType) {
 
   document.getElementById('deduct-modal').checked = true;
   document.getElementById('fp-search-modal').value = '';
-  document.getElementById('fp-list-modal').innerHTML = '';
-  document.getElementById('fp-modal').classList.remove('preset-picker--open');
   document.getElementById('fp-weight-modal').style.display = 'none';
-  document.getElementById('sp-modal').classList.remove('preset-picker--open');
   delete foodPickerState['modal'];
 
+  renderFoodPickerContent('modal');
   renderMealFoodItemsModal();
-  renderMealSubEntriesModal();
   updateModalDirtyIndicator();
 
   setEl('mm-title', MEAL_TYPES.find(x => x.key === mealType)?.label || mealType);
@@ -1025,16 +902,14 @@ async function generateShoppingList() {
   const slc = document.getElementById('shopping-list-content');
   if (slc) slc.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:24px;">Calcul en cours…</p>';
 
-  const [planItemsRes, planSubsRes, pantryRes, tagsRes, tagLinksRes] = await Promise.all([
+  const [planItemsRes, pantryRes, tagsRes, tagLinksRes] = await Promise.all([
     db.from('meal_food_items').select('food_id, food_name, grams').gte('date', start).lte('date', end),
-    db.from('meal_substitute_entries').select('substitute_id, substitute_name').gte('date', start).lte('date', end).eq('included', false),
     db.from('pantry_items').select('*'),
     db.from('food_tags').select('*'),
     db.from('food_tag_links').select('food_id, tag_id'),
   ]);
 
   const planItems  = planItemsRes.data  || [];
-  const planSubs   = planSubsRes.data   || [];
   const pantrySnap = pantryRes.data     || [];
   const allTags    = tagsRes.data       || [];
   const tagLinks   = tagLinksRes.data   || [];
@@ -1060,18 +935,6 @@ async function generateShoppingList() {
     foodNeeds[item.food_id].totalQty += (item.grams || 0);
   });
 
-  // Aggregate sub needs
-  const subNeeds = {};
-  planSubs.forEach(sub => {
-    if (!subNeeds[sub.substitute_id]) {
-      subNeeds[sub.substitute_id] = {
-        name: sub.substitute_name, totalQty: 0, unit: 'unité',
-        tag: { name: 'Substituts', color: '#a855f7' },
-      };
-    }
-    subNeeds[sub.substitute_id].totalQty += 1;
-  });
-
   // Compute what's needed
   const shoppingItems = [];
   Object.entries(foodNeeds).forEach(([foodId, need]) => {
@@ -1079,12 +942,6 @@ async function generateShoppingList() {
     const inStock    = pantryItem?.quantity || 0;
     const toBuy      = Math.max(0, need.totalQty - inStock);
     if (toBuy > 0) shoppingItems.push({ ...need, food_id: foodId, sub_id: null, inStock, toBuy: Math.round(toBuy * 10) / 10 });
-  });
-  Object.entries(subNeeds).forEach(([subId, need]) => {
-    const pantryItem = pantrySnap.find(p => p.substitute_id === subId);
-    const inStock    = pantryItem?.quantity || 0;
-    const toBuy      = Math.max(0, need.totalQty - inStock);
-    if (toBuy > 0) shoppingItems.push({ ...need, food_id: null, sub_id: subId, inStock, toBuy: Math.ceil(toBuy) });
   });
 
   checkedShoppingItems = new Set();
@@ -1489,61 +1346,6 @@ async function deleteFood(id) {
   if (error) { showToast('Erreur', 'error'); return; }
   showToast('Aliment supprimé', 'success');
   await loadFoods();
-}
-
-// ── Gestion — Substitutes ──────────────────────────────────
-async function loadSubstitutes() {
-  const { data } = await db.from('meal_substitutes').select('*').order('name');
-  substitutes = data || [];
-  renderSubstituteList();
-}
-
-function renderSubstituteList() {
-  const container = document.getElementById('substitute-list');
-  if (!container) return;
-  if (!substitutes.length) {
-    container.innerHTML = '<p class="preset-list-empty">Aucun substitut enregistré.</p>';
-    return;
-  }
-  container.innerHTML = substitutes.map(s => {
-    const macros = [
-      s.calories  ? s.calories  + 'kcal' : null,
-      s.protein_g ? s.protein_g + 'g p'  : null,
-    ].filter(Boolean).join(' · ');
-    return `<div class="preset-item">
-      <div style="flex:1;min-width:0;">
-        <div class="preset-item__name">${s.name}</div>
-        ${macros ? `<div class="preset-item__meta" style="margin-top:2px;">${macros}</div>` : ''}
-      </div>
-      <button class="preset-item__del" onclick="deleteMealSubstitute('${s.id}')">✕</button>
-    </div>`;
-  }).join('');
-}
-
-async function saveMealSubstitute() {
-  const name = document.getElementById('ns-name').value.trim();
-  if (!name) { showToast('Nom requis', 'error'); return; }
-  const entry = {
-    name,
-    calories:  numI(document.getElementById('ns-kcal').value),
-    protein_g: numF(document.getElementById('ns-prot').value),
-    carbs_g:   numF(document.getElementById('ns-gluc').value),
-    fat_g:     numF(document.getElementById('ns-lip').value),
-    fiber_g:   numF(document.getElementById('ns-fib').value),
-  };
-  const { error } = await db.from('meal_substitutes').insert(entry);
-  if (error) { showToast('Erreur : ' + error.message, 'error'); return; }
-  showToast('Substitut enregistré', 'success');
-  ['ns-name','ns-kcal','ns-prot','ns-gluc','ns-lip','ns-fib'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  await loadSubstitutes();
-}
-
-async function deleteMealSubstitute(id) {
-  if (!confirm('Supprimer ce substitut ?')) return;
-  const { error } = await db.from('meal_substitutes').delete().eq('id', id);
-  if (error) { showToast('Erreur', 'error'); return; }
-  showToast('Substitut supprimé', 'success');
-  await loadSubstitutes();
 }
 
 // ── Équivalences ───────────────────────────────────────────
