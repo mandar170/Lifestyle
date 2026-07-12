@@ -33,18 +33,7 @@
 
     <!-- ===== JOURNAL ===== -->
     <div class="tab-panel active" id="panel-journal">
-      <div class="journal-week-nav">
-        <button class="btn btn--ghost btn--sm" onclick="weekNav(-1)">←</button>
-        <span class="journal-week-label" id="jw-label"></span>
-        <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
-        <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
-      </div>
-
-      <div class="meal-table-wrap">
-        <table class="meal-table" id="meal-table"></table>
-      </div>
-
-      <div class="section-card">
+      <div class="section-card" style="margin-bottom:20px;">
         <div class="section-card__header" style="margin-bottom:6px;">
           <span class="section-card__title" style="font-size:13px;">Totaux — <span id="j-selected-day-label"></span></span>
         </div>
@@ -71,6 +60,17 @@
           </div>
         </div>
       </div>
+
+      <div class="journal-week-nav">
+        <button class="btn btn--ghost btn--sm" onclick="weekNav(-1)">←</button>
+        <span class="journal-week-label" id="jw-label"></span>
+        <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
+        <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
+      </div>
+
+      <div class="meal-table-wrap">
+        <table class="meal-table" id="meal-table"></table>
+      </div>
     </div>
 
     <!-- ===== PANTRY ===== -->
@@ -83,7 +83,7 @@
         <div id="pantry-add-form" style="display:none;margin-bottom:16px;padding:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
             <div style="flex:1;min-width:200px;position:relative;">
-              <input type="text" id="pantry-search" class="np-input" placeholder="Rechercher un aliment ou substitut…" oninput="renderPantrySearch()" autocomplete="off" />
+              <input type="text" id="pantry-search" class="np-input" placeholder="Rechercher un aliment…" oninput="renderPantrySearch()" autocomplete="off" />
               <div id="pantry-search-results" class="pantry-search-results"></div>
             </div>
             <input type="number" id="pantry-qty" class="np-input" placeholder="Quantité" min="0" step="0.1" style="width:120px;" />
@@ -221,13 +221,6 @@
       <div class="modal-title"><span id="mm-title">Repas</span><span class="mm-dirty-dot" id="mm-dirty-indicator">●&nbsp;non enregistré</span></div>
       <div class="modal-sub" id="mm-date-label"></div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('modal')">+ Ajouter un aliment</button>
-        <label class="meal-deduct-label">
-          <input type="checkbox" id="deduct-modal" checked style="accent-color:var(--primary);" />
-          Déduire du stock
-        </label>
-      </div>
       <div class="food-picker" id="fp-modal">
         <input type="text" class="np-input food-search" id="fp-search-modal" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('modal')" />
         <div class="food-picker-list" id="fp-list-modal"></div>
@@ -237,14 +230,12 @@
           <button class="btn btn--primary btn--sm" onclick="applyFoodToJournal('modal')">+ Ajouter</button>
         </div>
       </div>
+      <label class="meal-deduct-label" style="margin:8px 0 4px;">
+        <input type="checkbox" id="deduct-modal" checked style="accent-color:var(--primary);" />
+        Déduire du stock
+      </label>
 
       <div class="meal-food-items" id="mfi-modal" style="margin-top:8px;"></div>
-
-      <div style="margin:12px 0 4px;">
-        <button class="btn btn--ghost btn--sm" onclick="toggleSubstitutePicker()" style="font-size:11px;">💊 Substitut</button>
-        <div class="preset-picker" id="sp-modal"></div>
-        <div class="meal-sub-items" id="msi-modal" style="margin-top:6px;"></div>
-      </div>
 
       <input type="text" class="meal-desc" id="desc-modal" placeholder="Contenu du repas…" style="width:100%;margin:10px 0;" oninput="this.dataset.auto='0';updateModalDirtyIndicator()" />
 

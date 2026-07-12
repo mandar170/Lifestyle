@@ -124,7 +124,10 @@ async function loadDashboard() {
     db.from('daily_steps').select('steps').gte('date', daysAgo(7)),
   ]);
   if (mRes.data?.length) setEl('stat-weight',  `${mRes.data[0].weight_kg} kg`);
-  if (nRes.data?.length) setEl('stat-calories', `${Math.round(avg(nRes.data.map(d => d.calories)))} kcal/j`);
+  if (nRes.data?.length) {
+    const kcalDays = nRes.data.map(d => d.calories).filter(c => c > 0);
+    setEl('stat-calories', kcalDays.length ? `${Math.round(avg(kcalDays))} kcal/j` : '— kcal/j');
+  }
   if (sRes.data?.length) setEl('stat-steps',    `${Math.round(avg(sRes.data.map(d => d.steps))).toLocaleString('fr-FR')} pas`);
 }
 

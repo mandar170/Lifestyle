@@ -1385,48 +1385,54 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 /* ===========================================================
    JOURNAL — WEEK MEAL TABLE
    =========================================================== */
-.journal-week-nav { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+.journal-week-nav { display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
 .journal-week-label { font-family:'Orbitron',sans-serif; font-size:13px; color:var(--text-muted); letter-spacing:.02em; }
 
-.meal-table-wrap { overflow-x:auto; margin-bottom:20px; border-radius:var(--radius); border:1px solid rgba(255,255,255,0.07); }
-.meal-table { width:100%; border-collapse:collapse; min-width:700px; }
-.meal-table thead th { padding:8px 6px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.07); background:rgba(255,255,255,0.02); }
-.meal-table__corner { width:110px; min-width:110px; }
-.meal-table__day { cursor:pointer; user-select:none; transition:background .15s; border-radius:6px; }
+.meal-table-wrap { overflow-x:auto; padding-bottom:4px; }
+.meal-table { width:100%; border-collapse:separate; border-spacing:8px 10px; table-layout:fixed; min-width:860px; }
+
+.meal-table__corner { width:130px; }
+.meal-table thead th { padding:4px; text-align:center; }
+.meal-table__day {
+  cursor:pointer; user-select:none; transition:background .15s, box-shadow .15s;
+  border-radius:10px; padding:9px 4px;
+}
 .meal-table__day:hover { background:rgba(255,255,255,0.05); }
-.meal-table__day--sel { background:var(--primary-glow); }
-.meal-table__dow { display:block; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; }
-.meal-table__date { display:block; font-family:'Orbitron',sans-serif; font-size:13px; color:var(--text); margin-top:2px; }
+.meal-table__day--sel { background:var(--primary-glow); box-shadow:inset 0 0 0 1px var(--primary); }
+.meal-table__dow { display:block; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; }
+.meal-table__date { display:block; font-family:'Orbitron',sans-serif; font-size:14px; color:var(--text); margin-top:3px; }
 .meal-table__day--today .meal-table__date { color:var(--primary); }
 
 .meal-table__row-label {
-  padding:8px 10px; text-align:left; font-size:11px; font-weight:600; white-space:nowrap;
-  border-right:1px solid rgba(255,255,255,0.07); border-bottom:1px solid rgba(255,255,255,0.04);
-  background:#0d0d1f;
+  padding:10px 14px; text-align:left; font-size:11.5px; font-weight:700; white-space:nowrap;
+  border-radius:10px; background:rgba(255,255,255,0.025); vertical-align:middle;
 }
 
 .meal-cell {
-  vertical-align:top; padding:7px; min-width:96px; max-width:140px;
-  border-bottom:1px solid rgba(255,255,255,0.04); border-right:1px solid rgba(255,255,255,0.03);
-  cursor:pointer; transition:background .15s, box-shadow .15s;
+  height:108px; vertical-align:top; padding:0;
+  border-radius:12px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.07);
+  cursor:pointer; transition:background .15s, box-shadow .15s, border-color .15s;
 }
-.meal-cell:hover { background:rgba(255,255,255,0.03); }
-.meal-cell--dirty   { box-shadow:inset 0 0 0 1px #f97316; }
-.meal-cell--planned { box-shadow:inset 0 0 0 1px #64dcff; }
-.meal-cell--saved   { box-shadow:inset 0 0 0 1px #22c55e; }
+.meal-cell:hover { background:rgba(255,255,255,0.045); border-color:rgba(255,255,255,0.16); }
+.meal-cell--dirty   { border-color:#f97316; box-shadow:inset 0 0 0 1px #f97316; }
+.meal-cell--planned { border-color:#64dcff; box-shadow:inset 0 0 0 1px #64dcff; }
+.meal-cell--saved   { border-color:#22c55e; box-shadow:inset 0 0 0 1px #22c55e; }
 
+.meal-cell__inner { display:flex; flex-direction:column; height:100%; padding:10px 11px; }
 .meal-cell__foods {
-  font-size:11.5px; color:var(--text-muted); line-height:1.35;
+  font-size:11.5px; color:var(--text-muted); line-height:1.4;
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .meal-cell__macro { font-size:11px; color:var(--text-dim); margin-top:4px; }
 .meal-cell__quick-btn {
-  margin-top:6px; width:100%; font-size:10.5px; padding:4px 6px;
-  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:6px;
+  margin-top:auto; width:100%; font-size:10.5px; padding:5px 6px;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:7px;
   color:var(--text-muted); cursor:pointer; transition:all .15s; font-family:'Space Grotesk',sans-serif;
 }
 .meal-cell__quick-btn:hover { border-color:var(--border-h); color:var(--text); }
 .meal-cell__quick-btn--primary { background:var(--primary-glow); border-color:var(--primary); color:var(--primary); }
+
+@media(max-width:700px){ .meal-cell { height:96px; } }
 
 .meal-label { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.07em; text-transform:uppercase; flex:1; color:var(--text-muted,#94a3b8); }
 .meal-deduct-label { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim); cursor:pointer; white-space:nowrap; }
@@ -1443,6 +1449,8 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 #meal-modal .modal-title { text-align:left; margin-bottom:2px; display:flex; align-items:center; }
 #meal-modal .modal-sub { text-align:left; margin-bottom:18px; }
 #meal-modal-confirm { z-index:1001; }
+#fp-modal { display:flex; margin-top:0; }
+#fp-modal .food-picker-list { max-height:150px; }
 .mm-dirty-dot { display:none; font-size:11px; color:var(--orange); margin-left:10px; font-family:'Space Grotesk',sans-serif; letter-spacing:0; text-transform:none; }
 @media(max-width:600px){ #meal-modal .modal-box.modal-box--wide { padding:24px 18px; margin:12px; } }
 
@@ -1592,12 +1600,6 @@ select.styled:focus { outline: none; border-color: var(--primary); box-shadow: 0
 .meal-food-item__label { flex:1; font-size:12px; color:var(--text); font-weight:500; min-width:0; }
 .meal-food-item__meta { font-size:10px; color:var(--text-dim); }
 .meal-food-item__edit-input { display:flex; align-items:center; gap:6px; width:100%; margin-top:4px; }
-.meal-sub-items { display:flex; flex-direction:column; gap:4px; }
-.meal-sub-item { display:flex; align-items:center; gap:6px; padding:6px 10px; background:rgba(167,139,250,0.05); border:1px solid rgba(167,139,250,0.2); border-radius:6px; flex-wrap:wrap; }
-.meal-sub-item__name { flex:1; font-size:12px; color:var(--text); font-weight:500; }
-.meal-sub-item__meta { font-size:10px; color:var(--text-dim); }
-.meal-sub-toggle { font-size:10px; padding:2px 7px; border-radius:4px; border:1px solid rgba(167,139,250,0.3); cursor:pointer; color:var(--text-dim); background:none; white-space:nowrap; transition:background .15s,border-color .15s,color .15s; }
-.meal-sub-toggle--on { background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.5); color:rgb(167,139,250); }
 
 /* ===========================================================
    JOURNAL NOTES
