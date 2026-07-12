@@ -33,34 +33,42 @@
 
     <!-- ===== JOURNAL ===== -->
     <div class="tab-panel active" id="panel-journal">
-      <div class="tab-cal-layout">
-        <div class="tab-cal-sidebar">
-          <div id="j-cal-container"></div>
-          <div class="water-sidebar" style="margin-top:10px;">
-            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">💧 Eau</div>
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-              <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
-            </div>
-            <div style="display:flex;gap:4px;margin-bottom:6px;">
-              <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(250)">+250</button>
-              <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(500)">+500</button>
-            </div>
-            <div style="display:flex;gap:4px;">
-              <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;min-width:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
-              <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
-            </div>
-          </div>
+      <div class="journal-week-nav">
+        <button class="btn btn--ghost btn--sm" onclick="weekNav(-1)">←</button>
+        <span class="journal-week-label" id="jw-label"></span>
+        <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
+        <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
+      </div>
+
+      <div class="meal-table-wrap">
+        <table class="meal-table" id="meal-table"></table>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card__header" style="margin-bottom:6px;">
+          <span class="section-card__title" style="font-size:13px;">Totaux — <span id="j-selected-day-label"></span></span>
         </div>
-        <div class="tab-cal-main">
-          <div class="daily-totals">
-            <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
-            <div class="daily-totals__item"><div class="daily-totals__val" id="j-total-prot">—</div><div class="daily-totals__lbl">Prot (g)</div></div>
-            <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--yellow" id="j-total-gluc">—</div><div class="daily-totals__lbl">Gluc (g)</div></div>
-            <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
-            <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
+        <div class="daily-totals">
+          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
+          <div class="daily-totals__item"><div class="daily-totals__val" id="j-total-prot">—</div><div class="daily-totals__lbl">Prot (g)</div></div>
+          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--yellow" id="j-total-gluc">—</div><div class="daily-totals__lbl">Gluc (g)</div></div>
+          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
+          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
+        </div>
+        <div id="goals-progress"></div>
+        <div class="water-sidebar" style="max-width:320px;">
+          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">💧 Eau</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+            <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
           </div>
-          <div id="goals-progress"></div>
-          <div class="meals-grid" id="meals-grid"></div>
+          <div style="display:flex;gap:4px;margin-bottom:6px;">
+            <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(250)">+250</button>
+            <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(500)">+500</button>
+          </div>
+          <div style="display:flex;gap:4px;">
+            <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;min-width:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
+            <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
+          </div>
         </div>
       </div>
     </div>
@@ -206,8 +214,70 @@
 
   </main>
 
+  <!-- ===== MEAL MODAL ===== -->
+  <div class="modal-overlay" id="meal-modal" aria-hidden="true" onclick="if(event.target===this)requestCloseMealModal()">
+    <div class="modal-box modal-box--wide">
+      <button class="modal-close" onclick="requestCloseMealModal()">✕</button>
+      <div class="modal-title"><span id="mm-title">Repas</span><span class="mm-dirty-dot" id="mm-dirty-indicator">●&nbsp;non enregistré</span></div>
+      <div class="modal-sub" id="mm-date-label"></div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <button class="btn btn--ghost btn--sm preset-pick-btn" onclick="toggleFoodPicker('modal')">+ Ajouter un aliment</button>
+        <label class="meal-deduct-label">
+          <input type="checkbox" id="deduct-modal" checked style="accent-color:var(--primary);" />
+          Déduire du stock
+        </label>
+      </div>
+      <div class="food-picker" id="fp-modal">
+        <input type="text" class="np-input food-search" id="fp-search-modal" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('modal')" />
+        <div class="food-picker-list" id="fp-list-modal"></div>
+        <div class="food-weight-row" id="fp-weight-modal" style="display:none;">
+          <span id="fp-fname-modal" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
+          <input type="number" id="fp-grams-modal" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToJournal('modal')" />
+          <button class="btn btn--primary btn--sm" onclick="applyFoodToJournal('modal')">+ Ajouter</button>
+        </div>
+      </div>
+
+      <div class="meal-food-items" id="mfi-modal" style="margin-top:8px;"></div>
+
+      <div style="margin:12px 0 4px;">
+        <button class="btn btn--ghost btn--sm" onclick="toggleSubstitutePicker()" style="font-size:11px;">💊 Substitut</button>
+        <div class="preset-picker" id="sp-modal"></div>
+        <div class="meal-sub-items" id="msi-modal" style="margin-top:6px;"></div>
+      </div>
+
+      <input type="text" class="meal-desc" id="desc-modal" placeholder="Contenu du repas…" style="width:100%;margin:10px 0;" oninput="this.dataset.auto='0';updateModalDirtyIndicator()" />
+
+      <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
+      <div class="meal-macros">
+        <input type="number" id="kcal-modal" placeholder="—" min="0" oninput="updateModalDirtyIndicator()" />
+        <input type="number" id="prot-modal" placeholder="—" min="0" step="0.1" oninput="updateModalDirtyIndicator()" />
+        <input type="number" id="gluc-modal" placeholder="—" min="0" step="0.1" oninput="updateModalDirtyIndicator()" />
+        <input type="number" id="lip-modal"  placeholder="—" min="0" step="0.1" oninput="updateModalDirtyIndicator()" />
+        <input type="number" id="fib-modal"  placeholder="—" min="0" step="0.1" oninput="updateModalDirtyIndicator()" />
+      </div>
+
+      <div class="form-actions" style="margin-top:20px;display:flex;gap:10px;">
+        <button class="btn btn--ghost" onclick="modalPlanMeal()">Enregistrer</button>
+        <button class="btn btn--primary" onclick="modalSaveMeal()">Ajouter au journal</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MEAL MODAL — CONFIRM CLOSE ===== -->
+  <div class="modal-overlay" id="meal-modal-confirm" aria-hidden="true">
+    <div class="modal-box" style="max-width:340px;text-align:center;">
+      <div class="modal-title" style="font-size:16px;">Modifications non enregistrées</div>
+      <p class="modal-sub">Voulez-vous enregistrer vos modifications avant de fermer ?</p>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn--ghost btn--sm" onclick="discardMealModalChanges()">Ne pas enregistrer</button>
+        <button class="btn btn--primary btn--sm" onclick="saveAndCloseMealModal()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=21"></script>
+  <script defer src="assets/js/nutrition.js?v=22"></script>
 </body>
 </html>
