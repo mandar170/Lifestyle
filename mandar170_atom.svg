@@ -1,0 +1,46 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mandar170 app icon">
+  <defs>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect width="512" height="512" fill="#07070e"/>
+
+  <!-- three crossing orbits -->
+  <g fill="none" stroke="#64dcff" stroke-width="8" stroke-opacity="0.6" filter="url(#glowSoft)">
+    <ellipse cx="256" cy="256" rx="150" ry="54" transform="rotate(30 256 256)"/>
+    <ellipse cx="256" cy="256" rx="150" ry="54" transform="rotate(90 256 256)"/>
+    <ellipse cx="256" cy="256" rx="150" ry="54" transform="rotate(150 256 256)"/>
+  </g>
+
+  <!-- subtle nucleus clearing so the monogram reads cleanly -->
+  <circle cx="256" cy="256" r="50" fill="#07070e" fill-opacity="0.72"/>
+
+  <!-- lowercase "m" nucleus -->
+  <g fill="none" stroke="#64dcff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M212 232 L212 294"/>
+    <path d="M256 232 L256 294"/>
+    <path d="M300 232 L300 294"/>
+    <path d="M212 232 Q234 212 256 232"/>
+    <path d="M256 232 Q278 212 300 232"/>
+  </g>
+
+  <!-- electrons: sky blue, purple, orange -->
+  <circle cx="256" cy="106" r="15" fill="#64dcff" filter="url(#glow)"/>
+  <circle cx="126" cy="331" r="13" fill="#a855f7" filter="url(#glow)"/>
+  <circle cx="386" cy="331" r="13" fill="#f97316" filter="url(#glow)"/>
+</svg>
