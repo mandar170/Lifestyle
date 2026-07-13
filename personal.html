@@ -18,71 +18,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/main.css" />
 </head>
-<body>
+<body class="dock-shell-body">
 
-  <header class="fit-header">
-    <div class="container fit-header__inner">
-      <div class="fit-header__brand">
-        <span class="fit-header__logo">ESPACE PERSONNEL</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:16px;">
-        <a href="index.html" class="fit-header__back">← Portfolio</a>
-      </div>
-    </div>
-  </header>
+  <iframe id="dock-frame" class="dock-frame" title="Contenu"></iframe>
 
-  <main class="container" style="padding-top:60px;padding-bottom:80px;">
-    <div class="hub-header">
-      <p class="section__label">Projets personnels</p>
-      <h2 class="section__title">Mes outils</h2>
-      <p style="color:var(--text-muted);margin-top:12px;font-size:15px;">Suivi personnel — données privées.</p>
-    </div>
-
-    <div class="hub-grid">
-
-      <a href="lifestyle.html" class="hub-card hub-card--cyan">
-        <div class="hub-card__icon">🏆</div>
-        <div class="hub-card__content">
-          <span class="hub-card__tag">Lifestyle</span>
-          <h3 class="hub-card__title">Lifestyle Tracker</h3>
-          <p class="hub-card__desc">Activités (marche, course, vélo, muscu), habitudes quotidiennes, pas et mensurations.</p>
-          <div class="hub-card__tech">
-            <span>Activités</span><span>Habitudes</span><span>Supabase</span>
-          </div>
-        </div>
-        <span class="hub-card__arrow">→</span>
-      </a>
-
-      <a href="nutrition.html" class="hub-card hub-card--orange">
-        <div class="hub-card__icon">🍽️</div>
-        <div class="hub-card__content">
-          <span class="hub-card__tag">Nutrition</span>
-          <h3 class="hub-card__title">Nutrition</h3>
-          <p class="hub-card__desc">Journal nutritionnel, planification des repas, stock pantry, liste de courses et gestion des aliments.</p>
-          <div class="hub-card__tech">
-            <span>Journal</span><span>Pantry</span><span>Courses</span><span>Supabase</span>
-          </div>
-        </div>
-        <span class="hub-card__arrow">→</span>
-      </a>
-
-      <a href="budget.html" class="hub-card hub-card--green">
-        <div class="hub-card__icon">💰</div>
-        <div class="hub-card__content">
-          <span class="hub-card__tag">Finance</span>
-          <h3 class="hub-card__title">Budget</h3>
-          <p class="hub-card__desc">Import BoursoBank CSV, saisie Crédit Agricole, dashboard dépenses par catégorie et suivi mensuel.</p>
-          <div class="hub-card__tech">
-            <span>BoursoBank</span><span>CA</span><span>Chart.js</span>
-          </div>
-        </div>
-        <span class="hub-card__arrow">→</span>
-      </a>
-
-
-    </div>
-  </main>
+  <nav class="dock" id="dock" aria-label="Navigation principale">
+    <button type="button" class="dock__item" data-page="lifestyle.html" data-color="cyan" onclick="dockNavigate('lifestyle.html')" title="Lifestyle">
+      <span class="dock__icon">🏃</span>
+      <span class="dock__label">Lifestyle</span>
+    </button>
+    <button type="button" class="dock__item" data-page="nutrition.html" data-color="orange" onclick="dockNavigate('nutrition.html')" title="Nutrition">
+      <span class="dock__icon">🍽️</span>
+      <span class="dock__label">Nutrition</span>
+    </button>
+    <button type="button" class="dock__item" data-page="budget.html" data-color="green" onclick="dockNavigate('budget.html')" title="Budget">
+      <span class="dock__icon">💶</span>
+      <span class="dock__label">Budget</span>
+    </button>
+  </nav>
 
   <script defer src="assets/js/pwa.js?v=1"></script>
+  <script defer src="assets/js/dock.js?v=1"></script>
 </body>
 </html>
