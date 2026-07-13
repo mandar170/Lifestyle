@@ -868,6 +868,209 @@ async function removePantryItem(id) {
   showToast('Article retiré du stock', 'success');
 }
 
+// ── Barcode scanner (Open Food Facts) ───────────────────────
+let barcodeReader     = null; // ZXing.BrowserMultiFormatReader instance while scanning
+let barcodeOffProduct = null; // pending OFF product candidate awaiting confirmation
+
+function openBarcodeScanner() {
+  document.getElementById('bc-scan-view').style.display = 'block';
+  document.getElementById('bc-manual-view').style.display = 'none';
+  document.getElementById('bc-result-view').style.display = 'none';
+  document.getElementById('bc-result-view').innerHTML = '';
+  barcodeOffProduct = null;
+  document.getElementById('barcode-modal').classList.add('open');
+  document.getElementById('barcode-modal').setAttribute('aria-hidden', 'false');
+  startBarcodeScan();
+}
+
+function closeBarcodeScanner() {
+  stopBarcodeScan();
+  document.getElementById('barcode-modal').classList.remove('open');
+  document.getElementById('barcode-modal').setAttribute('aria-hidden', 'true');
+}
+
+async function startBarcodeScan() {
+  if (!window.ZXing) { switchToManualBarcodeEntry(); return; }
+  try {
+    barcodeReader = new ZXing.BrowserMultiFormatReader();
+    const videoEl = document.getElementById('bc-video');
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId;
+    await barcodeReader.decodeFromVideoDevice(deviceId, videoEl, (result) => {
+      if (result) { stopBarcodeScan(); lookupBarcode(result.getText()); }
+    });
+  } catch (e) {
+    showToast('Caméra indisponible : ' + e.message, 'error');
+    switchToManualBarcodeEntry();
+  }
+}
+
+function stopBarcodeScan() {
+  if (barcodeReader) { barcodeReader.reset(); barcodeReader = null; }
+}
+
+function switchToManualBarcodeEntry() {
+  stopBarcodeScan();
+  document.getElementById('bc-scan-view').style.display = 'none';
+  document.getElementById('bc-manual-view').style.display = 'block';
+  document.getElementById('bc-manual-code')?.focus();
+}
+
+function inferUnitFromOff(offProduct) {
+  const q = (offProduct.quantity || '').toLowerCase();
+  if (/\d\s*(l|cl|ml)\b/.test(q)) return 'L';
+  return 'g';
+}
+
+function parseOffQuantity(qtyStr, unit) {
+  if (!qtyStr) return null;
+  const m = qtyStr.toLowerCase().match(/([\d.,]+)\s*(kg|g|l|cl|ml)\b/);
+  if (!m) return null;
+  const val = parseFloat(m[1].replace(',', '.'));
+  const u = m[2];
+  if (unit === 'g') {
+    if (u === 'kg') return val * 1000;
+    if (u === 'g')  return val;
+    return null;
+  }
+  if (unit === 'L') {
+    if (u === 'l')  return val;
+    if (u === 'cl') return val / 100;
+    if (u === 'ml') return val / 1000;
+    return null;
+  }
+  return null;
+}
+
+async function lookupBarcode(code) {
+  code = (code || '').trim();
+  if (!/^\d{6,14}$/.test(code)) { showToast('Code-barre invalide', 'error'); return; }
+
+  const localFood = foods.find(f => f.barcode === code);
+  if (localFood) { showBarcodeResult(localFood, null); return; }
+
+  document.getElementById('bc-scan-view').style.display = 'none';
+  document.getElementById('bc-manual-view').style.display = 'none';
+  document.getElementById('bc-result-view').style.display = 'block';
+  document.getElementById('bc-result-view').innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:20px 0;">Recherche…</p>';
+
+  try {
+    const res  = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,brands,quantity,nutriments,image_front_small_url`);
+    const json = await res.json();
+    if (json.status !== 1 || !json.product) { showBarcodeNotFound(code); return; }
+    showBarcodeResult(null, { code, ...json.product });
+  } catch (e) {
+    document.getElementById('bc-result-view').innerHTML = `<p style="color:#f87171;text-align:center;padding:20px 0;">Erreur réseau : ${e.message}</p>`;
+  }
+}
+
+function showBarcodeNotFound(code) {
+  const view = document.getElementById('bc-result-view');
+  view.innerHTML = `
+    <p style="text-align:center;color:var(--text-dim);padding:12px 0;">Produit introuvable (code ${code}).</p>
+    <button class="btn btn--ghost btn--sm" style="width:100%;" onclick="openBarcodeScanner()">↺ Réessayer</button>
+    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:8px;" onclick="closeBarcodeScanner();showPantryForm();">Ajouter manuellement</button>
+  `;
+}
+
+function showBarcodeResult(existingFood, offProduct) {
+  const view = document.getElementById('bc-result-view');
+  view.style.display = 'block';
+
+  if (existingFood) {
+    barcodeOffProduct = null;
+    view.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px;">
+        <div style="font-weight:600;">${existingFood.name}</div>
+        <div style="font-size:12px;color:var(--text-dim);">Déjà dans tes aliments</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="bc-qty" class="np-input" placeholder="Quantité (${existingFood.unit || 'g'})" min="0" step="0.1" style="flex:1;" />
+        <button class="btn btn--primary btn--sm" onclick="confirmBarcodeAdd('${existingFood.id}', document.getElementById('bc-qty').value)">Ajouter</button>
+      </div>
+      <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:10px;" onclick="openBarcodeScanner()">↺ Scanner un autre produit</button>
+    `;
+    setTimeout(() => document.getElementById('bc-qty')?.focus(), 50);
+    return;
+  }
+
+  barcodeOffProduct = offProduct;
+  const n = offProduct.nutriments || {};
+  const unit = inferUnitFromOff(offProduct);
+  const parsedQty = parseOffQuantity(offProduct.quantity, unit);
+  const macrosPreview = [
+    n['energy-kcal_100g'] != null ? Math.round(n['energy-kcal_100g']) + ' kcal' : null,
+    n['proteins_100g']    != null ? n['proteins_100g'] + 'g P' : null,
+  ].filter(Boolean).join(' · ');
+
+  view.innerHTML = `
+    <div style="text-align:center;margin-bottom:12px;">
+      ${offProduct.image_front_small_url ? `<img src="${offProduct.image_front_small_url}" style="height:70px;border-radius:8px;margin-bottom:8px;" />` : ''}
+      <div style="font-weight:600;">${offProduct.product_name || 'Produit sans nom'}</div>
+      <div style="font-size:12px;color:var(--text-dim);">${offProduct.brands || ''}</div>
+      <div style="font-size:12px;color:var(--primary);margin-top:4px;">${macrosPreview || 'Macros inconnues /100g'}</div>
+    </div>
+    <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
+    <div class="meal-macros" style="margin-bottom:10px;">
+      <input type="number" id="bc-new-kcal" value="${n['energy-kcal_100g'] ?? ''}" placeholder="—" />
+      <input type="number" id="bc-new-prot" value="${n['proteins_100g'] ?? ''}" placeholder="—" step="0.1" />
+      <input type="number" id="bc-new-gluc" value="${n['carbohydrates_100g'] ?? ''}" placeholder="—" step="0.1" />
+      <input type="number" id="bc-new-lip"  value="${n['fat_100g'] ?? ''}" placeholder="—" step="0.1" />
+      <input type="number" id="bc-new-fib"  value="${n['fiber_100g'] ?? ''}" placeholder="—" step="0.1" />
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <select id="bc-new-unit" class="np-input" style="width:auto;">
+        <option value="g"${unit === 'g' ? ' selected' : ''}>g</option>
+        <option value="L"${unit === 'L' ? ' selected' : ''}>L</option>
+        <option value="unité"${unit === 'unité' ? ' selected' : ''}>unité</option>
+      </select>
+      <input type="number" id="bc-qty" class="np-input" placeholder="Quantité en stock" min="0" step="0.1" value="${parsedQty ?? ''}" style="flex:1;" />
+    </div>
+    <button class="btn btn--primary btn--sm" style="width:100%;" onclick="confirmBarcodeCreateAndAdd()">Ajouter au stock</button>
+    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:8px;" onclick="openBarcodeScanner()">↺ Scanner un autre produit</button>
+  `;
+}
+
+async function confirmBarcodeAdd(foodId, qtyVal) {
+  const qty = parseFloat(qtyVal);
+  if (!qty || qty <= 0) { showToast('Quantité invalide', 'error'); return; }
+  const food = foods.find(f => f.id === foodId);
+  if (!food) return;
+  const existing = pantryItems.find(p => p.food_id === foodId);
+  if (existing) {
+    const newQty = existing.quantity + qty;
+    const { error } = await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', existing.id);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  } else {
+    const { error } = await db.from('pantry_items').insert({ item_type: 'food', food_id: foodId, name: food.name, quantity: qty, unit: food.unit || 'g' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  }
+  showToast(`${food.name} ajouté au stock`, 'success');
+  closeBarcodeScanner();
+  await loadPantry();
+}
+
+async function confirmBarcodeCreateAndAdd() {
+  if (!barcodeOffProduct) return;
+  const qty  = parseFloat(document.getElementById('bc-qty')?.value);
+  const unit = document.getElementById('bc-new-unit')?.value || 'g';
+  if (!qty || qty <= 0) { showToast('Quantité invalide', 'error'); return; }
+  const entry = {
+    name:              barcodeOffProduct.product_name || `Produit ${barcodeOffProduct.code}`,
+    unit, barcode:      barcodeOffProduct.code,
+    calories_per_100g: numF(document.getElementById('bc-new-kcal').value),
+    protein_per_100g:  numF(document.getElementById('bc-new-prot').value),
+    carbs_per_100g:    numF(document.getElementById('bc-new-gluc').value),
+    fat_per_100g:      numF(document.getElementById('bc-new-lip').value),
+    fiber_per_100g:    numF(document.getElementById('bc-new-fib').value),
+  };
+  const { data: newFood, error } = await db.from('foods').insert(entry).select().single();
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  foods.push(newFood);
+  renderFoodList();
+  await confirmBarcodeAdd(newFood.id, qty);
+}
+
 // ── Shopping list ──────────────────────────────────────────
 function getShoppingPeriod() {
   const now       = new Date();
