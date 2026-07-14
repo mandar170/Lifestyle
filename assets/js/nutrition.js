@@ -869,7 +869,7 @@ async function removePantryItem(id) {
 }
 
 // ── Barcode scanner (Open Food Facts) ───────────────────────
-let barcodeReader     = null; // ZXing.BrowserMultiFormatReader instance while scanning
+let barcodeControls   = null; // IScannerControls returned by decodeFromVideoDevice, used to stop the stream
 let barcodeOffProduct = null; // pending OFF product candidate awaiting confirmation
 
 function openBarcodeScanner() {
@@ -890,13 +890,13 @@ function closeBarcodeScanner() {
 }
 
 async function startBarcodeScan() {
-  if (!window.ZXing) { switchToManualBarcodeEntry(); return; }
+  if (!window.ZXingBrowser) { switchToManualBarcodeEntry(); return; }
   try {
-    barcodeReader = new ZXing.BrowserMultiFormatReader();
+    const reader  = new ZXingBrowser.BrowserMultiFormatReader();
     const videoEl = document.getElementById('bc-video');
-    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
     const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId;
-    await barcodeReader.decodeFromVideoDevice(deviceId, videoEl, (result) => {
+    barcodeControls = await reader.decodeFromVideoDevice(deviceId, videoEl, (result) => {
       if (result) { stopBarcodeScan(); lookupBarcode(result.getText()); }
     });
   } catch (e) {
@@ -906,7 +906,7 @@ async function startBarcodeScan() {
 }
 
 function stopBarcodeScan() {
-  if (barcodeReader) { barcodeReader.reset(); barcodeReader = null; }
+  if (barcodeControls) { barcodeControls.stop(); barcodeControls = null; }
 }
 
 function switchToManualBarcodeEntry() {
