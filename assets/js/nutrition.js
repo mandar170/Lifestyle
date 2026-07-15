@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (dateParam) journalDate = dateParam;
 
   await loadFoods();
-  await Promise.all([loadTags(), loadGoals(), loadEquivalences()]);
+  await Promise.all([loadTags(), loadGoals(), loadEquivalences(), loadPantry()]);
   renderFoodList(); // re-render after tags are loaded
 
   initJournal();
@@ -285,6 +285,7 @@ async function quickAddMeal(dateStr, mealType, evt) {
   const entry = { date: dateStr, meal_type: mealType, ...fields };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  await commitStockDeductionForMeal(dateStr, mealType);
   showToast('Repas ajouté au journal ✓', 'success');
   await loadWeekData();
   syncNutritionTable(dateStr);
@@ -426,6 +427,10 @@ async function applyFoodToJournal(ctx) {
     carbs_g:   calcGluc != null ? parseFloat(calcGluc.toFixed(1)) : null,
     fat_g:     calcLip  != null ? parseFloat(calcLip.toFixed(1))  : null,
     fiber_g:   calcFib  != null ? parseFloat(calcFib.toFixed(1))  : null,
+    // Stock is only ever deducted once this meal is committed to the journal
+    // (see commitStockDeductionForMeal), never at add-time or when just planned.
+    deduct_from_stock: !!document.getElementById('deduct-modal')?.checked,
+    stock_deducted: false,
   };
   const { data, error } = await db.from('meal_food_items').insert(item).select().single();
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -436,43 +441,65 @@ async function applyFoodToJournal(ctx) {
   renderMealFoodItemsModal();
   updateModalDirtyIndicator();
 
-  if (document.getElementById('deduct-modal')?.checked) {
-    const pantryItem = pantryItems.find(p => p.food_id === food.id);
-    if (pantryItem) {
-      const newQty = Math.max(0, pantryItem.quantity - qty);
-      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-      pantryItem.quantity = newQty;
-    }
-    for (const eq of equivalences) {
-      const isA = eq.food_id_a === food.id;
-      const isB = eq.both_ways && eq.food_id_b === food.id;
-      if (!isA && !isB) continue;
-      const qtyB = eq.qty_b || 1;
-      const gramsPerUnit = eq.ratio / qtyB;
-      if (isA) {
-        const units = Math.round(qty / gramsPerUnit);
-        if (units <= 0) continue;
-        if (Math.abs((qty / units) - gramsPerUnit) > eq.tolerance) continue;
-        const target = pantryItems.find(p => p.food_id === eq.food_id_b);
-        if (!target) continue;
-        const newQty = Math.max(0, target.quantity - units);
-        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-        target.quantity = newQty;
-      } else {
-        const gramsA = qty * gramsPerUnit;
-        const target = pantryItems.find(p => p.food_id === eq.food_id_a);
-        if (!target) continue;
-        const newQty = Math.max(0, target.quantity - gramsA);
-        await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-        target.quantity = newQty;
-      }
-    }
-  }
-
   document.getElementById(`fp-grams-${ctx}`).value = '';
   document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
   delete foodPickerState[ctx];
   showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté`, 'success');
+}
+
+// ── Pantry stock deduction — deferred to journal commit time ───
+async function deductFoodFromStock(foodId, qty) {
+  const pantryItem = pantryItems.find(p => p.food_id === foodId);
+  if (pantryItem) {
+    const newQty = Math.max(0, pantryItem.quantity - qty);
+    await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
+    pantryItem.quantity = newQty;
+  }
+  for (const eq of equivalences) {
+    const isA = eq.food_id_a === foodId;
+    const isB = eq.both_ways && eq.food_id_b === foodId;
+    if (!isA && !isB) continue;
+    const qtyB = eq.qty_b || 1;
+    const gramsPerUnit = eq.ratio / qtyB;
+    if (isA) {
+      const units = Math.round(qty / gramsPerUnit);
+      if (units <= 0) continue;
+      if (Math.abs((qty / units) - gramsPerUnit) > eq.tolerance) continue;
+      const target = pantryItems.find(p => p.food_id === eq.food_id_b);
+      if (!target) continue;
+      const newQty = Math.max(0, target.quantity - units);
+      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+      target.quantity = newQty;
+    } else {
+      const gramsA = qty * gramsPerUnit;
+      const target = pantryItems.find(p => p.food_id === eq.food_id_a);
+      if (!target) continue;
+      const newQty = Math.max(0, target.quantity - gramsA);
+      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
+      target.quantity = newQty;
+    }
+  }
+}
+
+async function refundFoodToStock(foodId, qty) {
+  const pantryItem = pantryItems.find(p => p.food_id === foodId);
+  if (pantryItem) {
+    const newQty = pantryItem.quantity + qty;
+    await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
+    pantryItem.quantity = newQty;
+  }
+}
+
+// Deducts stock for whichever of this meal's items haven't been deducted yet
+// (idempotent — safe to call again if the meal is re-committed after edits).
+async function commitStockDeductionForMeal(date, mealType) {
+  const items = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
+  const pending = items.filter(i => i.deduct_from_stock && !i.stock_deducted);
+  for (const item of pending) {
+    await deductFoodFromStock(item.food_id, item.grams);
+    await db.from('meal_food_items').update({ stock_deducted: true }).eq('id', item.id);
+    item.stock_deducted = true;
+  }
 }
 
 function renderMealFoodItemsModal() {
@@ -522,6 +549,8 @@ async function confirmFoodQtyEdit(itemId) {
   const items = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
   const item  = items.find(i => String(i.id) === String(itemId));
   if (!item) return;
+  // Snapshot the pre-edit values up front so nothing downstream can read stale/mutated state.
+  const before = { ...item };
   const newQty = parseFloat(document.getElementById(`mfi-qty-${itemId}`)?.value);
   if (!newQty || newQty <= 0) { showToast('Indique la quantité', 'error'); return; }
   const food   = foods.find(f => f.id === item.food_id);
@@ -529,20 +558,27 @@ async function confirmFoodQtyEdit(itemId) {
   const factor = isUnit ? newQty : newQty / 100;
   const updated = {
     grams:     newQty,
-    calories:  food ? Math.round(food.calories_per_100g * factor) : item.calories,
-    protein_g: food ? parseFloat((food.protein_per_100g * factor).toFixed(1)) : item.protein_g,
-    carbs_g:   food ? parseFloat((food.carbs_per_100g   * factor).toFixed(1)) : item.carbs_g,
-    fat_g:     food ? parseFloat((food.fat_per_100g     * factor).toFixed(1)) : item.fat_g,
-    fiber_g:   food ? parseFloat((food.fiber_per_100g   * factor).toFixed(1)) : item.fiber_g,
+    calories:  food ? Math.round(food.calories_per_100g * factor) : before.calories,
+    protein_g: food ? parseFloat((food.protein_per_100g * factor).toFixed(1)) : before.protein_g,
+    carbs_g:   food ? parseFloat((food.carbs_per_100g   * factor).toFixed(1)) : before.carbs_g,
+    fat_g:     food ? parseFloat((food.fat_per_100g     * factor).toFixed(1)) : before.fat_g,
+    fiber_g:   food ? parseFloat((food.fiber_per_100g   * factor).toFixed(1)) : before.fiber_g,
   };
   const { error } = await db.from('meal_food_items').update(updated).eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  // If stock was already deducted for this item (meal already in the journal), keep
+  // the pantry in sync with the quantity change instead of leaving it stale.
+  if (before.stock_deducted) {
+    const delta = newQty - before.grams;
+    if (delta > 0) await deductFoodFromStock(before.food_id, delta);
+    else if (delta < 0) await refundFoodToStock(before.food_id, -delta);
+  }
   adjustMealMacroInputs('modal', {
-    kcal: updated.calories  != null && item.calories  != null ? updated.calories  - item.calories  : null,
-    prot: updated.protein_g != null && item.protein_g != null ? updated.protein_g - item.protein_g : null,
-    gluc: updated.carbs_g   != null && item.carbs_g   != null ? updated.carbs_g   - item.carbs_g   : null,
-    lip:  updated.fat_g     != null && item.fat_g     != null ? updated.fat_g     - item.fat_g     : null,
-    fib:  updated.fiber_g   != null && item.fiber_g   != null ? updated.fiber_g   - item.fiber_g   : null,
+    kcal: updated.calories  != null && before.calories  != null ? updated.calories  - before.calories  : null,
+    prot: updated.protein_g != null && before.protein_g != null ? updated.protein_g - before.protein_g : null,
+    gluc: updated.carbs_g   != null && before.carbs_g   != null ? updated.carbs_g   - before.carbs_g   : null,
+    lip:  updated.fat_g     != null && before.fat_g     != null ? updated.fat_g     - before.fat_g     : null,
+    fib:  updated.fiber_g   != null && before.fiber_g   != null ? updated.fiber_g   - before.fiber_g   : null,
   });
   Object.assign(item, updated);
   renderMealFoodItemsModal();
@@ -558,6 +594,8 @@ async function removeMealFoodItem(itemId) {
   const { error } = await db.from('meal_food_items').delete().eq('id', itemId);
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   if (item) {
+    // Give back whatever stock was already deducted for this item, if any.
+    if (item.stock_deducted) await refundFoodToStock(item.food_id, item.grams);
     adjustMealMacroInputs('modal', {
       kcal: item.calories  != null ? -item.calories  : null,
       prot: item.protein_g != null ? -item.protein_g : null,
@@ -692,6 +730,7 @@ async function modalSaveMeal() {
   const entry  = { date, meal_type: mealType, ...fields };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  await commitStockDeductionForMeal(date, mealType);
   showToast('Repas ajouté au journal ✓', 'success');
   await loadWeekData();
   syncNutritionTable(date);
