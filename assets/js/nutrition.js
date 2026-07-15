@@ -1072,47 +1072,45 @@ async function confirmBarcodeCreateAndAdd() {
 }
 
 // ── Shopping list ──────────────────────────────────────────
+// Rolling 7-day window: today through today+6 (inclusive).
 function getShoppingPeriod() {
-  const now       = new Date();
-  const dow       = now.getDay(); // 0=Sun, 1=Mon…
-  const toMonday  = (dow === 0) ? 6 : dow - 1;
-  const thisMonday = new Date(now);
-  thisMonday.setDate(now.getDate() - toMonday);
-  thisMonday.setHours(0, 0, 0, 0);
-
-  // After Monday 18h (lundi soir passé) → show next week
-  const afterMondayEvening = (dow === 1 && now.getHours() >= 18) || (dow !== 1 && dow !== 0) || (dow === 0);
-  // dow===0 = Sunday (Monday is coming), other days = past Monday
-  // Simpler: if it's NOT Monday before 18h, advance to next week
-  const isMonBeforeEvening = (dow === 1 && now.getHours() < 18);
-
-  const startMonday = new Date(thisMonday);
-  if (!isMonBeforeEvening) startMonday.setDate(thisMonday.getDate() + 7);
-
-  const endMonday = new Date(startMonday);
-  endMonday.setDate(startMonday.getDate() + 7);
-
-  return {
-    start: startMonday.toISOString().split('T')[0],
-    end:   endMonday.toISOString().split('T')[0],
-  };
+  const start = today();
+  const startDate = new Date(start + 'T12:00:00');
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 6);
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-${String(endDate.getDate()).padStart(2,'0')}`;
+  return { start, end };
 }
 
+// Hour at which each meal type is considered "past" for today (24 = never excluded before midnight).
+const MEAL_TIME_END_HOUR = {
+  breakfast: 8, morning_snack: 12, lunch: 14,
+  afternoon_snack: 18, dinner: 21, evening_snack: 24,
+};
+
+// Today's meals whose usual time window has already passed are excluded — no point
+// shopping for a meal that's already happened or is happening right now.
+function isMealAlreadyPassedToday(dateStr, mealType) {
+  if (dateStr !== today()) return false;
+  const endHour = MEAL_TIME_END_HOUR[mealType];
+  if (endHour == null) return false;
+  return new Date().getHours() >= endHour;
+}
 
 async function generateShoppingList() {
   const { start, end } = getShoppingPeriod();
-  setEl('courses-period', `Semaine du ${formatDateShort(start)} au ${formatDateShort(end)}`);
+  setEl('courses-period', `Du ${formatDateShort(start)} au ${formatDateShort(end)} (7 jours)`);
   const slc = document.getElementById('shopping-list-content');
   if (slc) slc.innerHTML = '<p style="color:var(--text-dim);font-size:13px;text-align:center;padding:24px;">Calcul en cours…</p>';
 
   const [planItemsRes, pantryRes, tagsRes, tagLinksRes] = await Promise.all([
-    db.from('meal_food_items').select('food_id, food_name, grams').gte('date', start).lte('date', end),
+    db.from('meal_food_items').select('date, meal_type, food_id, food_name, grams').gte('date', start).lte('date', end),
     db.from('pantry_items').select('*'),
     db.from('food_tags').select('*'),
     db.from('food_tag_links').select('food_id, tag_id'),
   ]);
 
-  const planItems  = planItemsRes.data  || [];
+  const planItems  = (planItemsRes.data || []).filter(item => !isMealAlreadyPassedToday(item.date, item.meal_type));
   const pantrySnap = pantryRes.data     || [];
   const allTags    = tagsRes.data       || [];
   const tagLinks   = tagLinksRes.data   || [];
