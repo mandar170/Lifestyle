@@ -714,14 +714,28 @@ async function saveAndCloseMealModal() {
   else await modalPlanMeal(true);
 }
 
+// A meal with no description and no macros has nothing left to show — leaving a
+// hollow row around would make the cell/modal look "saved"/"planned" for a meal
+// that's actually empty (e.g. after removing every food item). Delete instead.
+function isMealFieldsEmpty(fields) {
+  return !fields.description && fields.calories == null && fields.protein_g == null
+    && fields.carbs_g == null && fields.fat_g == null && fields.fiber_g == null;
+}
+
 async function modalPlanMeal(closeAfter = false) {
   if (!modalCtx) return;
   const { date, mealType } = modalCtx;
   const fields = readModalFields();
-  const entry  = { plan_date: date, meal_type: mealType, ...fields };
-  const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  showToast('Repas enregistré (plan)', 'success');
+  if (isMealFieldsEmpty(fields)) {
+    const { error } = await db.from('meal_plans').delete().eq('plan_date', date).eq('meal_type', mealType);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Repas retiré du plan', 'success');
+  } else {
+    const entry = { plan_date: date, meal_type: mealType, ...fields };
+    const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Repas enregistré (plan)', 'success');
+  }
   await loadWeekData();
   if (closeAfter) {
     closeMealModal();
@@ -735,11 +749,17 @@ async function modalSaveMeal() {
   if (!modalCtx) return;
   const { date, mealType } = modalCtx;
   const fields = readModalFields();
-  const entry  = { date, meal_type: mealType, ...fields };
-  const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
-  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-  await commitStockDeductionForMeal(date, mealType);
-  showToast('Repas ajouté au journal ✓', 'success');
+  if (isMealFieldsEmpty(fields)) {
+    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast('Repas vidé du journal', 'success');
+  } else {
+    const entry = { date, meal_type: mealType, ...fields };
+    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    await commitStockDeductionForMeal(date, mealType);
+    showToast('Repas ajouté au journal ✓', 'success');
+  }
   await loadWeekData();
   syncNutritionTable(date);
   closeMealModal();
