@@ -703,7 +703,15 @@ function discardMealModalChanges() {
 }
 
 async function saveAndCloseMealModal() {
-  await modalPlanMeal(true);
+  if (!modalCtx) return;
+  const { date, mealType } = modalCtx;
+  // If this meal already lives in the journal, "save my changes before closing" must
+  // update that same row — saving to meal_plans instead would leave the journal (which
+  // is what's actually displayed) stale, e.g. still showing food items that were just
+  // removed.
+  const alreadyInJournal = !!(weekMeals[date] && weekMeals[date][mealType]);
+  if (alreadyInJournal) await modalSaveMeal();
+  else await modalPlanMeal(true);
 }
 
 async function modalPlanMeal(closeAfter = false) {
