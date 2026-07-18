@@ -473,7 +473,9 @@ async function applyFoodToJournal(ctx) {
 
   document.getElementById(`fp-grams-${ctx}`).value = '';
   document.getElementById(`fp-weight-${ctx}`).style.display = 'none';
+  document.getElementById(`fp-search-${ctx}`).value = '';
   delete foodPickerState[ctx];
+  renderFoodPickerContent(ctx);
   showToast(`${food.name} (${qty}${food.unit || 'g'}) ajouté`, 'success');
 }
 
@@ -992,9 +994,11 @@ async function startBarcodeScan() {
   try {
     const reader  = new ZXingBrowser.BrowserMultiFormatReader();
     const videoEl = document.getElementById('bc-video');
-    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-    const deviceId = devices.find(d => /back|rear|environment/i.test(d.label))?.deviceId || devices[0]?.deviceId;
-    barcodeControls = await reader.decodeFromVideoDevice(deviceId, videoEl, (result) => {
+    // No deviceId -> ZXing requests { facingMode: 'environment' } itself, which is the
+    // reliable cross-browser way to get the rear camera. Picking a device by label was
+    // unreliable: labels are often empty until permission has already been granted, so
+    // it silently fell back to whichever camera happened to be first (often the front one).
+    barcodeControls = await reader.decodeFromVideoDevice(undefined, videoEl, (result) => {
       if (result) { stopBarcodeScan(); lookupBarcode(result.getText()); }
     });
   } catch (e) {
