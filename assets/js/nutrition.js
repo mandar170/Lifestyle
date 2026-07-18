@@ -168,7 +168,37 @@ function renderDayPanel() {
   const meals = Object.values(weekMeals[journalDate] || {});
   updateDailyTotals(meals);
   setEl('j-selected-day-label', formatDateLong(journalDate));
+  renderSubstituteIndicator();
   loadWater();
+}
+
+// ── Substitute tracker (foods tagged "Substitut") ───────────
+function countSubstitutesForDay(dateStr) {
+  const substitutTag = tags.find(t => t.name.trim().toLowerCase() === 'substitut');
+  if (!substitutTag) return 0;
+  const substituteFoodIds = new Set(
+    Object.keys(foodTagLinks).filter(fid => foodTagLinks[fid].includes(substitutTag.id))
+  );
+  const dayItems = weekFoodItems[dateStr] || {};
+  let count = 0;
+  Object.values(dayItems).forEach(items => {
+    items.forEach(item => { if (substituteFoodIds.has(item.food_id)) count++; });
+  });
+  return count;
+}
+
+function renderSubstituteIndicator() {
+  const el = document.getElementById('substitute-indicator');
+  if (!el) return;
+  const target = nutritionGoals?.substitute_target;
+  if (!target) { el.innerHTML = ''; return; }
+  const count = countSubstitutesForDay(journalDate);
+  const pct   = Math.min(100, Math.round(count / target * 100));
+  const color = count >= target ? '#22c55e' : count > 0 ? '#f97316' : '#94a3b8';
+  el.innerHTML = `<div class="goals-progress-bar">
+    <div class="goals-progress-bar__label"><span>💊 Substituts</span><span style="color:${color};">${count} / ${target}</span></div>
+    <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
+  </div>`;
 }
 
 // ── Water ──────────────────────────────────────────────────
@@ -505,6 +535,7 @@ async function commitStockDeductionForMeal(date, mealType) {
 function renderMealFoodItemsModal() {
   if (!modalCtx) return;
   const { date, mealType } = modalCtx;
+  if (date === journalDate) renderSubstituteIndicator();
   const container = document.getElementById('mfi-modal');
   const items = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
   const descEl = document.getElementById('desc-modal');
@@ -1337,7 +1368,9 @@ async function loadGoals() {
     setInputVal('goal-gluc', nutritionGoals.carbs_g);
     setInputVal('goal-lip',  nutritionGoals.fat_g);
     setInputVal('goal-fib',  nutritionGoals.fiber_g);
+    setInputVal('goal-substitute', nutritionGoals.substitute_target);
   }
+  renderSubstituteIndicator();
 }
 
 function setInputVal(id, val) {
@@ -1352,6 +1385,7 @@ async function saveGoals() {
     carbs_g:   numF(document.getElementById('goal-gluc').value),
     fat_g:     numF(document.getElementById('goal-lip').value),
     fiber_g:   numF(document.getElementById('goal-fib').value),
+    substitute_target: numI(document.getElementById('goal-substitute').value),
   };
   if (nutritionGoals) {
     const { error } = await db.from('nutrition_goals').update(entry).eq('id', nutritionGoals.id);
