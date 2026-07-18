@@ -1409,6 +1409,31 @@ body.dock-shell-body { overflow: hidden; }
 
 @media(max-width:700px){ .meal-cell { height:96px; } }
 
+/* ---- Mobile day view (default on small screens) ---- */
+#journal-day-view { display:none; }
+.journal-view-toggle { display:none; }
+@media(max-width:700px){
+  .journal-view-toggle { display:inline-flex; }
+  #panel-journal.view-day #journal-week-view { display:none; }
+  #panel-journal.view-day #journal-day-view  { display:block; }
+}
+
+.day-meal-list { display:flex; flex-direction:column; gap:10px; }
+.day-meal-row {
+  padding:12px 14px; border-radius:12px; background:rgba(255,255,255,0.02);
+  border:1px solid rgba(255,255,255,0.07); cursor:pointer;
+  transition:background .15s, box-shadow .15s, border-color .15s;
+}
+.day-meal-row:hover { background:rgba(255,255,255,0.045); border-color:rgba(255,255,255,0.16); }
+.day-meal-row--dirty   { border-color:#f97316; box-shadow:inset 0 0 0 1px #f97316; }
+.day-meal-row--planned { border-color:#64dcff; box-shadow:inset 0 0 0 1px #64dcff; }
+.day-meal-row--saved   { border-color:#22c55e; box-shadow:inset 0 0 0 1px #22c55e; }
+.day-meal-row__header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; gap:8px; }
+.day-meal-row__label { font-family:'Orbitron',sans-serif; font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
+.day-meal-row__macro { font-size:12px; color:var(--text-dim); white-space:nowrap; }
+.day-meal-row__foods { font-size:13px; color:var(--text-muted); line-height:1.4; margin-bottom:8px; }
+.day-meal-row .meal-cell__quick-btn { margin-top:0; }
+
 .meal-label { font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.07em; text-transform:uppercase; flex:1; color:var(--text-muted,#94a3b8); }
 .meal-deduct-label { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-dim); cursor:pointer; white-space:nowrap; }
 .meal-desc { width:100%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09); border-radius:7px; padding:8px 10px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:13px; resize:none; }

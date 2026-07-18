@@ -30,6 +30,7 @@ const C = {
 // ── State ──────────────────────────────────────────────────
 let journalDate      = today();   // currently selected day (for totals/water)
 let journalWeekStart = null;      // Monday of the displayed week
+let journalViewMode  = (typeof window !== 'undefined' && window.innerWidth <= 700) ? 'day' : 'week'; // mobile default: day
 let mealPresets = [];
 let foods       = [];
 let tags        = [];
@@ -110,7 +111,33 @@ function round1(n) { return Math.round(n * 10) / 10; }
 // ── Journal — init & week navigation ────────────────────────
 function initJournal() {
   journalWeekStart = mondayOf(journalDate);
+  applyJournalViewMode();
   loadWeekData();
+}
+
+function applyJournalViewMode() {
+  const panel = document.getElementById('panel-journal');
+  if (panel) panel.classList.toggle('view-day', journalViewMode === 'day');
+}
+
+function toggleJournalView() {
+  journalViewMode = journalViewMode === 'day' ? 'week' : 'day';
+  applyJournalViewMode();
+}
+
+// Steps the selected day by one, crossing into a new week's data if needed.
+function stepDay(delta) {
+  const d = new Date(journalDate + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  journalDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const newWeekStart = mondayOf(journalDate);
+  if (newWeekStart !== journalWeekStart) {
+    journalWeekStart = newWeekStart;
+    loadWeekData();
+  } else {
+    renderMealTable();
+    renderDayPanel();
+  }
 }
 
 function weekNav(delta) {
@@ -169,7 +196,36 @@ function renderDayPanel() {
   updateDailyTotals(meals);
   setEl('j-selected-day-label', formatDateLong(journalDate));
   renderSubstituteIndicator();
+  renderDayView();
   loadWater();
+}
+
+// ── Journal — mobile day view ────────────────────────────────
+function renderDayView() {
+  const list = document.getElementById('day-meal-list');
+  if (!list) return;
+  setEl('jd-label', formatDateLong(journalDate));
+  list.innerHTML = MEAL_TYPES.map(({ key, label }) => dayMealRowHTML(journalDate, key, label)).join('');
+}
+
+function dayMealRowHTML(dateStr, mealType, label) {
+  const disp = mealDisplayData(dateStr, mealType);
+  const foodsPreview = disp.description || '—';
+  const macroPreview = disp.calories != null ? `${disp.calories} kcal` : '';
+  let btn = '';
+  if (disp.state === 'empty') {
+    btn = `<button class="meal-cell__quick-btn" onclick="event.stopPropagation();openMealModal('${dateStr}','${mealType}')">+ Renseigner</button>`;
+  } else if (disp.state === 'dirty' || disp.state === 'planned') {
+    btn = `<button class="meal-cell__quick-btn meal-cell__quick-btn--primary" onclick="quickAddMeal('${dateStr}','${mealType}',event)">Ajouter</button>`;
+  }
+  return `<div class="day-meal-row day-meal-row--${disp.state}" onclick="openMealModal('${dateStr}','${mealType}')">
+    <div class="day-meal-row__header">
+      <span class="day-meal-row__label" style="color:${MEAL_COLORS[mealType]};">${label}</span>
+      ${macroPreview ? `<span class="day-meal-row__macro">${macroPreview}</span>` : ''}
+    </div>
+    <div class="day-meal-row__foods">${foodsPreview}</div>
+    ${btn}
+  </div>`;
 }
 
 // ── Substitute tracker (foods tagged "Substitut") ───────────
