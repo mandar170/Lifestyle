@@ -69,15 +69,31 @@
         </div>
       </div>
 
-      <div class="journal-week-nav">
-        <button class="btn btn--ghost btn--sm" onclick="weekNav(-1)">←</button>
-        <span class="journal-week-label" id="jw-label"></span>
-        <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
-        <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
+      <!-- Mobile default: today's meals as a simple list -->
+      <div id="journal-day-view">
+        <div class="journal-week-nav">
+          <button class="btn btn--ghost btn--sm" onclick="stepDay(-1)">←</button>
+          <span class="journal-week-label" id="jd-label"></span>
+          <button class="btn btn--ghost btn--sm" onclick="stepDay(1)">→</button>
+          <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
+          <button class="btn btn--ghost btn--sm journal-view-toggle" onclick="toggleJournalView()">📆 Semaine</button>
+        </div>
+        <div id="day-meal-list" class="day-meal-list"></div>
       </div>
 
-      <div class="meal-table-wrap">
-        <table class="meal-table" id="meal-table"></table>
+      <!-- Desktop / toggled-to on mobile: full week table -->
+      <div id="journal-week-view">
+        <div class="journal-week-nav">
+          <button class="btn btn--ghost btn--sm" onclick="weekNav(-1)">←</button>
+          <span class="journal-week-label" id="jw-label"></span>
+          <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
+          <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
+          <button class="btn btn--ghost btn--sm journal-view-toggle" onclick="toggleJournalView()">📅 Jour</button>
+        </div>
+
+        <div class="meal-table-wrap">
+          <table class="meal-table" id="meal-table"></table>
+        </div>
       </div>
     </div>
 
@@ -309,7 +325,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=26"></script>
+  <script defer src="assets/js/nutrition.js?v=27"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
