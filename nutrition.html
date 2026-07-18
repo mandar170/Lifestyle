@@ -51,6 +51,7 @@
           <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
           <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
         </div>
+        <div id="substitute-indicator"></div>
         <div id="goals-progress"></div>
         <div class="water-sidebar" style="max-width:320px;">
           <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">💧 Eau</div>
@@ -142,6 +143,10 @@
           <input type="number" id="goal-gluc" class="np-input" style="padding:6px 4px;text-align:center;" placeholder="200" min="0" step="0.1" />
           <input type="number" id="goal-lip"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="70" min="0" step="0.1" />
           <input type="number" id="goal-fib"  class="np-input" style="padding:6px 4px;text-align:center;" placeholder="30" min="0" step="0.1" />
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);">
+          <label for="goal-substitute" style="font-size:12px;color:var(--text-dim);white-space:nowrap;">💊 Substituts / jour</label>
+          <input type="number" id="goal-substitute" class="np-input" style="width:80px;padding:6px 4px;text-align:center;" placeholder="4" min="0" step="1" />
         </div>
       </div>
 
@@ -304,7 +309,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=25"></script>
+  <script defer src="assets/js/nutrition.js?v=26"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
