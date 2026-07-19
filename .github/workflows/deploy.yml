@@ -5,7 +5,19 @@ on:
     branches: [main]
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax-check all JS
+        run: |
+          for f in assets/js/*.js; do
+            echo "checking $f"
+            node --check "$f"
+          done
+
   deploy:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
