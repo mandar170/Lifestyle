@@ -1,0 +1,5 @@
+project_id = "mftzzejtxzxlqvqtibds"
+
+# This file marks the project root for the Supabase CLI. There is no local
+# dev stack configured — schema changes are applied directly to the remote
+# project (see supabase/migrations/README.md).
