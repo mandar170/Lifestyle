@@ -1023,7 +1023,9 @@ async function removePantryItem(id) {
 }
 
 // ── Barcode scanner (Open Food Facts) ───────────────────────
-let barcodeControls   = null; // IScannerControls returned by decodeFromVideoDevice, used to stop the stream
+let barcodeControls   = null; // IScannerControls returned by decodeFromVideoDevice (ZXing path)
+let barcodeStream     = null; // MediaStream for the native BarcodeDetector path
+let barcodeScanTimer  = null; // setTimeout handle for the native detect loop
 let barcodeOffProduct = null; // pending OFF product candidate awaiting confirmation
 
 function openBarcodeScanner() {
@@ -1044,6 +1046,11 @@ function closeBarcodeScanner() {
 }
 
 async function startBarcodeScan() {
+  // 1) Prefer the browser-native BarcodeDetector: no library, lighter, and
+  //    better maintained than ZXing. Not available everywhere (notably absent
+  //    on iOS Safari), so fall back gracefully.
+  if (await startNativeBarcodeScan()) return;
+  // 2) ZXing fallback (loaded from CDN in nutrition.html).
   if (!window.ZXingBrowser) { switchToManualBarcodeEntry(); return; }
   try {
     const reader  = new ZXingBrowser.BrowserMultiFormatReader();
@@ -1061,8 +1068,50 @@ async function startBarcodeScan() {
   }
 }
 
+// Returns true if the native scanner started successfully, false if the API is
+// missing or camera access failed (so the caller can fall back to ZXing).
+async function startNativeBarcodeScan() {
+  if (typeof window.BarcodeDetector === 'undefined') return false;
+  try {
+    const supported = await window.BarcodeDetector.getSupportedFormats();
+    const formats = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'].filter(f => supported.includes(f));
+    if (!formats.length) return false;
+    const detector = new window.BarcodeDetector({ formats });
+
+    const videoEl = document.getElementById('bc-video');
+    // facingMode 'environment' -> rear camera, same reliable constraint ZXing uses.
+    barcodeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    videoEl.srcObject = barcodeStream;
+    videoEl.setAttribute('playsinline', 'true');
+    await videoEl.play();
+
+    const scan = async () => {
+      if (!barcodeStream) return; // stopped between ticks
+      try {
+        const codes = await detector.detect(videoEl);
+        if (codes && codes.length) {
+          const raw = codes[0].rawValue;
+          stopBarcodeScan();
+          lookupBarcode(raw);
+          return;
+        }
+      } catch (_) { /* transient detect frame error — keep looping */ }
+      barcodeScanTimer = setTimeout(scan, 200);
+    };
+    barcodeScanTimer = setTimeout(scan, 200);
+    return true;
+  } catch (e) {
+    stopBarcodeScan(); // clean up any partially-opened stream before falling back
+    return false;
+  }
+}
+
 function stopBarcodeScan() {
   if (barcodeControls) { barcodeControls.stop(); barcodeControls = null; }
+  if (barcodeScanTimer) { clearTimeout(barcodeScanTimer); barcodeScanTimer = null; }
+  if (barcodeStream) { barcodeStream.getTracks().forEach(t => t.stop()); barcodeStream = null; }
+  const videoEl = document.getElementById('bc-video');
+  if (videoEl) videoEl.srcObject = null;
 }
 
 function switchToManualBarcodeEntry() {
