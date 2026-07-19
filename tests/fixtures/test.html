@@ -181,6 +181,25 @@
     </div>
   </div>
 
+  <!-- ===== BARCODE SCANNER ===== -->
+  <div class="modal-overlay" id="barcode-modal" aria-hidden="true" onclick="if(event.target===this)closeBarcodeScanner()">
+    <div class="modal-box" style="max-width:420px;">
+      <button class="modal-close" onclick="closeBarcodeScanner()">✕</button>
+      <div class="modal-title" style="font-size:16px;">Scanner un produit</div>
+      <div id="bc-scan-view">
+        <video id="bc-video" autoplay playsinline muted style="width:100%;border-radius:10px;background:#000;"></video>
+        <div style="text-align:center;margin-top:10px;">
+          <button class="btn btn--ghost btn--sm" onclick="switchToManualBarcodeEntry()">Saisir le code manuellement</button>
+        </div>
+      </div>
+      <div id="bc-manual-view" style="display:none;">
+        <input type="text" id="bc-manual-code" class="np-input" placeholder="Code-barre…" inputmode="numeric" style="width:100%;margin-bottom:8px;" onkeydown="if(event.key==='Enter')lookupBarcode(this.value)" />
+        <button class="btn btn--primary btn--sm" style="width:100%;" onclick="lookupBarcode(document.getElementById('bc-manual-code').value)">Rechercher</button>
+      </div>
+      <div id="bc-result-view" style="display:none;"></div>
+    </div>
+  </div>
+
   <script src="/tests/fixtures/stub-db.js"></script>
   <script src="/assets/js/nutrition.js"></script>
 </body>
