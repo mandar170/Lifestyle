@@ -29,11 +29,20 @@ qu'un fichier modifié a bien vu son `?v=` incrémenté avant de commit.
 
 ## Base de données
 
-Single-user, protégée par login Supabase Auth (voir `personal.js`). RLS
-activé sur toutes les tables, policy `to authenticated using (true)` (accès
-complet une fois connecté, bloqué sinon) — sauf les tables budget, qui
-utilisent un scoping par `user_id`. Toute nouvelle table doit suivre le même
-principe (voir `supabase/migrations/README.md`).
+App single-user. **Important sur le modèle de sécurité actuel :** toutes les
+pages de données (`nutrition`, `budget`, `lifestyle`) interrogent Supabase
+avec la clé **`anon` publique** (`assets/js/config.js`) et ne propagent pas
+de jeton authentifié aux requêtes. L'écran de login (`personal.js`,
+`signInWithPassword`) est donc surtout un garde-fou côté UI, pas côté base.
+
+En conséquence, RLS est activé sur toutes les tables mais avec une policy
+**permissive** `allow_all` (`to public using (true)`) : la clé anon a un accès
+complet, comme historiquement. Verrouiller réellement la base (policies
+`to authenticated`) **casserait l'app** tant que les requêtes ne portent pas
+le JWT du user connecté — c'est un chantier à part entière (faire passer le
+client authentifié à toutes les pages iframées, puis vérifier sur l'app
+réelle) et non un simple changement de policy. Voir la migration
+`20260719140000_restore_permissive_access_revert_rls_lockdown.sql`.
 
 ## Déploiement
 
