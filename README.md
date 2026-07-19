@@ -46,8 +46,11 @@ réelle) et non un simple changement de policy. Voir la migration
 
 ## Déploiement
 
-Push sur `main` → `.github/workflows/deploy.yml` déploie sur Netlify. Un job
-`check` (voir même fichier) fait un `node --check` sur tout `assets/js/`
-avant le déploiement, pour attraper les erreurs de syntaxe évidentes — ce
-n'est pas une suite de tests, juste un garde-fou minimal (aucun test
-automatisé n'existe aujourd'hui).
+Push sur `main` → `.github/workflows/deploy.yml` déploie sur Netlify, mais
+seulement si les jobs `check` et `test` passent :
+- `check` : `node --check` sur tout `assets/js/` (erreurs de syntaxe).
+- `test` : lance la suite de tests headless (`node tests/run.js`, Playwright)
+  qui exerce le vrai `nutrition.js` avec un Supabase stubbé. Voir `tests/`.
+
+Les deux jobs tournent aussi sur chaque `pull_request` (statut visible avant
+merge). Un test cassé bloque le déploiement.

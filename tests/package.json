@@ -1,0 +1,12 @@
+{
+  "name": "lifestyle-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Headless behavior tests for the Nutrition module (real JS, stubbed Supabase).",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
