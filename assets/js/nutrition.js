@@ -535,13 +535,20 @@ async function applyFoodToJournal(ctx) {
 }
 
 // ── Pantry stock deduction — deferred to journal commit time ───
+// Atomic server-side pantry mutation: the +/- and the clamp at 0 happen in a
+// single SQL UPDATE (see the adjust_pantry_quantity Postgres function), so
+// concurrent meal commits can't lose each other's writes and we never persist
+// a stale in-memory quantity. The local cache is synced to the value the
+// server actually wrote.
+async function applyPantryDelta(pantryItem, delta) {
+  const { data, error } = await db.rpc('adjust_pantry_quantity', { p_item_id: pantryItem.id, p_delta: delta });
+  if (error) { showToast(`Erreur stock : ${error.message}`, 'error'); return; }
+  if (data != null) pantryItem.quantity = parseFloat(data);
+}
+
 async function deductFoodFromStock(foodId, qty) {
   const pantryItem = pantryItems.find(p => p.food_id === foodId);
-  if (pantryItem) {
-    const newQty = Math.max(0, pantryItem.quantity - qty);
-    await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-    pantryItem.quantity = newQty;
-  }
+  if (pantryItem) await applyPantryDelta(pantryItem, -qty);
   for (const eq of equivalences) {
     const isA = eq.food_id_a === foodId;
     const isB = eq.both_ways && eq.food_id_b === foodId;
@@ -554,27 +561,19 @@ async function deductFoodFromStock(foodId, qty) {
       if (Math.abs((qty / units) - gramsPerUnit) > eq.tolerance) continue;
       const target = pantryItems.find(p => p.food_id === eq.food_id_b);
       if (!target) continue;
-      const newQty = Math.max(0, target.quantity - units);
-      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-      target.quantity = newQty;
+      await applyPantryDelta(target, -units);
     } else {
       const gramsA = qty * gramsPerUnit;
       const target = pantryItems.find(p => p.food_id === eq.food_id_a);
       if (!target) continue;
-      const newQty = Math.max(0, target.quantity - gramsA);
-      await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', target.id);
-      target.quantity = newQty;
+      await applyPantryDelta(target, -gramsA);
     }
   }
 }
 
 async function refundFoodToStock(foodId, qty) {
   const pantryItem = pantryItems.find(p => p.food_id === foodId);
-  if (pantryItem) {
-    const newQty = pantryItem.quantity + qty;
-    await db.from('pantry_items').update({ quantity: newQty, updated_at: new Date().toISOString() }).eq('id', pantryItem.id);
-    pantryItem.quantity = newQty;
-  }
+  if (pantryItem) await applyPantryDelta(pantryItem, qty);
 }
 
 // Deducts stock for whichever of this meal's items haven't been deducted yet
