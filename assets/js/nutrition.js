@@ -164,20 +164,19 @@ function selectDay(dateStr) {
 async function loadWeekData() {
   const dates = weekDates(journalWeekStart);
   const start = dates[0], end = dates[6];
-  const [{ data: meals }, { data: plans }, { data: items }] = await Promise.all([
+  const [{ data: mealRows }, { data: items }] = await Promise.all([
     db.from('meals').select('*').gte('date', start).lte('date', end),
-    db.from('meal_plans').select('*').gte('plan_date', start).lte('plan_date', end),
     db.from('meal_food_items').select('*').gte('date', start).lte('date', end),
   ]);
+  // meals now holds both the journal (status 'logged') and the plan
+  // (status 'planned') in one table — split them back into the two caches
+  // the rest of the module works with.
   weekMeals = {};
-  (meals || []).forEach(m => {
-    if (!weekMeals[m.date]) weekMeals[m.date] = {};
-    weekMeals[m.date][m.meal_type] = m;
-  });
   weekPlans = {};
-  (plans || []).forEach(p => {
-    if (!weekPlans[p.plan_date]) weekPlans[p.plan_date] = {};
-    weekPlans[p.plan_date][p.meal_type] = p;
+  (mealRows || []).forEach(m => {
+    const bucket = m.status === 'planned' ? weekPlans : weekMeals;
+    if (!bucket[m.date]) bucket[m.date] = {};
+    bucket[m.date][m.meal_type] = m;
   });
   weekFoodItems = {};
   (items || []).forEach(i => {
@@ -368,8 +367,8 @@ async function quickAddMeal(dateStr, mealType, evt) {
   const fields = p
     ? { description: p.description, calories: p.calories, protein_g: p.protein_g, carbs_g: p.carbs_g, fat_g: p.fat_g, fiber_g: p.fiber_g }
     : sumMealAggregate(dateStr, mealType);
-  const entry = { date: dateStr, meal_type: mealType, ...fields };
-  const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
+  const entry = { date: dateStr, meal_type: mealType, status: 'logged', ...fields };
+  const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   await commitStockDeductionForMeal(dateStr, mealType);
   showToast('Repas ajouté au journal ✓', 'success');
@@ -440,7 +439,7 @@ function renderGoalsProgress(totKcal, totProt) {
 }
 
 async function syncNutritionTable(date) {
-  const { data } = await db.from('meals').select('*').eq('date', date);
+  const { data } = await db.from('meals').select('*').eq('date', date).eq('status', 'logged');
   const meals = data || [];
   await db.from('nutrition').upsert({
     date,
@@ -794,10 +793,10 @@ function discardMealModalChanges() {
 async function saveAndCloseMealModal() {
   if (!modalCtx) return;
   const { date, mealType } = modalCtx;
-  // If this meal already lives in the journal, "save my changes before closing" must
-  // update that same row — saving to meal_plans instead would leave the journal (which
-  // is what's actually displayed) stale, e.g. still showing food items that were just
-  // removed.
+  // If this meal already lives in the journal (a 'logged' row), "save my changes
+  // before closing" must update that same row — writing a 'planned' row instead
+  // would leave the journal (which is what's actually displayed) stale, e.g. still
+  // showing food items that were just removed.
   const alreadyInJournal = !!(weekMeals[date] && weekMeals[date][mealType]);
   if (alreadyInJournal) await modalSaveMeal();
   else await modalPlanMeal(true);
@@ -816,12 +815,12 @@ async function modalPlanMeal(closeAfter = false) {
   const { date, mealType } = modalCtx;
   const fields = readModalFields();
   if (isMealFieldsEmpty(fields)) {
-    const { error } = await db.from('meal_plans').delete().eq('plan_date', date).eq('meal_type', mealType);
+    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'planned');
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     showToast('Repas retiré du plan', 'success');
   } else {
-    const entry = { plan_date: date, meal_type: mealType, ...fields };
-    const { error } = await db.from('meal_plans').upsert(entry, { onConflict: 'plan_date,meal_type' });
+    const entry = { date, meal_type: mealType, status: 'planned', ...fields };
+    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     showToast('Repas enregistré (plan)', 'success');
   }
@@ -839,12 +838,12 @@ async function modalSaveMeal() {
   const { date, mealType } = modalCtx;
   const fields = readModalFields();
   if (isMealFieldsEmpty(fields)) {
-    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType);
+    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'logged');
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     showToast('Repas vidé du journal', 'success');
   } else {
-    const entry = { date, meal_type: mealType, ...fields };
-    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type' });
+    const entry = { date, meal_type: mealType, status: 'logged', ...fields };
+    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     await commitStockDeductionForMeal(date, mealType);
     showToast('Repas ajouté au journal ✓', 'success');

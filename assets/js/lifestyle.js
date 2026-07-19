@@ -148,7 +148,7 @@ async function loadCalendar() {
   const last  = new Date(calYear, calMonth+1, 0).toISOString().split('T')[0];
   setEl('cal-month-label', new Date(calYear, calMonth).toLocaleDateString('fr-FR', { month:'long', year:'numeric' }).toUpperCase());
   const [mealsRes, actsRes] = await Promise.all([
-    db.from('meals').select('date, done, calories, meal_type').gte('date', first).lte('date', last),
+    db.from('meals').select('date, done, calories, meal_type').eq('status', 'logged').gte('date', first).lte('date', last),
     db.from('activities').select('date, type').gte('date', first).lte('date', last),
   ]);
   renderCalendar(mealsRes.data || [], actsRes.data || []);
@@ -1061,7 +1061,7 @@ function setExportRange(days) {
 
 async function generateNutritionPDF(from, to, withAct, withStp) {
   const [mealsRes, actsRes, stepsRes] = await Promise.all([
-    db.from('meals').select('*').gte('date', from).lte('date', to).order('date'),
+    db.from('meals').select('*').eq('status', 'logged').gte('date', from).lte('date', to).order('date'),
     withAct ? db.from('activities').select('*').gte('date', from).lte('date', to).order('date').order('created_at') : Promise.resolve({ data:[] }),
     withStp ? db.from('daily_steps').select('*').gte('date', from).lte('date', to).order('date') : Promise.resolve({ data:[] }),
   ]);
@@ -1269,7 +1269,7 @@ async function renderDashCharts() {
   const labels7 = days7.map(d => formatDateShort(d));
 
   const [nutRes, stepsRes, weightRes, actRes] = await Promise.all([
-    db.from('meals').select('date,calories,protein_g,fat_g,done').gte('date', days7[0]).eq('done', true),
+    db.from('meals').select('date,calories,protein_g,fat_g,done').eq('status', 'logged').gte('date', days7[0]).eq('done', true),
     db.from('daily_steps').select('date,steps').gte('date', days7[0]).order('date'),
     db.from('measurements').select('date,weight_kg').not('weight_kg', 'is', null).gte('date', daysAgo(30)).order('date'),
     db.from('activities').select('type,date').order('date', { ascending: false }).limit(1),
