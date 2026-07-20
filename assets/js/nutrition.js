@@ -35,6 +35,9 @@ let mealPresets = [];
 let foods       = [];
 let tags        = [];
 let foodTagLinks = {};   // food_id → tag_id[]
+let barcodeToFood = {};  // barcode → food_id   (from food_barcodes)
+let foodBarcodes  = {};  // food_id → barcode[]  (from food_barcodes)
+const MAX_BARCODES_PER_FOOD = 5;
 let pantryItems = [];
 let shoppingRenderItems = [];
 let equivalences = [];
@@ -1027,6 +1030,7 @@ let barcodeControls   = null; // IScannerControls returned by decodeFromVideoDev
 let barcodeStream     = null; // MediaStream for the native BarcodeDetector path
 let barcodeScanTimer  = null; // setTimeout handle for the native detect loop
 let barcodeOffProduct = null; // pending OFF product candidate awaiting confirmation
+let pendingBarcode    = null; // the scanned code awaiting create-or-attach
 
 function openBarcodeScanner() {
   document.getElementById('bc-scan-view').style.display = 'block';
@@ -1150,8 +1154,9 @@ function parseOffQuantity(qtyStr, unit) {
 async function lookupBarcode(code) {
   code = (code || '').trim();
   if (!/^\d{6,14}$/.test(code)) { showToast('Code-barre invalide', 'error'); return; }
+  pendingBarcode = code;
 
-  const localFood = foods.find(f => f.barcode === code);
+  const localFood = foods.find(f => f.id === barcodeToFood[code]);
   if (localFood) { showBarcodeResult(localFood, null); return; }
 
   document.getElementById('bc-scan-view').style.display = 'none';
@@ -1170,12 +1175,74 @@ async function lookupBarcode(code) {
 }
 
 function showBarcodeNotFound(code) {
+  barcodeOffProduct = null;
   const view = document.getElementById('bc-result-view');
   view.innerHTML = `
-    <p style="text-align:center;color:var(--text-dim);padding:12px 0;">Produit introuvable (code ${code}).</p>
-    <button class="btn btn--ghost btn--sm" style="width:100%;" onclick="openBarcodeScanner()">↺ Réessayer</button>
-    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:8px;" onclick="closeBarcodeScanner();showPantryForm();">Ajouter manuellement</button>
+    <p style="text-align:center;color:var(--text-dim);padding:8px 0;">Produit introuvable sur Open Food Facts (code ${code}).</p>
+    ${barcodeAttachSectionHTML()}
+    <div class="bc-or">— ou —</div>
+    <button class="btn btn--primary btn--sm" style="width:100%;" onclick="createFoodFromBarcode()">Créer un nouvel aliment</button>
+    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:8px;" onclick="openBarcodeScanner()">↺ Réessayer</button>
   `;
+  renderBarcodeAttachList('');
+}
+
+// Shared "attach this scanned code to an existing food" block — the anti-duplicate path.
+function barcodeAttachSectionHTML() {
+  return `
+    <div style="margin-top:6px;">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">Rattacher ce code à un aliment existant :</p>
+      <input type="text" id="bc-attach-search" class="np-input" placeholder="Rechercher un aliment…" style="width:100%;margin-bottom:6px;" oninput="renderBarcodeAttachList(this.value)" />
+      <div id="bc-attach-list" class="bc-attach-list"></div>
+    </div>`;
+}
+
+function renderBarcodeAttachList(search) {
+  const listEl = document.getElementById('bc-attach-list');
+  if (!listEl) return;
+  const q = (search || '').toLowerCase();
+  const matches = foods.filter(f => f.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!matches.length) { listEl.innerHTML = '<p class="preset-list-empty">Aucun aliment.</p>'; return; }
+  listEl.innerHTML = matches.map(f => {
+    const count = (foodBarcodes[f.id] || []).length;
+    return `<div class="bc-attach-item" onclick="attachScannedBarcodeToFood('${f.id}')">
+      <span>${f.name}</span>
+      <span style="font-size:11px;color:var(--text-dim);">${count}/${MAX_BARCODES_PER_FOOD} 📷</span>
+    </div>`;
+  }).join('');
+}
+
+// Insert a (food_id, barcode) row, enforcing the per-food cap. Returns true on success.
+async function attachBarcodeToFoodRow(foodId, code) {
+  if ((foodBarcodes[foodId] || []).length >= MAX_BARCODES_PER_FOOD) {
+    showToast(`Maximum ${MAX_BARCODES_PER_FOOD} codes-barres par aliment`, 'error');
+    return false;
+  }
+  const { error } = await db.from('food_barcodes').insert({ food_id: foodId, barcode: code });
+  if (error) {
+    // Unique violation -> the code is already linked to some food.
+    showToast(/duplicate|unique/i.test(error.message) ? 'Ce code est déjà associé à un aliment' : `Erreur : ${error.message}`, 'error');
+    return false;
+  }
+  barcodeToFood[code] = foodId;
+  (foodBarcodes[foodId] = foodBarcodes[foodId] || []).push(code);
+  return true;
+}
+
+// From the scanner: attach the pending code to the chosen food, then add it to stock.
+async function attachScannedBarcodeToFood(foodId) {
+  if (!pendingBarcode) return;
+  const ok = await attachBarcodeToFoodRow(foodId, pendingBarcode);
+  if (!ok) return;
+  const food = foods.find(f => f.id === foodId);
+  showToast(`Code rattaché à ${food?.name || 'l\'aliment'}`, 'success');
+  showBarcodeResult(food, null); // now a known food -> quantity prompt
+}
+
+// Create-from-barcode when OFF has no product: a blank editable form.
+function createFoodFromBarcode() {
+  barcodeOffProduct = { code: pendingBarcode, product_name: '', nutriments: {}, quantity: '' };
+  showBarcodeResult(null, barcodeOffProduct);
 }
 
 function showBarcodeResult(existingFood, offProduct) {
@@ -1208,13 +1275,14 @@ function showBarcodeResult(existingFood, offProduct) {
     n['proteins_100g']    != null ? n['proteins_100g'] + 'g P' : null,
   ].filter(Boolean).join(' · ');
 
+  const esc = s => String(s ?? '').replace(/"/g, '&quot;');
   view.innerHTML = `
-    <div style="text-align:center;margin-bottom:12px;">
-      ${offProduct.image_front_small_url ? `<img src="${offProduct.image_front_small_url}" style="height:70px;border-radius:8px;margin-bottom:8px;" />` : ''}
-      <div style="font-weight:600;">${offProduct.product_name || 'Produit sans nom'}</div>
-      <div style="font-size:12px;color:var(--text-dim);">${offProduct.brands || ''}</div>
+    <div style="text-align:center;margin-bottom:10px;">
+      ${offProduct.image_front_small_url ? `<img src="${offProduct.image_front_small_url}" style="height:64px;border-radius:8px;margin-bottom:6px;" />` : ''}
+      <div style="font-size:12px;color:var(--text-dim);">${offProduct.brands || 'Nouvel aliment'}</div>
       <div style="font-size:12px;color:var(--primary);margin-top:4px;">${macrosPreview || 'Macros inconnues /100g'}</div>
     </div>
+    <input type="text" id="bc-new-name" class="np-input" placeholder="Nom de l'aliment" value="${esc(offProduct.product_name || '')}" style="width:100%;margin-bottom:8px;" />
     <div class="meal-macros-labels"><span>kcal</span><span>Prot</span><span>Gluc</span><span>Lip</span><span>Fib</span></div>
     <div class="meal-macros" style="margin-bottom:10px;">
       <input type="number" id="bc-new-kcal" value="${n['energy-kcal_100g'] ?? ''}" placeholder="—" />
@@ -1231,9 +1299,11 @@ function showBarcodeResult(existingFood, offProduct) {
       </select>
       <input type="number" id="bc-qty" class="np-input" placeholder="Quantité en stock" min="0" step="0.1" value="${parsedQty ?? ''}" style="flex:1;" />
     </div>
-    <button class="btn btn--primary btn--sm" style="width:100%;" onclick="confirmBarcodeCreateAndAdd()">Ajouter au stock</button>
-    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:8px;" onclick="openBarcodeScanner()">↺ Scanner un autre produit</button>
+    <button class="btn btn--primary btn--sm" style="width:100%;" onclick="confirmBarcodeCreateAndAdd()">Créer et ajouter au stock</button>
+    ${barcodeAttachSectionHTML()}
+    <button class="btn btn--ghost btn--sm" style="width:100%;margin-top:10px;" onclick="openBarcodeScanner()">↺ Scanner un autre produit</button>
   `;
+  renderBarcodeAttachList('');
 }
 
 async function confirmBarcodeAdd(foodId, qtyVal) {
@@ -1257,12 +1327,13 @@ async function confirmBarcodeAdd(foodId, qtyVal) {
 
 async function confirmBarcodeCreateAndAdd() {
   if (!barcodeOffProduct) return;
+  const name = document.getElementById('bc-new-name')?.value.trim();
+  if (!name) { showToast('Nom requis', 'error'); return; }
   const qty  = parseFloat(document.getElementById('bc-qty')?.value);
   const unit = document.getElementById('bc-new-unit')?.value || 'g';
   if (!qty || qty <= 0) { showToast('Quantité invalide', 'error'); return; }
   const entry = {
-    name:              barcodeOffProduct.product_name || `Produit ${barcodeOffProduct.code}`,
-    unit, barcode:      barcodeOffProduct.code,
+    name, unit,
     calories_per_100g: numF(document.getElementById('bc-new-kcal').value),
     protein_per_100g:  numF(document.getElementById('bc-new-prot').value),
     carbs_per_100g:    numF(document.getElementById('bc-new-gluc').value),
@@ -1272,6 +1343,8 @@ async function confirmBarcodeCreateAndAdd() {
   const { data: newFood, error } = await db.from('foods').insert(entry).select().single();
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   foods.push(newFood);
+  // Link the scanned barcode to the new food.
+  if (barcodeOffProduct.code) await attachBarcodeToFoodRow(newFood.id, barcodeOffProduct.code);
   renderFoodList();
   await confirmBarcodeAdd(newFood.id, qty);
 }
@@ -1577,8 +1650,17 @@ function toggleNewFoodTag(tagId) {
 
 // ── Gestion — Foods ────────────────────────────────────────
 async function loadFoods() {
-  const { data } = await db.from('foods').select('*').order('name');
-  foods = data || [];
+  const [{ data: foodRows }, { data: bcRows }] = await Promise.all([
+    db.from('foods').select('*').order('name'),
+    db.from('food_barcodes').select('*'),
+  ]);
+  foods = foodRows || [];
+  barcodeToFood = {};
+  foodBarcodes  = {};
+  (bcRows || []).forEach(r => {
+    barcodeToFood[r.barcode] = r.food_id;
+    (foodBarcodes[r.food_id] = foodBarcodes[r.food_id] || []).push(r.barcode);
+  });
   renderFoodList();
   populateEquivalenceFoodSelects();
 }
@@ -1645,6 +1727,14 @@ function renderFoodList() {
           <p style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Tags :</p>
           <div class="tag-chips" id="fe-tags-${f.id}">${renderEditFoodTagChips(f.id)}</div>
         </div>
+        <div>
+          <p style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Codes-barres (${(foodBarcodes[f.id]||[]).length}/${MAX_BARCODES_PER_FOOD}) :</p>
+          <div class="bc-chips" id="fe-bc-${f.id}">${renderFoodEditBarcodes(f.id)}</div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <input type="text" id="fe-bc-input-${f.id}" class="np-input" placeholder="Ajouter un code…" inputmode="numeric" style="flex:1;" onkeydown="if(event.key==='Enter'){event.preventDefault();addBarcodeToFood('${f.id}')}" />
+            <button class="btn btn--ghost btn--sm" onclick="addBarcodeToFood('${f.id}')">+ Code</button>
+          </div>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="btn btn--primary btn--sm" onclick="saveFoodEdit('${f.id}')">Sauvegarder</button>
           <button class="btn btn--ghost btn--sm" onclick="cancelFoodEdit()">Annuler</button>
@@ -1694,6 +1784,32 @@ function toggleEditFoodTag(foodId, tagId) {
 
 function startFoodEdit(id) { editingFoodId = id; editingFoodTags[id] = [...(foodTagLinks[id] || [])]; renderFoodList(); }
 function cancelFoodEdit()  { editingFoodId = null; renderFoodList(); }
+
+// ── Food barcodes (edit mode) ──────────────────────────────
+function renderFoodEditBarcodes(foodId) {
+  const codes = foodBarcodes[foodId] || [];
+  if (!codes.length) return '<span style="font-size:11px;color:var(--text-dim);">Aucun code-barre</span>';
+  return codes.map(c => `<span class="bc-chip">${c}<button class="bc-chip__del" onclick="removeBarcodeFromFood('${foodId}','${c}')">✕</button></span>`).join('');
+}
+
+async function addBarcodeToFood(foodId) {
+  const input = document.getElementById(`fe-bc-input-${foodId}`);
+  const code = (input?.value || '').trim();
+  if (!/^\d{6,14}$/.test(code)) { showToast('Code-barre invalide (6 à 14 chiffres)', 'error'); return; }
+  const ok = await attachBarcodeToFoodRow(foodId, code);
+  if (!ok) return;
+  showToast('Code-barre ajouté', 'success');
+  renderFoodList();
+}
+
+async function removeBarcodeFromFood(foodId, code) {
+  const { error } = await db.from('food_barcodes').delete().eq('barcode', code);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  delete barcodeToFood[code];
+  foodBarcodes[foodId] = (foodBarcodes[foodId] || []).filter(c => c !== code);
+  showToast('Code-barre retiré', 'success');
+  renderFoodList();
+}
 
 async function saveFood() {
   const name = document.getElementById('nf-name')?.value.trim();
