@@ -370,6 +370,8 @@ async function quickAddMeal(dateStr, mealType, evt) {
   const fields = p
     ? { description: p.description, calories: p.calories, protein_g: p.protein_g, carbs_g: p.carbs_g, fat_g: p.fat_g, fiber_g: p.fiber_g }
     : sumMealAggregate(dateStr, mealType);
+  const shortages = mealStockShortages(dateStr, mealType);
+  if (shortages.length) { showToast(stockShortageMessage(shortages), 'error'); return; }
   const entry = { date: dateStr, meal_type: mealType, status: 'logged', ...fields };
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
@@ -577,6 +579,32 @@ async function deductFoodFromStock(foodId, qty) {
 async function refundFoodToStock(foodId, qty) {
   const pantryItem = pantryItems.find(p => p.food_id === foodId);
   if (pantryItem) await applyPantryDelta(pantryItem, qty);
+}
+
+// A meal can only be committed to the journal if every food item that would
+// be deducted is available in the pantry in sufficient quantity. Items flagged
+// "ne pas déduire du stock" and items already deducted are exempt. Returns a
+// list of shortages ([] when the meal can be journaled).
+function mealStockShortages(dateStr, mealType) {
+  const items = (weekFoodItems[dateStr] && weekFoodItems[dateStr][mealType]) || [];
+  const pending = items.filter(i => i.deduct_from_stock && !i.stock_deducted);
+  const need = {}; // food_id -> total grams/units needed (same food can appear twice)
+  pending.forEach(i => { need[i.food_id] = (need[i.food_id] || 0) + (Number(i.grams) || 0); });
+  const shortages = [];
+  Object.keys(need).forEach(fid => {
+    const p    = pantryItems.find(x => x.food_id === fid);
+    const have = p ? (Number(p.quantity) || 0) : 0;
+    if (have < need[fid]) {
+      const food = foods.find(f => f.id === fid);
+      shortages.push({ name: food?.name || 'Aliment', need: need[fid], have, unit: food?.unit || 'g' });
+    }
+  });
+  return shortages;
+}
+
+function stockShortageMessage(shortages) {
+  const u = s => s.unit === 'unité' ? ' u' : s.unit;
+  return 'Stock insuffisant : ' + shortages.map(s => `${s.name} (besoin ${s.need}${u(s)}, dispo ${s.have}${u(s)})`).join(' · ');
 }
 
 // Deducts stock for whichever of this meal's items haven't been deducted yet
@@ -844,6 +872,8 @@ async function modalSaveMeal() {
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
     showToast('Repas vidé du journal', 'success');
   } else {
+    const shortages = mealStockShortages(date, mealType);
+    if (shortages.length) { showToast(stockShortageMessage(shortages), 'error'); return; }
     const entry = { date, meal_type: mealType, status: 'logged', ...fields };
     const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
     if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
