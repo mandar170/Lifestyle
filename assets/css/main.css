@@ -1668,3 +1668,25 @@ body.dock-shell-body { overflow: hidden; }
   .auth-box { padding: 32px 24px; margin: 16px; }
   .tx-table td:nth-child(3), .tx-table th:nth-child(3) { display: none; }
 }
+
+/* ── Barcode: attach-to-existing + food-edit barcode chips ── */
+.bc-or { text-align:center; color:var(--text-dim); font-size:11px; margin:10px 0; }
+.bc-attach-list { display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto; }
+.bc-attach-item {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px;
+  background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);
+  transition:background .12s, border-color .12s;
+}
+.bc-attach-item:hover { background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.18); }
+.bc-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.bc-chip {
+  display:inline-flex; align-items:center; gap:6px; font-size:12px;
+  padding:3px 4px 3px 9px; border-radius:20px; font-variant-numeric:tabular-nums;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+}
+.bc-chip__del {
+  border:none; background:rgba(248,113,113,0.15); color:#f87171; cursor:pointer;
+  width:18px; height:18px; border-radius:50%; line-height:1; font-size:11px; padding:0;
+}
+.bc-chip__del:hover { background:rgba(248,113,113,0.3); }
