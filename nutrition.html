@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=4" />
+  <link rel="stylesheet" href="assets/css/main.css?v=5" />
 </head>
 <body>
 
@@ -77,6 +77,11 @@
           <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
           <button class="btn btn--ghost btn--sm journal-view-toggle" onclick="toggleJournalView()">📆 Semaine</button>
         </div>
+        <div class="meal-legend">
+          <span><i class="dot" style="background:#22c55e;"></i>Mangé</span>
+          <span><i class="dot" style="background:#64dcff;"></i>Prévu</span>
+          <span><i class="dot" style="background:#f97316;"></i>Brouillon</span>
+        </div>
         <div id="day-meal-list" class="day-meal-list"></div>
       </div>
 
@@ -88,6 +93,11 @@
           <button class="btn btn--ghost btn--sm" onclick="weekNav(1)">→</button>
           <button class="btn btn--ghost btn--sm" onclick="weekToday()" style="margin-left:auto;">Aujourd'hui</button>
           <button class="btn btn--ghost btn--sm journal-view-toggle" onclick="toggleJournalView()">📅 Jour</button>
+        </div>
+        <div class="meal-legend">
+          <span><i class="dot" style="background:#22c55e;"></i>Mangé</span>
+          <span><i class="dot" style="background:#64dcff;"></i>Prévu</span>
+          <span><i class="dot" style="background:#f97316;"></i>Brouillon</span>
         </div>
 
         <div class="meal-table-wrap">
@@ -329,7 +339,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=36"></script>
+  <script defer src="assets/js/nutrition.js?v=37"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
