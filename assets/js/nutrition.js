@@ -256,14 +256,15 @@ function renderSubstituteIndicator() {
   const el = document.getElementById('substitute-indicator');
   if (!el) return;
   const target = nutritionGoals?.substitute_target;
-  if (!target) { el.innerHTML = ''; return; }
+  if (!target) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
   const count = countSubstitutesForDay(journalDate);
-  const pct   = Math.min(100, Math.round(count / target * 100));
   const color = count >= target ? '#22c55e' : count > 0 ? '#f97316' : '#94a3b8';
-  el.innerHTML = `<div class="goals-progress-bar">
-    <div class="goals-progress-bar__label"><span>💊 Substituts</span><span style="color:${color};">${count} / ${target}</span></div>
-    <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
-  </div>`;
+  el.innerHTML = `<span class="day-chip__ic">💊</span>
+    <div class="day-chip__body">
+      <span class="day-chip__t">Substituts</span>
+      <span class="day-chip__n" style="color:${color};">${count} / ${target}</span>
+    </div>`;
 }
 
 // ── Water ──────────────────────────────────────────────────
@@ -284,10 +285,10 @@ async function saveWater() {
   await loadWater();
 }
 
-function addWater(ml) {
+async function addWater(ml) {
   const input = document.getElementById('j-water');
-  if (!input) return;
-  input.value = (parseInt(input.value) || 0) + ml;
+  if (input) input.value = (parseInt(input.value) || 0) + ml;
+  await saveWater();
 }
 
 // ── Journal — meal aggregate / display helpers ──────────────
@@ -401,54 +402,45 @@ function adjustMealMacroInputs(suffix, d) {
   set('kcal', d.kcal); set('prot', d.prot); set('gluc', d.gluc); set('lip', d.lip); set('fib', d.fib);
 }
 
+// Compact day summary: a calories ring + one bar per macro (value / goal).
+const MACRO_DEFS = [
+  { key: 'protein_g', lbl: 'Prot', goalKey: 'protein_g', col: '#64dcff' },
+  { key: 'carbs_g',   lbl: 'Gluc', goalKey: 'carbs_g',   col: '#facc15' },
+  { key: 'fat_g',     lbl: 'Lip',  goalKey: 'fat_g',     col: '#a855f7' },
+  { key: 'fiber_g',   lbl: 'Fib',  goalKey: 'fiber_g',   col: '#22c55e' },
+];
+
 function updateDailyTotals(meals) {
-  const sum  = f => meals.reduce((s, m) => s + (m[f] || 0), 0);
-  const n    = meals.length;
-  setEl('j-total-kcal', n ? Math.round(sum('calories')).toLocaleString('fr-FR') : '—');
-  const kcalEl = document.getElementById('j-total-kcal');
-  if (kcalEl && nutritionGoals?.calories && n) {
-    const ratio = sum('calories') / nutritionGoals.calories;
-    kcalEl.style.color = ratio > 1.1 ? '#ef4444' : ratio > 1 ? '#f97316' : '#22c55e';
-  } else if (kcalEl) {
-    kcalEl.style.color = '';
-  }
-  setEl('j-total-prot', n ? sum('protein_g').toFixed(1) : '—');
-  setEl('j-total-gluc', n ? sum('carbs_g').toFixed(1)   : '—');
-  setEl('j-total-lip',  n ? sum('fat_g').toFixed(1)     : '—');
-  setEl('j-total-fib',  n ? sum('fiber_g').toFixed(1)   : '—');
+  const sum = f => meals.reduce((s, m) => s + (m[f] || 0), 0);
+  const n   = meals.length;
+  const g   = nutritionGoals || {};
+  const kcal = sum('calories');
 
-  if (nutritionGoals && n) {
-    const totKcal = sum('calories');
-    const totProt = sum('protein_g');
-    renderGoalsProgress(totKcal, totProt);
-  } else {
-    const el = document.getElementById('goals-progress');
-    if (el) el.innerHTML = '';
-  }
-}
+  setEl('j-total-kcal', n ? Math.round(kcal).toLocaleString('fr-FR') : '—');
+  setEl('j-cal-goal', g.calories ? `/ ${g.calories.toLocaleString('fr-FR')} kcal` : 'kcal');
 
-function renderGoalsProgress(totKcal, totProt) {
-  const el = document.getElementById('goals-progress');
-  if (!el || !nutritionGoals) return;
-  const bars = [];
-  if (nutritionGoals.calories) {
-    const rawPct = Math.round(totKcal / nutritionGoals.calories * 100);
-    const pct = Math.min(100, rawPct);
-    const color = rawPct > 110 ? '#ef4444' : rawPct > 100 ? '#f97316' : '#22c55e';
-    bars.push(`<div class="goals-progress-bar">
-      <div class="goals-progress-bar__label"><span>Calories</span><span style="color:${color};">${Math.round(totKcal)} / ${nutritionGoals.calories} kcal</span></div>
-      <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
-    </div>`);
+  const ring = document.getElementById('cal-ring');
+  if (ring) {
+    const ratio = g.calories ? kcal / g.calories : 0;
+    const pct   = g.calories ? Math.min(100, Math.round(ratio * 100)) : 0;
+    ring.style.setProperty('--p', pct);
+    ring.style.setProperty('--ring-col', ratio > 1.1 ? '#ef4444' : '#f97316');
   }
-  if (nutritionGoals.protein_g) {
-    const pct = Math.min(100, Math.round(totProt / nutritionGoals.protein_g * 100));
-    const color = pct >= 90 ? '#22c55e' : '#64dcff';
-    bars.push(`<div class="goals-progress-bar">
-      <div class="goals-progress-bar__label"><span>Protéines</span><span style="color:${color};">${totProt.toFixed(1)} / ${nutritionGoals.protein_g} g</span></div>
-      <div class="goals-progress-bar__track"><div class="goals-progress-bar__fill" style="width:${pct}%;background:${color};"></div></div>
-    </div>`);
+
+  const barsEl = document.getElementById('macro-bars');
+  if (barsEl) {
+    barsEl.innerHTML = MACRO_DEFS.map(d => {
+      const v    = sum(d.key);
+      const goal = g[d.goalKey];
+      const pct  = goal ? Math.min(100, Math.round(v / goal * 100)) : 0;
+      const num  = goal ? `${Math.round(v)} / ${goal}` : (n ? v.toFixed(1) : '—');
+      return `<div class="macro-bar">
+        <span class="macro-bar__lbl">${d.lbl}</span>
+        <span class="macro-bar__track"><i style="width:${pct}%;background:${d.col};"></i></span>
+        <span class="macro-bar__num">${num}</span>
+      </div>`;
+    }).join('');
   }
-  el.innerHTML = bars.length ? `<div style="margin-bottom:20px;">${bars.join('')}</div>` : '';
 }
 
 async function syncNutritionTable(date) {

@@ -29,33 +29,32 @@
 
     <!-- ===== JOURNAL ===== -->
     <div class="tab-panel active" id="panel-journal">
-      <div class="section-card" style="margin-bottom:20px;">
-        <div class="section-card__header" style="margin-bottom:6px;">
-          <span class="section-card__title" style="font-size:13px;">Totaux — <span id="j-selected-day-label"></span></span>
+      <div class="section-card day-summary">
+        <div class="day-summary__head">
+          <span class="section-card__title" style="font-size:12px;">Résumé — <span id="j-selected-day-label"></span></span>
         </div>
-        <div class="daily-totals">
-          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--orange" id="j-total-kcal">—</div><div class="daily-totals__lbl">kcal</div></div>
-          <div class="daily-totals__item"><div class="daily-totals__val" id="j-total-prot">—</div><div class="daily-totals__lbl">Prot (g)</div></div>
-          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--yellow" id="j-total-gluc">—</div><div class="daily-totals__lbl">Gluc (g)</div></div>
-          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--purple" id="j-total-lip">—</div><div class="daily-totals__lbl">Lip (g)</div></div>
-          <div class="daily-totals__item"><div class="daily-totals__val daily-totals__val--green" id="j-total-fib">—</div><div class="daily-totals__lbl">Fibres (g)</div></div>
+        <div class="day-summary__body">
+          <div class="cal-ring" id="cal-ring">
+            <div class="cal-ring__v"><b id="j-total-kcal">—</b><span id="j-cal-goal">kcal</span></div>
+          </div>
+          <div class="macro-bars" id="macro-bars"></div>
         </div>
-        <div id="substitute-indicator"></div>
-        <div id="goals-progress"></div>
-        <div class="water-sidebar" style="max-width:320px;">
-          <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">💧 Eau</div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
-            <span id="j-water-display" style="font-family:'Orbitron',sans-serif;font-size:14px;color:var(--primary);min-width:54px;">— ml</span>
+        <div class="day-chips">
+          <div class="day-chip">
+            <span class="day-chip__ic">💧</span>
+            <div class="day-chip__body">
+              <span class="day-chip__t">Eau</span>
+              <span class="day-chip__n" id="j-water-display">— ml</span>
+            </div>
+            <div class="day-chip__acts">
+              <button class="btn btn--ghost btn--xs" onclick="addWater(250)">+250</button>
+              <button class="btn btn--ghost btn--xs" onclick="addWater(500)">+500</button>
+            </div>
           </div>
-          <div style="display:flex;gap:4px;margin-bottom:6px;">
-            <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(250)">+250</button>
-            <button class="btn btn--ghost btn--sm" style="flex:1;" onclick="addWater(500)">+500</button>
-          </div>
-          <div style="display:flex;gap:4px;">
-            <input type="number" id="j-water" min="0" placeholder="mL" style="flex:1;min-width:0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;" />
-            <button class="btn btn--primary btn--sm" onclick="saveWater()">OK</button>
-          </div>
+          <div class="day-chip" id="substitute-indicator"></div>
         </div>
+        <input type="hidden" id="j-water" />
+        <div id="goals-progress" hidden></div>
       </div>
 
       <div id="journal-day-view">
