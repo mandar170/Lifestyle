@@ -46,6 +46,7 @@ let weekPlans      = {}; // weekPlans[date][mealType]       = row
 let weekFoodItems  = {}; // weekFoodItems[date][mealType]   = row[]
 let modalCtx      = null; // { date, mealType } — meal currently open in the modal
 let modalSnapshot = null; // last-committed field values, for dirty-check on close
+let modalMealState = 'logged'; // 'logged' (mangé) | 'planned' (prévu) — the editor's state toggle
 const foodPickerState = {};
 let editingPresetId = null;
 let editingFoodId   = null;
@@ -382,6 +383,7 @@ async function quickAddMeal(dateStr, mealType, evt) {
   const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
   if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
   await commitStockDeductionForMeal(dateStr, mealType);
+  await db.from('meals').delete().eq('date', dateStr).eq('meal_type', mealType).eq('status', 'planned'); // plan realised
   showToast('Repas ajouté au journal ✓', 'success');
   await loadWeekData();
   syncNutritionTable(dateStr);
@@ -806,6 +808,11 @@ function openMealModal(dateStr, mealType) {
   document.getElementById('fp-weight-modal').style.display = 'none';
   delete foodPickerState['modal'];
 
+  // Toggle starts on the meal's current state: journaled -> Mangé, planned ->
+  // Prévu, otherwise Mangé for today/past and Prévu for a future day.
+  const initState = m ? 'logged' : (p ? 'planned' : (dateStr > today() ? 'planned' : 'logged'));
+  setMealState(initState);
+
   renderFoodPickerContent('modal');
   renderMealFoodItemsModal();
   updateModalDirtyIndicator();
@@ -840,16 +847,25 @@ function discardMealModalChanges() {
   closeMealModal();
 }
 
+// Switch the editor between "prévu" (planned) and "mangé" (logged). Only 'logged'
+// deducts stock, so the stock checkbox is only relevant there.
+function setMealState(state) {
+  modalMealState = state;
+  document.querySelectorAll('#meal-state-seg button').forEach(b => {
+    b.classList.toggle('sel-logged',  b.dataset.state === 'logged'  && state === 'logged');
+    b.classList.toggle('sel-planned', b.dataset.state === 'planned' && state === 'planned');
+  });
+  const deductLabel = document.querySelector('.meal-deduct-label');
+  if (deductLabel) deductLabel.style.display = state === 'logged' ? '' : 'none';
+  setEl('meal-state-hint', state === 'logged'
+    ? 'Mangé : ajouté au journal et déduit du stock.'
+    : 'Prévu : planifié, sans toucher au stock.');
+  const btn = document.getElementById('meal-save-btn');
+  if (btn) btn.textContent = state === 'logged' ? '✓ Ajouter au journal' : '◷ Enregistrer (prévu)';
+}
+
 async function saveAndCloseMealModal() {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  // If this meal already lives in the journal (a 'logged' row), "save my changes
-  // before closing" must update that same row — writing a 'planned' row instead
-  // would leave the journal (which is what's actually displayed) stale, e.g. still
-  // showing food items that were just removed.
-  const alreadyInJournal = !!(weekMeals[date] && weekMeals[date][mealType]);
-  if (alreadyInJournal) await modalSaveMeal();
-  else await modalPlanMeal(true);
+  return saveMealFromModal();
 }
 
 // A meal with no description and no macros has nothing left to show — leaving a
@@ -860,49 +876,61 @@ function isMealFieldsEmpty(fields) {
     && fields.carbs_g == null && fields.fat_g == null && fields.fiber_g == null;
 }
 
-async function modalPlanMeal(closeAfter = false) {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  const fields = readModalFields();
-  if (isMealFieldsEmpty(fields)) {
-    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'planned');
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    showToast('Repas retiré du plan', 'success');
-  } else {
-    const entry = { date, meal_type: mealType, status: 'planned', ...fields };
-    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    showToast('Repas enregistré (plan)', 'success');
-  }
-  await loadWeekData();
-  if (closeAfter) {
-    closeMealModal();
-  } else {
-    modalSnapshot = fields;
-    updateModalDirtyIndicator();
+// Give back the stock already deducted for this meal's items (used when a meal
+// is un-logged back to "prévu" or emptied).
+async function refundMealStock(date, mealType) {
+  const items = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
+  for (const item of items) {
+    if (item.stock_deducted) {
+      await refundFoodToStock(item.food_id, item.grams);
+      await db.from('meal_food_items').update({ stock_deducted: false }).eq('id', item.id);
+      item.stock_deducted = false;
+    }
   }
 }
 
-async function modalSaveMeal() {
-  if (!modalCtx) return;
-  const { date, mealType } = modalCtx;
-  const fields = readModalFields();
-  if (isMealFieldsEmpty(fields)) {
-    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'logged');
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    showToast('Repas vidé du journal', 'success');
-  } else {
-    const shortages = mealStockShortages(date, mealType);
-    if (shortages.length) { showToast(stockShortageMessage(shortages), 'error'); return; }
-    const entry = { date, meal_type: mealType, status: 'logged', ...fields };
-    const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
-    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
-    await commitStockDeductionForMeal(date, mealType);
-    showToast('Repas ajouté au journal ✓', 'success');
-  }
+async function finishMealSave(date) {
   await loadWeekData();
   syncNutritionTable(date);
   closeMealModal();
+}
+
+// Single save path driven by the Prévu/Mangé toggle. A meal ends up in exactly
+// one state: saving as "mangé" realises (and removes) any plan and deducts
+// stock; saving as "prévu" removes any journal row and refunds its stock.
+async function saveMealFromModal() {
+  if (!modalCtx) return;
+  const { date, mealType } = modalCtx;
+  const fields = readModalFields();
+  const target = modalMealState;
+
+  if (isMealFieldsEmpty(fields)) {
+    if (target === 'logged') await refundMealStock(date, mealType);
+    const { error } = await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', target);
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    showToast(target === 'logged' ? 'Repas vidé du journal' : 'Repas retiré du plan', 'success');
+    return finishMealSave(date);
+  }
+
+  if (target === 'logged') {
+    const shortages = mealStockShortages(date, mealType);
+    if (shortages.length) { showToast(stockShortageMessage(shortages), 'error'); return; }
+  }
+
+  const entry = { date, meal_type: mealType, status: target, ...fields };
+  const { error } = await db.from('meals').upsert(entry, { onConflict: 'date,meal_type,status' });
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+
+  if (target === 'logged') {
+    await commitStockDeductionForMeal(date, mealType);
+    await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'planned'); // plan realised
+    showToast('Repas ajouté au journal ✓', 'success');
+  } else {
+    await refundMealStock(date, mealType);
+    await db.from('meals').delete().eq('date', date).eq('meal_type', mealType).eq('status', 'logged'); // back to plan
+    showToast('Repas enregistré (prévu)', 'success');
+  }
+  return finishMealSave(date);
 }
 
 // ── Pantry ─────────────────────────────────────────────────

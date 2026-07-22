@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=2" />
+  <link rel="stylesheet" href="assets/css/main.css?v=3" />
 </head>
 <body>
 
@@ -252,6 +252,12 @@
       <div class="modal-title"><span id="mm-title">Repas</span><span class="mm-dirty-dot" id="mm-dirty-indicator">●&nbsp;non enregistré</span></div>
       <div class="modal-sub" id="mm-date-label"></div>
 
+      <div class="meal-state-seg" id="meal-state-seg">
+        <button type="button" data-state="planned" onclick="setMealState('planned')">◷ Prévu</button>
+        <button type="button" data-state="logged" onclick="setMealState('logged')">✓ Mangé</button>
+      </div>
+      <div class="meal-state-hint" id="meal-state-hint"></div>
+
       <div class="food-picker" id="fp-modal">
         <input type="text" class="np-input food-search" id="fp-search-modal" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('modal')" />
         <div class="food-picker-list" id="fp-list-modal"></div>
@@ -279,9 +285,8 @@
         <input type="number" id="fib-modal"  placeholder="—" min="0" step="0.1" oninput="updateModalDirtyIndicator()" />
       </div>
 
-      <div class="form-actions" style="margin-top:20px;display:flex;gap:10px;">
-        <button class="btn btn--ghost" onclick="modalPlanMeal()">Enregistrer</button>
-        <button class="btn btn--primary" onclick="modalSaveMeal()">Ajouter au journal</button>
+      <div class="form-actions" style="margin-top:20px;">
+        <button class="btn btn--primary" id="meal-save-btn" style="width:100%;" onclick="saveMealFromModal()">✓ Ajouter au journal</button>
       </div>
     </div>
   </div>
@@ -325,7 +330,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=34"></script>
+  <script defer src="assets/js/nutrition.js?v=35"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
