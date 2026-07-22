@@ -211,15 +211,24 @@ function renderDayView() {
   list.innerHTML = MEAL_TYPES.map(({ key, label }) => dayMealRowHTML(journalDate, key, label)).join('');
 }
 
+// Explicit state chip so the meal's status reads without decoding the border colour.
+function mealStatePill(state) {
+  switch (state) {
+    case 'saved':   return { txt: '✓ Mangé',       cls: 'eaten' };
+    case 'planned': return { txt: '◷ Prévu',       cls: 'planned' };
+    case 'dirty':   return { txt: '● Brouillon',   cls: 'dirty' };
+    default:        return { txt: '+ À renseigner', cls: 'empty' };
+  }
+}
+
 function dayMealRowHTML(dateStr, mealType, label) {
   const disp = mealDisplayData(dateStr, mealType);
   const foodsPreview = disp.description || '—';
   const macroPreview = disp.calories != null ? `${disp.calories} kcal` : '';
+  const pill = mealStatePill(disp.state);
   let btn = '';
-  if (disp.state === 'empty') {
-    btn = `<button class="meal-cell__quick-btn" onclick="event.stopPropagation();openMealModal('${dateStr}','${mealType}')">+ Renseigner</button>`;
-  } else if (disp.state === 'dirty' || disp.state === 'planned') {
-    btn = `<button class="meal-cell__quick-btn meal-cell__quick-btn--primary" onclick="quickAddMeal('${dateStr}','${mealType}',event)">Ajouter</button>`;
+  if (disp.state === 'dirty' || disp.state === 'planned') {
+    btn = `<button class="meal-cell__quick-btn meal-cell__quick-btn--primary" onclick="quickAddMeal('${dateStr}','${mealType}',event)">Marquer mangé ✓</button>`;
   }
   return `<div class="day-meal-row day-meal-row--${disp.state}" onclick="openMealModal('${dateStr}','${mealType}')">
     <div class="day-meal-row__header">
@@ -227,7 +236,10 @@ function dayMealRowHTML(dateStr, mealType, label) {
       ${macroPreview ? `<span class="day-meal-row__macro">${macroPreview}</span>` : ''}
     </div>
     <div class="day-meal-row__foods">${foodsPreview}</div>
-    ${btn}
+    <div class="day-meal-row__foot">
+      <span class="state-pill state-pill--${pill.cls}">${pill.txt}</span>
+      ${btn}
+    </div>
   </div>`;
 }
 
