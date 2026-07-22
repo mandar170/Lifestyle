@@ -240,7 +240,13 @@ function countSubstitutesForDay(dateStr) {
   const dayItems = weekFoodItems[dateStr] || {};
   let count = 0;
   Object.values(dayItems).forEach(items => {
-    items.forEach(item => { if (substituteFoodIds.has(item.food_id)) count++; });
+    items.forEach(item => {
+      if (!substituteFoodIds.has(item.food_id)) return;
+      // Unit foods count per unit eaten (2 barres = 2 substituts); gram-based
+      // substitutes count as a single serving.
+      const food = foods.find(f => f.id === item.food_id);
+      count += (food && food.unit === 'unité') ? (Number(item.grams) || 0) : 1;
+    });
   });
   return count;
 }
@@ -619,6 +625,20 @@ async function commitStockDeductionForMeal(date, mealType) {
   }
 }
 
+// While filling a meal, show what's left of each food in the pantry (coloured:
+// green = comfortable, orange = just enough, red = not enough), instead of the
+// per-item protein. Returns '' when the food isn't tracked in the pantry.
+function stockLabelForItem(foodId, grams, unit) {
+  if (!foodId) return '';
+  const p = pantryItems.find(x => x.food_id === foodId);
+  if (!p) return '';
+  const stock = Number(p.quantity) || 0;
+  const need  = Number(grams) || 0;
+  const color = stock < need ? '#f87171' : (stock < need * 2 ? '#f59e0b' : '#22c55e');
+  const u = unit === 'unité' ? ' u' : unit;
+  return ` · <span style="color:${color};font-weight:600;">reste ${stock}${u}</span>`;
+}
+
 function renderMealFoodItemsModal() {
   if (!modalCtx) return;
   const { date, mealType } = modalCtx;
@@ -638,7 +658,7 @@ function renderMealFoodItemsModal() {
     const qtyLabel = unit === 'unité' ? `${item.grams} unité` : `${item.grams}${unit}`;
     return `<div class="meal-food-item" id="mfi-item-${item.id}">
       <div class="meal-food-item__label">${item.food_name}</div>
-      <div class="meal-food-item__meta">${qtyLabel} · ${item.calories ?? '—'} kcal${item.protein_g != null ? ` · ${item.protein_g}g P` : ''}</div>
+      <div class="meal-food-item__meta">${qtyLabel}${stockLabelForItem(item.food_id, item.grams, unit)} · ${item.calories ?? '—'} kcal</div>
       <div class="meal-food-item__edit-input" id="mfi-edit-${item.id}" style="display:none;">
         <input type="number" id="mfi-qty-${item.id}" class="np-input" placeholder="${unit}" min="1" style="width:70px;padding:4px 6px;" value="${item.grams}" onkeydown="if(event.key==='Enter')confirmFoodQtyEdit('${item.id}')" />
         <button class="btn btn--primary btn--sm" onclick="confirmFoodQtyEdit('${item.id}')">OK</button>
