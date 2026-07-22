@@ -240,7 +240,13 @@ function countSubstitutesForDay(dateStr) {
   const dayItems = weekFoodItems[dateStr] || {};
   let count = 0;
   Object.values(dayItems).forEach(items => {
-    items.forEach(item => { if (substituteFoodIds.has(item.food_id)) count++; });
+    items.forEach(item => {
+      if (!substituteFoodIds.has(item.food_id)) return;
+      // Unit foods count per unit eaten (2 barres = 2 substituts); gram-based
+      // substitutes count as a single serving.
+      const food = foods.find(f => f.id === item.food_id);
+      count += (food && food.unit === 'unité') ? (Number(item.grams) || 0) : 1;
+    });
   });
   return count;
 }
