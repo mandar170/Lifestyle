@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=5" />
+  <link rel="stylesheet" href="assets/css/main.css?v=6" />
 </head>
 <body>
 
@@ -32,10 +32,10 @@
   <main class="container" style="padding-top:12px;padding-bottom:60px;">
 
     <div class="tabs" role="tablist">
-      <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-journal"  data-tab="journal">📝 Journal</button>
-      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-pantry"   data-tab="pantry">🥫 Pantry</button>
+      <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="panel-journal"  data-tab="journal">📝 Jour</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-pantry"   data-tab="pantry">🥫 Stock</button>
       <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-courses"  data-tab="courses">🛒 Courses</button>
-      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-gestion"  data-tab="gestion">⚙️ Gestion</button>
+      <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="panel-gestion"  data-tab="gestion">⚙️ Réglages</button>
     </div>
 
     <!-- ===== JOURNAL ===== -->
@@ -155,8 +155,15 @@
     <!-- ===== GESTION ===== -->
     <div class="tab-panel" id="panel-gestion">
 
+      <div class="sub-nav" id="gestion-subnav">
+        <button class="sub-nav__btn active" data-sub="objectifs" onclick="switchGestionSub('objectifs')">🎯 Objectifs</button>
+        <button class="sub-nav__btn" data-sub="aliments" onclick="switchGestionSub('aliments')">🥗 Aliments</button>
+        <button class="sub-nav__btn" data-sub="tags" onclick="switchGestionSub('tags')">🏷️ Tags & équiv.</button>
+      </div>
+
       <!-- Objectifs journaliers -->
-      <div class="section-card" style="margin-bottom:24px;">
+      <div class="gestion-sub active" id="gsub-objectifs">
+      <div class="section-card">
         <div class="section-card__header">
           <span class="section-card__title">Objectifs journaliers</span>
           <button class="btn btn--primary btn--sm" onclick="saveGoals()">Sauvegarder</button>
@@ -175,8 +182,11 @@
         </div>
       </div>
 
+      </div><!-- /gsub-objectifs -->
+
       <!-- Aliments -->
-      <div class="section-card" style="margin-bottom:24px;">
+      <div class="gestion-sub" id="gsub-aliments">
+      <div class="section-card">
         <div class="section-card__header"><span class="section-card__title">🥗 Mes aliments</span></div>
         <div style="display:grid;gap:8px;margin-bottom:16px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -205,7 +215,10 @@
         <div id="food-list"><p class="preset-list-empty">Chargement…</p></div>
       </div>
 
-      <!-- Tags -->
+      </div><!-- /gsub-aliments -->
+
+      <!-- Tags & équivalences -->
+      <div class="gestion-sub" id="gsub-tags">
       <div class="section-card" style="margin-bottom:24px;">
         <div class="section-card__header">
           <span class="section-card__title">Tags aliments</span>
@@ -249,6 +262,7 @@
         </div>
         <div id="equivalence-list"></div>
       </div>
+      </div><!-- /gsub-tags -->
 
     </div>
 
@@ -339,7 +353,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=37"></script>
+  <script defer src="assets/js/nutrition.js?v=38"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
