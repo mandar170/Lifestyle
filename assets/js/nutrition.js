@@ -87,6 +87,12 @@ function initTabs() {
   });
 }
 
+// Réglages sub-navigation: show one section at a time instead of one long scroll.
+function switchGestionSub(name) {
+  document.querySelectorAll('#gestion-subnav .sub-nav__btn').forEach(b => b.classList.toggle('active', b.dataset.sub === name));
+  document.querySelectorAll('.gestion-sub').forEach(p => p.classList.toggle('active', p.id === `gsub-${name}`));
+}
+
 function switchNutritionTab(tabName) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
