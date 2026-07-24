@@ -1421,13 +1421,14 @@ body.dock-shell-body { overflow: hidden; }
 .day-meal-list { display:flex; flex-direction:column; gap:10px; }
 .day-meal-row {
   padding:12px 14px; border-radius:12px; background:rgba(255,255,255,0.02);
-  border:1px solid rgba(255,255,255,0.07); cursor:pointer;
-  transition:background .15s, box-shadow .15s, border-color .15s;
+  border:1px solid rgba(255,255,255,0.07); border-left:3px solid rgba(255,255,255,0.12);
+  cursor:pointer; transition:background .15s, border-color .15s;
 }
-.day-meal-row:hover { background:rgba(255,255,255,0.045); border-color:rgba(255,255,255,0.16); }
-.day-meal-row--dirty   { border-color:#f97316; box-shadow:inset 0 0 0 1px #f97316; }
-.day-meal-row--planned { border-color:#64dcff; box-shadow:inset 0 0 0 1px #64dcff; }
-.day-meal-row--saved   { border-color:#22c55e; box-shadow:inset 0 0 0 1px #22c55e; }
+.day-meal-row:hover { background:rgba(255,255,255,0.045); }
+/* Grey border all around; only the left edge takes the state colour. */
+.day-meal-row--dirty   { border-left-color:#f97316; }
+.day-meal-row--planned { border-left-color:#64dcff; }
+.day-meal-row--saved   { border-left-color:#22c55e; }
 .day-meal-row__header { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; gap:8px; }
 .day-meal-row__label { font-family:'Orbitron',sans-serif; font-size:11px; letter-spacing:.05em; text-transform:uppercase; }
 .day-meal-row__macro { font-size:12px; color:var(--text-dim); white-space:nowrap; }
@@ -1743,3 +1744,17 @@ body.dock-shell-body { overflow: hidden; }
 .gestion-sub.active{display:block}
 /* Tabs: scroll horizontally on very small screens instead of wrapping to 2 rows */
 @media(max-width:480px){ .tabs{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch} .tabs .tab-btn{white-space:nowrap;flex:0 0 auto} }
+
+/* ── App module navigation (fixed bottom bar, replaces the dock) ── */
+.module-nav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;
+  background:rgba(8,9,15,.94);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-top:1px solid rgba(255,255,255,.08);padding-bottom:env(safe-area-inset-bottom)}
+.module-nav__item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  min-height:58px;color:var(--text-dim);font-size:10px;letter-spacing:.03em;text-decoration:none;
+  border-top:2px solid transparent;transition:color .12s}
+.module-nav__ic{font-size:19px;line-height:1}
+.module-nav__item:hover{color:var(--text-muted,#c8ccd8)}
+.module-nav__item--lifestyle.active{color:#64dcff;border-top-color:#64dcff}
+.module-nav__item--nutrition.active{color:#f97316;border-top-color:#f97316}
+.module-nav__item--budget.active{color:#22c55e;border-top-color:#22c55e}
+body.has-module-nav{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
