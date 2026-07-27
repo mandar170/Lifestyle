@@ -313,10 +313,12 @@ const CAL = (() => {
   }
 
   function showToast(msg, type = 'success') {
+    let cont = document.getElementById('toast-container');
+    if (!cont) { cont = document.createElement('div'); cont.id = 'toast-container'; cont.className = 'toast-container'; document.body.appendChild(cont); }
     const t = document.createElement('div');
     t.className = `toast toast--${type}`;
     t.textContent = msg;
-    document.body.appendChild(t);
+    cont.appendChild(t);
     requestAnimationFrame(() => t.classList.add('show'));
     setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 400); }, 3200);
   }
