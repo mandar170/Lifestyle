@@ -1342,7 +1342,9 @@ function formatDateShort(str) { return new Date(str+'T12:00:00').toLocaleDateStr
 function hexA(hex, a) { const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
 function setEl(id, val) { const el=document.getElementById(id); if(el) el.textContent=val; }
 function showToast(msg, type='success') {
+  let cont=document.getElementById('toast-container');
+  if(!cont){ cont=document.createElement('div'); cont.id='toast-container'; cont.className='toast-container'; document.body.appendChild(cont); }
   const t=document.createElement('div'); t.className=`toast toast--${type}`; t.textContent=msg;
-  document.body.appendChild(t); requestAnimationFrame(()=>t.classList.add('show'));
+  cont.appendChild(t); requestAnimationFrame(()=>t.classList.add('show'));
   setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),400); },3800);
 }
