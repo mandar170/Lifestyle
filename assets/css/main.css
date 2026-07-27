@@ -1767,3 +1767,6 @@ body.dock-shell-body { overflow: hidden; }
 .module-nav__item--nutrition.active{color:#f97316;border-top-color:#f97316}
 .module-nav__item--budget.active{color:#22c55e;border-top-color:#22c55e}
 body.has-module-nav{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+
+/* ── Meal copy/paste toolbar ── */
+.meal-copy-tools{display:flex;gap:8px;margin:2px 0 8px}

@@ -145,6 +145,11 @@
       </div>
       <div class="meal-state-hint" id="meal-state-hint"></div>
 
+      <div class="meal-copy-tools">
+        <button type="button" class="btn btn--ghost btn--sm" onclick="copyMeal()">📋 Copier</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="meal-paste-btn" onclick="pasteMeal()" style="display:none;">📋 Coller</button>
+      </div>
+
       <div class="food-picker" id="fp-modal">
         <input type="text" class="np-input food-search" id="fp-search-modal" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('modal')" />
         <div class="food-picker-list" id="fp-list-modal"></div>
