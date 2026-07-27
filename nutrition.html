@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=8" />
+  <link rel="stylesheet" href="assets/css/main.css?v=9" />
   <script>try{localStorage.setItem('mandar170_last_module','nutrition.html')}catch(e){}</script>
 </head>
 <body class="has-module-nav">
@@ -282,6 +282,11 @@
       </div>
       <div class="meal-state-hint" id="meal-state-hint"></div>
 
+      <div class="meal-copy-tools">
+        <button type="button" class="btn btn--ghost btn--sm" onclick="copyMeal()">📋 Copier</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="meal-paste-btn" onclick="pasteMeal()" style="display:none;">📋 Coller</button>
+      </div>
+
       <div class="food-picker" id="fp-modal">
         <input type="text" class="np-input food-search" id="fp-search-modal" placeholder="Rechercher un aliment…" oninput="renderFoodPickerContent('modal')" />
         <div class="food-picker-list" id="fp-list-modal"></div>
@@ -360,7 +365,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=39"></script>
+  <script defer src="assets/js/nutrition.js?v=40"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>

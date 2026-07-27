@@ -47,6 +47,8 @@ let weekFoodItems  = {}; // weekFoodItems[date][mealType]   = row[]
 let modalCtx      = null; // { date, mealType } — meal currently open in the modal
 let modalSnapshot = null; // last-committed field values, for dirty-check on close
 let modalMealState = 'logged'; // 'logged' (mangé) | 'planned' (prévu) — the editor's state toggle
+let mealClipboard  = null;     // copied meal ({label, description, macros, items}) for copy/paste
+try { mealClipboard = JSON.parse(localStorage.getItem('mandar170_meal_clipboard')) || null; } catch (e) { mealClipboard = null; }
 const foodPickerState = {};
 let editingPresetId = null;
 let editingFoodId   = null;
@@ -827,6 +829,7 @@ function openMealModal(dateStr, mealType) {
   // Prévu, otherwise Mangé for today/past and Prévu for a future day.
   const initState = m ? 'logged' : (p ? 'planned' : (dateStr > today() ? 'planned' : 'logged'));
   setMealState(initState);
+  updatePasteButton();
 
   renderFoodPickerContent('modal');
   renderMealFoodItemsModal();
@@ -881,6 +884,71 @@ function setMealState(state) {
 
 async function saveAndCloseMealModal() {
   return saveMealFromModal();
+}
+
+// ── Copy / paste a meal ─────────────────────────────────────
+function copyMeal() {
+  if (!modalCtx) return;
+  const { date, mealType } = modalCtx;
+  const items  = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
+  const fields = readModalFields();
+  mealClipboard = {
+    label: MEAL_TYPES.find(x => x.key === mealType)?.label || mealType,
+    description: fields.description,
+    calories: fields.calories, protein_g: fields.protein_g, carbs_g: fields.carbs_g, fat_g: fields.fat_g, fiber_g: fields.fiber_g,
+    items: items.map(i => ({
+      food_id: i.food_id, food_name: i.food_name, grams: i.grams,
+      calories: i.calories, protein_g: i.protein_g, carbs_g: i.carbs_g, fat_g: i.fat_g, fiber_g: i.fiber_g,
+      deduct_from_stock: i.deduct_from_stock,
+    })),
+  };
+  if (!mealClipboard.items.length && isMealFieldsEmpty(fields)) {
+    mealClipboard = null;
+    showToast('Rien à copier dans ce repas', 'error');
+    return;
+  }
+  try { localStorage.setItem('mandar170_meal_clipboard', JSON.stringify(mealClipboard)); } catch (e) {}
+  updatePasteButton();
+  showToast('Repas copié 📋', 'success');
+}
+
+function updatePasteButton() {
+  const btn = document.getElementById('meal-paste-btn');
+  if (!btn) return;
+  const has = mealClipboard && (mealClipboard.items.length || !isMealFieldsEmpty(mealClipboard));
+  btn.style.display = has ? '' : 'none';
+  if (has) btn.textContent = `📋 Coller (${mealClipboard.label || 'repas'})`;
+}
+
+// Recreate the copied meal's food items in the current slot and fill the fields.
+// The user then picks Prévu/Mangé and saves.
+async function pasteMeal() {
+  if (!modalCtx || !mealClipboard) return;
+  const { date, mealType } = modalCtx;
+  for (const it of mealClipboard.items) {
+    const item = {
+      date, meal_type: mealType, food_id: it.food_id || null, food_name: it.food_name, grams: it.grams,
+      calories: it.calories, protein_g: it.protein_g, carbs_g: it.carbs_g, fat_g: it.fat_g, fiber_g: it.fiber_g,
+      deduct_from_stock: it.deduct_from_stock != null ? it.deduct_from_stock : true, stock_deducted: false,
+    };
+    const { data, error } = await db.from('meal_food_items').insert(item).select().single();
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    if (!weekFoodItems[date]) weekFoodItems[date] = {};
+    if (!weekFoodItems[date][mealType]) weekFoodItems[date][mealType] = [];
+    weekFoodItems[date][mealType].push(data);
+  }
+  renderMealFoodItemsModal();
+  const setV = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  if (!mealClipboard.items.length && mealClipboard.description) {
+    const d = document.getElementById('desc-modal'); if (d) { d.value = mealClipboard.description; d.dataset.auto = '0'; }
+  }
+  setV('kcal-modal', mealClipboard.calories);
+  setV('prot-modal', mealClipboard.protein_g);
+  setV('gluc-modal', mealClipboard.carbs_g);
+  setV('lip-modal',  mealClipboard.fat_g);
+  setV('fib-modal',  mealClipboard.fiber_g);
+  updateModalDirtyIndicator();
+  showToast('Repas collé — choisis Prévu/Mangé puis enregistre', 'success');
 }
 
 // A meal with no description and no macros has nothing left to show — leaving a
