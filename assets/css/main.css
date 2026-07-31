@@ -1770,3 +1770,7 @@ body.has-module-nav{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 
 /* ── Meal copy/paste toolbar ── */
 .meal-copy-tools{display:flex;gap:8px;margin:2px 0 8px}
+
+/* ── Quantity −/+ steppers (unit foods) ── */
+.qty-step{width:34px;height:34px;flex:0 0 auto;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);border-radius:8px;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.qty-step:hover{background:rgba(255,255,255,.1)}

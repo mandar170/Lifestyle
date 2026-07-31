@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=9" />
+  <link rel="stylesheet" href="assets/css/main.css?v=10" />
   <script>try{localStorage.setItem('mandar170_last_module','nutrition.html')}catch(e){}</script>
 </head>
 <body class="has-module-nav">
@@ -114,13 +114,12 @@
           <span class="section-card__title">Mon stock</span>
           <div style="display:flex;gap:8px;">
             <button id="btn-scan-pantry" class="btn btn--ghost btn--sm" onclick="openBarcodeScanner()">📷 Scanner</button>
-            <button id="btn-add-pantry" class="btn btn--primary btn--sm" onclick="showPantryForm()">+ Ajouter</button>
           </div>
         </div>
-        <div id="pantry-add-form" style="display:none;margin-bottom:16px;padding:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;">
+        <div id="pantry-add-form" style="margin-bottom:16px;padding:16px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);border-radius:10px;">
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
             <div style="flex:1;min-width:200px;position:relative;">
-              <input type="text" id="pantry-search" class="np-input" placeholder="Rechercher un aliment…" oninput="renderPantrySearch()" autocomplete="off" />
+              <input type="text" id="pantry-search" class="np-input" placeholder="Rechercher un aliment à ajouter…" oninput="renderPantrySearch()" autocomplete="off" />
               <div id="pantry-search-results" class="pantry-search-results"></div>
             </div>
             <input type="number" id="pantry-qty" class="np-input" placeholder="Quantité" min="0" step="0.1" style="width:120px;" />
@@ -129,7 +128,6 @@
           <div id="pantry-selected" style="font-size:12px;color:var(--text-dim);margin-bottom:12px;min-height:16px;"></div>
           <div style="display:flex;gap:8px;">
             <button class="btn btn--primary btn--sm" onclick="addPantryItem()">Ajouter au stock</button>
-            <button class="btn btn--ghost btn--sm" onclick="hidePantryForm()">Annuler</button>
           </div>
         </div>
         <div id="pantry-list">
@@ -292,7 +290,9 @@
         <div class="food-picker-list" id="fp-list-modal"></div>
         <div class="food-weight-row" id="fp-weight-modal" style="display:none;">
           <span id="fp-fname-modal" style="font-size:12px;color:var(--primary);flex:1;min-width:80px;"></span>
+          <button type="button" class="qty-step" id="fp-minus-modal" onclick="stepFoodQty('modal',-1)" style="display:none;">−</button>
           <input type="number" id="fp-grams-modal" class="np-input" placeholder="g" min="1" style="width:80px;padding:6px 8px;" onkeydown="if(event.key==='Enter')applyFoodToJournal('modal')" />
+          <button type="button" class="qty-step" id="fp-plus-modal" onclick="stepFoodQty('modal',1)" style="display:none;">+</button>
           <button class="btn btn--primary btn--sm" onclick="applyFoodToJournal('modal')">+ Ajouter</button>
         </div>
       </div>
@@ -365,7 +365,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/nutrition.js?v=41"></script>
+  <script defer src="assets/js/nutrition.js?v=42"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>
