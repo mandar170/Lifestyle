@@ -514,7 +514,21 @@ function selectFoodForPicker(ctx, foodId) {
   if (weightRow) weightRow.style.display = 'flex';
   if (nameEl)    nameEl.textContent = `${food.name} (${food.unit || 'g'})`;
   if (gramsEl)   gramsEl.placeholder = food.unit || 'g';
+  // Unit foods get −/+ steppers (step 1) and default to a quantity of 1;
+  // gram/litre foods keep a plain number field.
+  const isUnit = (food.unit || 'g') === 'unité';
+  const minus = document.getElementById(`fp-minus-${ctx}`);
+  const plus  = document.getElementById(`fp-plus-${ctx}`);
+  if (minus) minus.style.display = isUnit ? '' : 'none';
+  if (plus)  plus.style.display  = isUnit ? '' : 'none';
+  if (isUnit && gramsEl && !gramsEl.value) gramsEl.value = 1;
   gramsEl?.focus();
+}
+
+function stepFoodQty(ctx, delta) {
+  const el = document.getElementById(`fp-grams-${ctx}`);
+  if (!el) return;
+  el.value = Math.max(1, (parseFloat(el.value) || 0) + delta);
 }
 
 async function applyFoodToJournal(ctx) {
@@ -1091,19 +1105,13 @@ function renderPantryRow(p) {
   </div>`;
 }
 
-function showPantryForm() {
-  document.getElementById('pantry-add-form').style.display = 'block';
-  document.getElementById('pantry-search').value = '';
-  document.getElementById('pantry-search-results').style.display = 'none';
-  document.getElementById('pantry-qty').value = '';
-  document.getElementById('pantry-selected').textContent = '';
-  document.getElementById('pantry-unit-label').textContent = '';
-  pantrySelectedItem = null;
-  setTimeout(() => document.getElementById('pantry-search').focus(), 50);
-}
-
-function hidePantryForm() {
-  document.getElementById('pantry-add-form').style.display = 'none';
+// The pantry add form is always visible now; this just clears it for the next item.
+function resetPantryForm() {
+  const searchEl = document.getElementById('pantry-search');   if (searchEl) searchEl.value = '';
+  const resultsEl = document.getElementById('pantry-search-results'); if (resultsEl) { resultsEl.style.display = 'none'; resultsEl.innerHTML = ''; }
+  const qtyEl = document.getElementById('pantry-qty');         if (qtyEl) qtyEl.value = '';
+  const selEl = document.getElementById('pantry-selected');    if (selEl) selEl.textContent = '';
+  const unitEl = document.getElementById('pantry-unit-label'); if (unitEl) unitEl.textContent = '';
   pantrySelectedItem = null;
 }
 
@@ -1184,7 +1192,7 @@ async function addPantryItem() {
     }
   }
 
-  hidePantryForm();
+  resetPantryForm(); // form stays open, ready for the next item
   await loadPantry();
 }
 
