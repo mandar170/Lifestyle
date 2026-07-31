@@ -820,7 +820,10 @@ function openMealModal(dateStr, mealType) {
     if (agg.fiber_g   != null) document.getElementById('fib-modal').value  = agg.fiber_g;
   }
 
-  document.getElementById('deduct-modal').checked = true;
+  // Reflect the meal's actual deduction state (checked unless its items are all
+  // flagged not-to-deduct), instead of always resetting to checked.
+  const existingItems = (weekFoodItems[dateStr] && weekFoodItems[dateStr][mealType]) || [];
+  document.getElementById('deduct-modal').checked = existingItems.length ? existingItems.some(i => i.deduct_from_stock) : true;
   document.getElementById('fp-search-modal').value = '';
   document.getElementById('fp-weight-modal').style.display = 'none';
   delete foodPickerState['modal'];
@@ -959,6 +962,18 @@ function isMealFieldsEmpty(fields) {
     && fields.carbs_g == null && fields.fat_g == null && fields.fiber_g == null;
 }
 
+// Apply the meal-level "déduire du stock" choice to this meal's items that
+// haven't been deducted yet (already-deducted items keep their state).
+async function setMealItemsDeduct(date, mealType, deduct) {
+  const items = (weekFoodItems[date] && weekFoodItems[date][mealType]) || [];
+  for (const it of items) {
+    if (!it.stock_deducted && it.deduct_from_stock !== deduct) {
+      await db.from('meal_food_items').update({ deduct_from_stock: deduct }).eq('id', it.id);
+      it.deduct_from_stock = deduct;
+    }
+  }
+}
+
 // Give back the stock already deducted for this meal's items (used when a meal
 // is un-logged back to "prévu" or emptied).
 async function refundMealStock(date, mealType) {
@@ -996,6 +1011,11 @@ async function saveMealFromModal() {
   }
 
   if (target === 'logged') {
+    // The modal's "Déduire du stock" checkbox is the meal-level decision at save
+    // time: sync it onto the (not-yet-deducted) items first, so that unchecking
+    // it means no stock check AND no deduction.
+    const deduct = document.getElementById('deduct-modal')?.checked !== false;
+    await setMealItemsDeduct(date, mealType, deduct);
     const shortages = mealStockShortages(date, mealType);
     if (shortages.length) { showToast(stockShortageMessage(shortages), 'error'); return; }
   }
