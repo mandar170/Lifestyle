@@ -1800,3 +1800,26 @@ body.has-module-nav{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 .muscle-badge--none{background:rgba(255,255,255,.05);color:var(--text-dim)}
 .ex-cardio-badge{font-size:10px;padding:2px 7px;border-radius:12px;background:rgba(56,189,248,.15);color:#7dd3fc;margin-left:6px;font-weight:400}
 .ex-edit{border-top:1px solid rgba(255,255,255,.06);margin-top:10px;padding-top:10px}
+
+/* ── Muscu: sessions & editor ── */
+.wo-session-card{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);border-left:3px solid #a855f7;margin-bottom:10px;cursor:pointer;transition:background .12s}
+.wo-session-card:hover{background:rgba(255,255,255,.045)}
+.wo-session-card__head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wo-session-card__name{font-weight:600;font-size:15px}
+.wo-session-card__date{font-size:12px;color:var(--text-dim);white-space:nowrap;text-transform:capitalize}
+.wo-session-card__meta{font-size:12px;color:var(--text-muted,#c8ccd8);margin-top:4px}
+.wo-editor-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;position:sticky;top:0;z-index:5;padding:4px 0;background:linear-gradient(180deg,var(--ground,#07070e) 70%,transparent)}
+.wo-ex-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;margin-bottom:12px}
+.wo-ex-card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.wo-ex-card__name{font-weight:600;font-size:14px}
+.wo-sets__head{display:grid;grid-template-columns:36px 1fr 1fr 28px;gap:8px;font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;padding:0 2px 4px;text-align:center}
+.wo-sets__head span:first-child{text-align:left}
+.wo-set-row{display:grid;grid-template-columns:36px 1fr 1fr 28px;gap:8px;align-items:center;margin-bottom:6px}
+.set-type-pill{width:36px;height:34px;border-radius:8px;border:1px solid;font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.wo-set-input{padding:6px 6px;text-align:center;font-variant-numeric:tabular-nums;width:100%}
+.wo-set-del{border:none;background:none;color:rgba(248,113,113,.7);cursor:pointer;font-size:13px;padding:4px}
+.wo-add-set{margin-top:4px}
+.wo-cardio-row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-muted,#c8ccd8)}
+.wo-picker{margin-top:4px}
+.wo-ex-pick{padding:9px 11px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);margin-top:6px;cursor:pointer;font-size:13px}
+.wo-ex-pick:hover{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.4)}
