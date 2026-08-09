@@ -64,7 +64,8 @@ async function main() {
     let assertions = [];
     let threw = null;
     try {
-      await page.goto(`http://localhost:${PORT}/tests/fixtures/test.html`, { waitUntil: 'networkidle', timeout: 20000 });
+      const fixture = spec.fixture || 'tests/fixtures/test.html'; // a spec may target another harness
+      await page.goto(`http://localhost:${PORT}/${fixture}`, { waitUntil: 'networkidle', timeout: 20000 });
       await page.waitForTimeout(300); // let initJournal() settle
       assertions = await spec.run(page) || [];
     } catch (e) {

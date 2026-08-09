@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Muscu — TEST HARNESS</title>
+  <link rel="stylesheet" href="/assets/css/main.css" />
+</head>
+<body>
+  <main class="container">
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="seances">Séances</button>
+      <button class="tab-btn" data-tab="exercices">Exercices</button>
+      <button class="tab-btn" data-tab="modeles">Modèles</button>
+      <button class="tab-btn" data-tab="stats">Stats</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-seances"></div>
+
+    <div class="tab-panel" id="panel-exercices">
+      <input type="text" id="ex-name" class="np-input" placeholder="Nom de l'exercice…" />
+      <label class="ex-cardio-label"><input type="checkbox" id="ex-cardio" /> Exercice cardio</label>
+      <div id="ex-muscle-chips" class="muscle-chips"></div>
+      <button class="btn btn--primary btn--sm" onclick="saveExercise()">+ Ajouter l'exercice</button>
+      <div id="exercise-list"></div>
+      <input type="text" id="mg-name" class="np-input" placeholder="Nouveau groupe…" />
+      <button class="btn btn--ghost btn--sm" onclick="addMuscleGroup()">+ Ajouter</button>
+      <div id="muscle-group-list" class="muscle-chips"></div>
+    </div>
+
+    <div class="tab-panel" id="panel-modeles"></div>
+    <div class="tab-panel" id="panel-stats"></div>
+  </main>
+
+  <script src="/tests/fixtures/stub-db.js"></script>
+  <script src="/assets/js/muscu.js"></script>
+</body>
+</html>

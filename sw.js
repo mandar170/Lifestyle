@@ -1,11 +1,12 @@
 // Minimal app-shell service worker — caches static pages/assets for offline
 // resilience, never touches cross-origin requests (Supabase, CDN, Open Food
 // Facts) so live data is always fetched fresh.
-const CACHE_NAME = 'mandar170-shell-v3';
+const CACHE_NAME = 'mandar170-shell-v4';
 const APP_SHELL = [
   '/personal.html',
   '/nutrition.html',
   '/lifestyle.html',
+  '/muscu.html',
   '/budget.html',
   '/assets/icons/icon-192.png',
   '/assets/icons/icon-512.png',

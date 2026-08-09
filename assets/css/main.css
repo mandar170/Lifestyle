@@ -1779,3 +1779,24 @@ body.has-module-nav{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 .pantry-stock-row__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pantry-stock-row__qty{display:flex;align-items:center;gap:6px;flex-shrink:0}
 .pantry-qty-input{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 4px;color:var(--text);font-size:13px;text-align:center;width:52px;font-variant-numeric:tabular-nums}
+
+/* ── Muscu module ── */
+.module-nav__item--muscu.active{color:#a855f7;border-top-color:#a855f7}
+.muscle-chips{display:flex;flex-wrap:wrap;gap:6px}
+.muscle-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 10px;border-radius:20px;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text-dim);transition:background .12s,color .12s,border-color .12s}
+.muscle-chip--on{background:rgba(168,85,247,.18);border-color:#a855f7;color:#d8b4fe}
+.muscle-chip--static{cursor:default}
+.muscle-chip__del{border:none;background:rgba(248,113,113,.15);color:#f87171;cursor:pointer;width:16px;height:16px;border-radius:50%;line-height:1;font-size:10px;padding:0}
+.ex-cardio-label{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);cursor:pointer}
+.ex-cardio-label input{accent-color:#a855f7}
+.ex-card{padding:12px 13px;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);margin-bottom:10px}
+.ex-card--editing{border-color:rgba(168,85,247,.5)}
+.ex-card__head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ex-card__name{font-weight:600;font-size:14px}
+.ex-card__actions{display:flex;gap:4px;flex-shrink:0}
+.ex-card__muscles{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.muscle-badge{font-size:11px;padding:2px 8px;border-radius:14px;background:rgba(168,85,247,.14);color:#c4a5f0}
+.muscle-badge--none{background:rgba(255,255,255,.05);color:var(--text-dim)}
+.ex-cardio-badge{font-size:10px;padding:2px 7px;border-radius:12px;background:rgba(56,189,248,.15);color:#7dd3fc;margin-left:6px;font-weight:400}
+.ex-edit{border-top:1px solid rgba(255,255,255,.06);margin-top:10px;padding-top:10px}

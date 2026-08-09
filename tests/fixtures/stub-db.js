@@ -30,6 +30,12 @@ const STORE = {
   nutrition: [],
   daily_water: [],
   meal_substitutes: [],
+  muscle_groups: [],
+  exercises: [],
+  exercise_muscles: [],
+  workout_sessions: [],
+  session_exercises: [],
+  exercise_sets: [],
 };
 let idCounter = 1;
 function genId() { return 'id' + (idCounter++); }
