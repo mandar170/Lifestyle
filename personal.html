@@ -18,7 +18,7 @@
        last-visited module (default: nutrition). -->
   <script>
     (function () {
-      var valid = ['lifestyle.html', 'nutrition.html', 'budget.html'];
+      var valid = ['lifestyle.html', 'nutrition.html', 'muscu.html', 'budget.html'];
       var last = null;
       try { last = localStorage.getItem('mandar170_last_module'); } catch (e) {}
       location.replace(valid.indexOf(last) >= 0 ? last : 'nutrition.html');

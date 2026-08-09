@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Muscu — mandar170</title>
+  <meta name="description" content="Suivi musculation : séances, exercices, séries et progression." />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/icon-32.png" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-180.png" />
+  <meta name="theme-color" content="#07070e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Mandar170" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/main.css?v=12" />
+  <script>try{localStorage.setItem('mandar170_last_module','muscu.html')}catch(e){}</script>
+</head>
+<body class="has-module-nav">
+
+  <header class="fit-header">
+    <div class="container fit-header__inner">
+      <div class="fit-header__brand">
+        <span class="fit-header__logo" style="color:#a855f7;text-shadow:0 0 10px rgba(168,85,247,0.3);">MUSCU</span>
+      </div>
+      <a href="index.html" class="fit-header__back" target="_top">← Accueil</a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:12px;padding-bottom:60px;">
+
+    <div class="tabs" role="tablist">
+      <button class="tab-btn active" role="tab" data-tab="seances">📋 Séances</button>
+      <button class="tab-btn"        role="tab" data-tab="exercices">🏋️ Exercices</button>
+      <button class="tab-btn"        role="tab" data-tab="modeles">📑 Modèles</button>
+      <button class="tab-btn"        role="tab" data-tab="stats">📊 Stats</button>
+    </div>
+
+    <!-- ===== SÉANCES ===== -->
+    <div class="tab-panel active" id="panel-seances">
+      <div class="section-card">
+        <p class="preset-list-empty">La saisie des séances arrive à la prochaine étape. Commence par créer tes exercices dans l'onglet 🏋️ Exercices.</p>
+      </div>
+    </div>
+
+    <!-- ===== EXERCICES ===== -->
+    <div class="tab-panel" id="panel-exercices">
+      <div class="section-card" style="margin-bottom:16px;">
+        <div class="section-card__header"><span class="section-card__title">🏋️ Nouvel exercice</span></div>
+        <input type="text" id="ex-name" class="np-input" placeholder="Nom de l'exercice…" maxlength="80" style="width:100%;margin-bottom:8px;" />
+        <label class="ex-cardio-label"><input type="checkbox" id="ex-cardio" /> Exercice cardio (durée seulement)</label>
+        <p style="font-size:12px;color:var(--text-dim);margin:10px 0 6px;">Muscles ciblés :</p>
+        <div id="ex-muscle-chips" class="muscle-chips"></div>
+        <button class="btn btn--primary btn--sm" style="margin-top:12px;" onclick="saveExercise()">+ Ajouter l'exercice</button>
+      </div>
+
+      <div class="section-card" style="margin-bottom:16px;">
+        <div class="section-card__header"><span class="section-card__title">Mes exercices</span></div>
+        <div id="exercise-list"><p class="preset-list-empty">Chargement…</p></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card__header"><span class="section-card__title">Groupes musculaires</span></div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input type="text" id="mg-name" class="np-input" placeholder="Nouveau groupe…" maxlength="40" style="flex:1;" onkeydown="if(event.key==='Enter')addMuscleGroup()" />
+          <button class="btn btn--ghost btn--sm" onclick="addMuscleGroup()">+ Ajouter</button>
+        </div>
+        <div id="muscle-group-list" class="muscle-chips"></div>
+      </div>
+    </div>
+
+    <!-- ===== MODÈLES ===== -->
+    <div class="tab-panel" id="panel-modeles">
+      <div class="section-card"><p class="preset-list-empty">Les modèles de séance (Upper/Lower, PPL) arrivent bientôt.</p></div>
+    </div>
+
+    <!-- ===== STATS ===== -->
+    <div class="tab-panel" id="panel-stats">
+      <div class="section-card"><p class="preset-list-empty">Le tableau de bord (récap par muscle + progression) arrive bientôt.</p></div>
+    </div>
+
+  </main>
+
+  <nav class="module-nav" aria-label="Modules">
+    <a href="lifestyle.html" class="module-nav__item module-nav__item--lifestyle" target="_top"><span class="module-nav__ic">🏃</span>Lifestyle</a>
+    <a href="nutrition.html" class="module-nav__item module-nav__item--nutrition" target="_top"><span class="module-nav__ic">🍽️</span>Nutrition</a>
+    <a href="muscu.html" class="module-nav__item module-nav__item--muscu active" target="_top"><span class="module-nav__ic">🏋️</span>Muscu</a>
+    <a href="budget.html" class="module-nav__item module-nav__item--budget" target="_top"><span class="module-nav__ic">💶</span>Budget</a>
+  </nav>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script defer src="assets/js/config.js?v=11"></script>
+  <script defer src="assets/js/muscu.js?v=1"></script>
+  <script defer src="assets/js/pwa.js?v=1"></script>
+</body>
+</html>
