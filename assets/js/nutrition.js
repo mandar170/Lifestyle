@@ -1092,17 +1092,34 @@ function renderPantryList() {
   container.innerHTML = `<div class="tag-col-layout">${html}</div>`;
 }
 
+// Step by unit: 1 for "unité", 0.5 for litres, 25 for grams (and anything else).
+function pantryStep(unit) {
+  return unit === 'unité' ? 1 : (unit === 'L' ? 0.5 : 25);
+}
+
 function renderPantryRow(p) {
+  const step = pantryStep(p.unit);
   return `<div class="pantry-stock-row" id="pantry-row-${p.id}">
     <div class="pantry-stock-row__name">${p.name}</div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <input type="number" class="pantry-qty-input" value="${p.quantity}" min="0" step="0.1"
-        onchange="updatePantryQty('${p.id}',this.value)"
-        style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;text-align:center;width:80px;" />
+    <div class="pantry-stock-row__qty">
+      <button type="button" class="qty-step" onclick="stepPantryQty('${p.id}',-${step})">−</button>
+      <input type="number" class="pantry-qty-input" value="${p.quantity}" min="0" step="${step}"
+        onchange="updatePantryQty('${p.id}',this.value)" />
+      <button type="button" class="qty-step" onclick="stepPantryQty('${p.id}',${step})">+</button>
       <span class="pantry-stock-row__unit">${p.unit}</span>
-      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.7);flex-shrink:0;" onclick="removePantryItem('${p.id}')">✕</button>
+      <button class="btn btn--ghost btn--sm" style="color:rgba(248,113,113,0.7);flex-shrink:0;padding:6px 8px;" onclick="removePantryItem('${p.id}')">✕</button>
     </div>
   </div>`;
+}
+
+// −/+ on a stock row: adjust the quantity by the unit's step (floor at 0).
+function stepPantryQty(id, delta) {
+  const input = document.querySelector(`#pantry-row-${id} .pantry-qty-input`);
+  const p = pantryItems.find(x => x.id === id);
+  const cur = input ? (parseFloat(input.value) || 0) : (p ? Number(p.quantity) || 0 : 0);
+  const next = Math.max(0, +(cur + delta).toFixed(2));
+  if (input) input.value = next;
+  return updatePantryQty(id, next);
 }
 
 // The pantry add form is always visible now; this just clears it for the next item.
