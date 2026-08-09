@@ -1,3 +1,6 @@
 _audit_nutrition.html
 _mock_wrapped.html
 _audit_*.html
+/node_modules/
+/package.json
+/package-lock.json

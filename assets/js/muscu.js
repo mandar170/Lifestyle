@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadMuscleGroups();
   await loadExercises();
   await loadSessions();
+  await loadTemplates();
 });
 
 function initMuscuTabs() {
@@ -200,9 +201,11 @@ async function deleteMuscleGroup(id) {
 }
 
 // ══ Sessions (saisie de séance) ════════════════════════════
-let sessions     = [];
-let sessionDraft = null;   // in-memory draft while editing
-let seExSearch   = '';     // exercise-picker search term in the editor
+let sessions        = [];
+let templates       = [];
+let sessionDraft    = null;   // in-memory draft while editing (session OR template)
+let seExSearch      = '';     // exercise-picker search term in the editor
+let importPickerOpen = false; // template-import picker toggle
 
 const SET_TYPES = [
   { key: 'echauffement', label: 'É', color: '#f59e0b', title: 'Échauffement' },
@@ -247,22 +250,31 @@ async function renderSessionList() {
     </div>`).join('');
 }
 
-function showSessionList() {
+function activateTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+
+// Leave the editor and go back to the right list (séances or modèles).
+function closeEditor() {
+  const wasTemplate = !!(sessionDraft && sessionDraft.isTemplate);
   document.getElementById('session-editor-view').style.display = 'none';
   document.getElementById('session-list-view').style.display = '';
-  sessionDraft = null;
-  loadSessions();
+  sessionDraft = null; importPickerOpen = false;
+  if (wasTemplate) { activateTab('modeles'); loadTemplates(); }
+  else { activateTab('seances'); loadSessions(); }
 }
 
 function newSession() {
-  sessionDraft = { id: null, name: '', session_date: muscuToday(), duration_min: null, exercises: [] };
-  seExSearch = '';
+  sessionDraft = { id: null, isTemplate: false, name: '', session_date: muscuToday(), duration_min: null, exercises: [] };
+  seExSearch = ''; importPickerOpen = false;
   openEditor();
 }
 
-async function editSession(id) {
-  const s = sessions.find(x => x.id === id);
-  if (!s) return;
+// Load a session or a template into the draft and open the editor.
+async function editSessionRow(id, isTemplate) {
+  const src = (isTemplate ? templates : sessions).find(x => x.id === id);
+  if (!src) return;
   const { data: sx } = await db.from('session_exercises').select('*').eq('session_id', id).order('order_index');
   const sxIds = (sx || []).map(e => e.id);
   const { data: sets } = sxIds.length
@@ -271,7 +283,7 @@ async function editSession(id) {
   const setsByEx = {};
   (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
   sessionDraft = {
-    id: s.id, name: s.name, session_date: s.session_date, duration_min: s.duration_min,
+    id: src.id, isTemplate, name: src.name, session_date: src.session_date, duration_min: src.duration_min,
     exercises: (sx || []).map(e => ({
       exercise_id: e.exercise_id, exercise_name: e.exercise_name, is_cardio: e.is_cardio,
       cardio_duration_min: e.cardio_duration_min,
@@ -279,14 +291,100 @@ async function editSession(id) {
         .map(st => ({ set_type: st.set_type, reps: st.reps, weight_kg: st.weight_kg })),
     })),
   };
-  seExSearch = '';
+  seExSearch = ''; importPickerOpen = false;
   openEditor();
 }
+function editSession(id)  { return editSessionRow(id, false); }
+function editTemplate(id) { return editSessionRow(id, true); }
 
 function openEditor() {
+  activateTab('seances'); // the editor lives in the séances panel
   document.getElementById('session-list-view').style.display = 'none';
   const view = document.getElementById('session-editor-view');
   view.style.display = '';
+  renderSessionEditor();
+}
+
+// ── Templates (séances type) ───────────────────────────────
+async function loadTemplates() {
+  const { data } = await db.from('workout_sessions').select('*').eq('is_template', true).order('name');
+  templates = data || [];
+  renderTemplateList();
+}
+
+async function renderTemplateList() {
+  const el = document.getElementById('template-list');
+  if (!el) return;
+  if (!templates.length) { el.innerHTML = '<p class="preset-list-empty">Aucun modèle. Crée-en un, ou « ⭐ Modèle » depuis une séance.</p>'; return; }
+  const ids = templates.map(s => s.id);
+  const { data: sx } = await db.from('session_exercises').select('session_id').in('session_id', ids);
+  const counts = {};
+  (sx || []).forEach(r => { counts[r.session_id] = (counts[r.session_id] || 0) + 1; });
+  el.innerHTML = templates.map(tpl => `
+    <div class="wo-session-card" onclick="editTemplate('${tpl.id}')">
+      <div class="wo-session-card__head">
+        <span class="wo-session-card__name">📋 ${esc(tpl.name)}</span>
+        <button class="preset-item__del" onclick="event.stopPropagation();deleteTemplate('${tpl.id}')">✕</button>
+      </div>
+      <div class="wo-session-card__meta">${counts[tpl.id] || 0} exo${(counts[tpl.id] || 0) > 1 ? 's' : ''}</div>
+    </div>`).join('');
+}
+
+function newTemplate() {
+  sessionDraft = { id: null, isTemplate: true, name: '', session_date: null, duration_min: null, exercises: [] };
+  seExSearch = ''; importPickerOpen = false;
+  openEditor();
+}
+
+async function deleteTemplate(id) {
+  if (!confirm('Supprimer ce modèle ?')) return;
+  const { error } = await db.from('workout_sessions').delete().eq('id', id);
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  showToast('Modèle supprimé', 'success');
+  await loadTemplates();
+}
+
+// Save the current session's structure as a NEW template (types kept, reps/poids vides).
+async function saveAsTemplate() {
+  const d = sessionDraft;
+  if (!d) return;
+  const name = (d.name || '').trim() || 'Modèle';
+  const { data: tpl, error } = await db.from('workout_sessions').insert({ name, is_template: true, session_date: null }).select().single();
+  if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+  for (let i = 0; i < d.exercises.length; i++) {
+    const ex = d.exercises[i];
+    const { data: se } = await db.from('session_exercises').insert({
+      session_id: tpl.id, exercise_id: ex.exercise_id, exercise_name: ex.exercise_name,
+      order_index: i, is_cardio: ex.is_cardio, cardio_duration_min: null,
+    }).select().single();
+    if (!ex.is_cardio && ex.sets.length) {
+      await db.from('exercise_sets').insert(ex.sets.map((s, j) => ({
+        session_exercise_id: se.id, set_index: j, set_type: s.set_type || 'travail', reps: null, weight_kg: null,
+      })));
+    }
+  }
+  await loadTemplates();
+  showToast('Séance enregistrée comme modèle ⭐', 'success');
+}
+
+// Fill the current (empty) session draft from a template — user then fills reps/poids.
+function toggleImportPicker() { importPickerOpen = !importPickerOpen; renderSessionEditor(); }
+
+async function importTemplateInto(id) {
+  const { data: sx } = await db.from('session_exercises').select('*').eq('session_id', id).order('order_index');
+  const sxIds = (sx || []).map(e => e.id);
+  const { data: sets } = sxIds.length
+    ? await db.from('exercise_sets').select('*').in('session_exercise_id', sxIds)
+    : { data: [] };
+  const setsByEx = {};
+  (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
+  sessionDraft.exercises = (sx || []).map(e => ({
+    exercise_id: e.exercise_id, exercise_name: e.exercise_name, is_cardio: e.is_cardio, cardio_duration_min: null,
+    sets: (setsByEx[e.id] || []).sort((a, b) => a.set_index - b.set_index).map(st => ({ set_type: st.set_type, reps: null, weight_kg: null })),
+  }));
+  if (!sessionDraft.name.trim()) { const tpl = templates.find(t => t.id === id); if (tpl) sessionDraft.name = tpl.name; }
+  importPickerOpen = false;
+  showToast('Modèle importé — remplis reps + poids', 'success');
   renderSessionEditor();
 }
 
@@ -331,25 +429,38 @@ function renderSessionEditor() {
   const view = document.getElementById('session-editor-view');
   if (!view || !sessionDraft) return;
   const d = sessionDraft;
+  const isT = !!d.isTemplate;
+  const canImport = !isT && templates.length && !d.exercises.length;
   view.innerHTML = `
     <div class="wo-editor-top">
-      <button class="btn btn--ghost btn--sm" onclick="showSessionList()">← Retour</button>
-      <button class="btn btn--primary btn--sm" onclick="saveSession()">Enregistrer</button>
+      <button class="btn btn--ghost btn--sm" onclick="closeEditor()">← Retour</button>
+      <div style="display:flex;gap:6px;">
+        ${isT ? '' : '<button class="btn btn--ghost btn--sm" onclick="saveAsTemplate()">⭐ Modèle</button>'}
+        <button class="btn btn--primary btn--sm" onclick="saveSession()">${isT ? 'Enregistrer le modèle' : 'Enregistrer'}</button>
+      </div>
     </div>
     <div class="section-card" style="margin-bottom:14px;">
-      <input type="text" class="np-input" placeholder="Nom de la séance (ex. Push A)…" value="${esc(d.name)}"
-        oninput="draftSetField('name', this.value)" style="width:100%;margin-bottom:8px;" />
-      <div style="display:flex;gap:8px;">
+      <input type="text" class="np-input" placeholder="${isT ? 'Nom du modèle (ex. Push, Upper A)…' : 'Nom de la séance (ex. Push A)…'}" value="${esc(d.name)}"
+        oninput="draftSetField('name', this.value)" style="width:100%;${isT ? '' : 'margin-bottom:8px;'}" />
+      ${isT ? '<p style="font-size:11px;color:var(--text-dim);margin-top:8px;">Un modèle définit la structure (exercices + séries). Tu rempliras reps et poids à l\'import.</p>' : `<div style="display:flex;gap:8px;">
         <input type="date" class="np-input" value="${d.session_date || ''}" oninput="draftSetField('session_date', this.value)" style="flex:1;" />
         <input type="number" class="np-input" placeholder="Durée (min)" min="0" value="${d.duration_min ?? ''}"
           oninput="draftSetField('duration_min', this.value === '' ? null : parseInt(this.value))" style="width:120px;" />
-      </div>
+      </div>`}
     </div>
+
+    ${canImport ? `<button class="btn btn--ghost btn--sm" style="width:100%;margin-bottom:12px;" onclick="toggleImportPicker()">📥 Importer un modèle</button>${importPickerOpen ? renderImportPicker() : ''}` : ''}
 
     ${d.exercises.map((ex, i) => renderDraftExercise(ex, i)).join('')}
 
     ${renderExercisePicker()}
   `;
+}
+
+function renderImportPicker() {
+  return `<div class="section-card wo-picker" style="margin-bottom:12px;">
+    ${templates.map(t => `<div class="wo-ex-pick" onclick="importTemplateInto('${t.id}')">📋 ${esc(t.name)}</div>`).join('')}
+  </div>`;
 }
 
 function renderDraftExercise(ex, i) {
@@ -416,7 +527,12 @@ async function saveSession() {
   if (!d) return;
   if (!d.name.trim()) { showToast('Nom de séance requis', 'error'); return; }
 
-  const row = { name: d.name.trim(), session_date: d.session_date || muscuToday(), duration_min: d.duration_min, is_template: false };
+  const row = {
+    name: d.name.trim(),
+    session_date: d.isTemplate ? null : (d.session_date || muscuToday()),
+    duration_min: d.isTemplate ? null : d.duration_min,
+    is_template: !!d.isTemplate,
+  };
   let sessionId = d.id;
   if (sessionId) {
     await db.from('workout_sessions').update(row).eq('id', sessionId);
@@ -440,8 +556,8 @@ async function saveSession() {
       })));
     }
   }
-  showToast('Séance enregistrée ✓', 'success');
-  showSessionList();
+  showToast(d.isTemplate ? 'Modèle enregistré ✓' : 'Séance enregistrée ✓', 'success');
+  closeEditor();
 }
 
 // ── Toast (stacked, shared style) ──────────────────────────
