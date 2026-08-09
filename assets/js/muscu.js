@@ -28,6 +28,7 @@ function initMuscuTabs() {
       btn.classList.add('active');
       const panel = document.getElementById('panel-' + btn.dataset.tab);
       if (panel) panel.classList.add('active');
+      if (btn.dataset.tab === 'stats') renderStats();
     });
   });
 }
@@ -558,6 +559,211 @@ async function saveSession() {
   }
   showToast(d.isTemplate ? 'Modèle enregistré ✓' : 'Séance enregistrée ✓', 'success');
   closeEditor();
+}
+
+// ══ Stats (tableau de bord) ════════════════════════════════
+let statsPeriod     = 30;      // days; 0 = tout
+let statsMetric     = '1rm';   // '1rm' | 'volume'
+let statsExerciseId = null;    // selected exercise for the progression chart
+let statsData       = null;    // { sessions, byExercise } cache
+
+const PERIODS = [{ d: 7, l: '7 j' }, { d: 30, l: '30 j' }, { d: 90, l: '90 j' }, { d: 0, l: 'Tout' }];
+
+// 1RM estimé (formule d'Epley) — permet de comparer des séries de reps/poids différents.
+function epley1RM(weight, reps) {
+  const w = Number(weight), r = Number(reps);
+  if (!w || !r) return 0;
+  return w * (1 + r / 30);
+}
+
+function periodCutoff() {
+  if (!statsPeriod) return null;
+  const d = new Date();
+  d.setDate(d.getDate() - statsPeriod);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Load every non-template session in range with its exercises + sets, and index it.
+async function loadStatsData() {
+  const cutoff = periodCutoff();
+  let q = db.from('workout_sessions').select('*').eq('is_template', false);
+  if (cutoff) q = q.gte('session_date', cutoff);
+  const { data: sess } = await q.order('session_date', { ascending: true });
+  const sessions = (sess || []).filter(s => s.session_date).sort((a, b) => (a.session_date < b.session_date ? -1 : 1));
+  const sIds = sessions.map(s => s.id);
+  const { data: sx } = sIds.length
+    ? await db.from('session_exercises').select('*').in('session_id', sIds)
+    : { data: [] };
+  const sxIds = (sx || []).map(e => e.id);
+  const { data: sets } = sxIds.length
+    ? await db.from('exercise_sets').select('*').in('session_exercise_id', sxIds)
+    : { data: [] };
+  const setsByEx = {};
+  (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
+  const dateById = {};
+  sessions.forEach(s => { dateById[s.id] = s.session_date; });
+
+  // Per-exercise time series: one point per session (best 1RM + total volume).
+  const byExercise = {};
+  (sx || []).forEach(e => {
+    if (e.is_cardio) return;
+    const rows = setsByEx[e.id] || [];
+    if (!rows.length) return;
+    let best = 0, vol = 0;
+    rows.forEach(st => {
+      const orm = epley1RM(st.weight_kg, st.reps);
+      if (orm > best) best = orm;
+      vol += (Number(st.weight_kg) || 0) * (Number(st.reps) || 0);
+    });
+    const key = e.exercise_id || ('name:' + e.exercise_name);
+    const bucket = (byExercise[key] = byExercise[key] || { name: e.exercise_name, points: [] });
+    // Merge multiple entries of the same exercise within one session.
+    const date = dateById[e.session_id];
+    const existing = bucket.points.find(p => p.date === date);
+    if (existing) { existing.best = Math.max(existing.best, best); existing.vol += vol; }
+    else bucket.points.push({ date, best, vol });
+  });
+  Object.values(byExercise).forEach(b => b.points.sort((a, b2) => (a.date < b2.date ? -1 : 1)));
+
+  // Sets per muscle group: attribute each non-cardio exercise's set count to every targeted muscle.
+  const byMuscle = {};
+  muscleGroups.forEach(m => { byMuscle[m.id] = 0; });
+  (sx || []).forEach(e => {
+    if (e.is_cardio) return;
+    const nSets = (setsByEx[e.id] || []).length;
+    if (!nSets) return;
+    const muscles = exerciseMuscles[e.exercise_id] || [];
+    muscles.forEach(mid => { if (byMuscle[mid] != null) byMuscle[mid] += nSets; });
+  });
+
+  statsData = { sessions, byExercise, byMuscle };
+  return statsData;
+}
+
+function setStatsPeriod(d) { statsPeriod = d; renderStats(); }
+function setStatsMetric(m) { statsMetric = m; renderStatsChart(); }
+function setStatsExercise(id) { statsExerciseId = id; renderStatsChart(); }
+
+async function renderStats() {
+  const panel = document.getElementById('panel-stats');
+  if (!panel) return;
+  panel.innerHTML = '<div class="section-card"><p class="stats-empty">Chargement…</p></div>';
+  await loadStatsData();
+  const d = statsData;
+  const hasData = d.sessions.length > 0;
+
+  const periodSeg = `<div class="stats-seg">${PERIODS.map(p =>
+    `<button class="${p.d === statsPeriod ? 'on' : ''}" onclick="setStatsPeriod(${p.d})">${p.l}</button>`).join('')}</div>`;
+
+  if (!hasData) {
+    panel.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">${periodSeg}</div>
+      <div class="section-card"><p class="stats-empty">Aucune séance sur cette période.<br>Enregistre des séances pour voir tes stats.</p></div>`;
+    return;
+  }
+
+  // Muscle recap (sorted desc, non-zero first).
+  const muscleRows = muscleGroups
+    .map(m => ({ name: m.name, n: d.byMuscle[m.id] || 0 }))
+    .sort((a, b) => b.n - a.n);
+  const maxN = Math.max(1, ...muscleRows.map(r => r.n));
+  const anySets = muscleRows.some(r => r.n > 0);
+  const recap = anySets
+    ? `<div class="mg-recap">${muscleRows.filter(r => r.n > 0).map(r => `
+        <div class="mg-recap__row">
+          <span class="mg-recap__name">${esc(r.name)}</span>
+          <div class="mg-recap__bar"><div class="mg-recap__fill" style="width:${Math.round(r.n / maxN * 100)}%;"></div></div>
+          <span class="mg-recap__val">${r.n}</span>
+        </div>`).join('')}</div>`
+    : '<p class="stats-empty">Associe des muscles à tes exercices pour voir le récap.</p>';
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <span style="font-size:12px;color:var(--text-dim);">${d.sessions.length} séance${d.sessions.length > 1 ? 's' : ''}</span>
+      ${periodSeg}
+    </div>
+    <div class="section-card" style="margin-bottom:16px;">
+      <div class="section-card__header"><span class="section-card__title">Séries par groupe musculaire</span></div>
+      ${recap}
+    </div>
+    <div class="section-card">
+      <div class="section-card__header"><span class="section-card__title">Progression par exercice</span></div>
+      <div id="stats-progression"></div>
+    </div>`;
+  renderStatsChart();
+}
+
+function renderStatsChart() {
+  const host = document.getElementById('stats-progression');
+  if (!host || !statsData) return;
+  const exList = Object.entries(statsData.byExercise)
+    .map(([id, b]) => ({ id, name: b.name, pts: b.points.length }))
+    .filter(e => e.pts > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!exList.length) { host.innerHTML = '<p class="stats-empty">Aucune série chiffrée sur cette période.</p>'; return; }
+  if (!statsExerciseId || !exList.find(e => e.id === statsExerciseId)) statsExerciseId = exList[0].id;
+
+  const bucket = statsData.byExercise[statsExerciseId];
+  const pts = bucket.points;
+  const series = pts.map(p => ({ date: p.date, y: statsMetric === '1rm' ? p.best : p.vol }));
+  const last = series[series.length - 1]?.y || 0;
+  const first = series[0]?.y || 0;
+  const peak = Math.max(...series.map(s => s.y));
+  const delta = first ? ((last - first) / first * 100) : 0;
+  const unit = statsMetric === '1rm' ? 'kg' : 'kg·rep';
+  const fmt = v => statsMetric === '1rm' ? Math.round(v) : Math.round(v);
+
+  host.innerHTML = `
+    <select class="np-input stats-select" onchange="setStatsExercise(this.value)">
+      ${exList.map(e => `<option value="${e.id}"${e.id === statsExerciseId ? ' selected' : ''}>${esc(e.name)}</option>`).join('')}
+    </select>
+    <div class="stats-seg" style="margin-bottom:10px;">
+      <button class="${statsMetric === '1rm' ? 'on' : ''}" onclick="setStatsMetric('1rm')">1RM estimé</button>
+      <button class="${statsMetric === 'volume' ? 'on' : ''}" onclick="setStatsMetric('volume')">Volume</button>
+    </div>
+    <div class="stats-chart-wrap">${lineChartSVG(series)}</div>
+    <div class="stats-kpis">
+      <div class="stats-kpi"><div class="stats-kpi__v">${fmt(last)}</div><div class="stats-kpi__l">Actuel (${unit})</div></div>
+      <div class="stats-kpi"><div class="stats-kpi__v">${fmt(peak)}</div><div class="stats-kpi__l">Record</div></div>
+      <div class="stats-kpi"><div class="stats-kpi__v">${delta >= 0 ? '+' : ''}${Math.round(delta)}%</div><div class="stats-kpi__l">Évolution</div></div>
+    </div>
+    ${statsMetric === '1rm' ? '<p style="font-size:11px;color:var(--text-dim);margin-top:10px;">1RM estimé (Epley) = poids × (1 + reps/30) — compare des séries même avec des reps différentes.</p>' : ''}`;
+}
+
+// Minimal self-contained SVG line chart (no external lib).
+function lineChartSVG(series) {
+  const W = 320, H = 170, PL = 34, PR = 10, PT = 12, PB = 26;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const ys = series.map(s => s.y);
+  let yMax = Math.max(...ys), yMin = Math.min(...ys, 0);
+  if (yMax === yMin) yMax = yMin + 1;
+  const n = series.length;
+  const x = i => PL + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
+  const y = v => PT + ih - ((v - yMin) / (yMax - yMin)) * ih;
+  const pts = series.map((s, i) => ({ px: x(i), py: y(s.y), s }));
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p.px.toFixed(1)},${p.py.toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[pts.length - 1].px.toFixed(1)},${(PT + ih).toFixed(1)} L${pts[0].px.toFixed(1)},${(PT + ih).toFixed(1)} Z`;
+  const grid = [0, 0.5, 1].map(f => {
+    const gv = yMin + (yMax - yMin) * (1 - f);
+    const gy = PT + ih * f;
+    return `<line x1="${PL}" y1="${gy}" x2="${W - PR}" y2="${gy}" stroke="rgba(255,255,255,.07)" />
+            <text x="${PL - 5}" y="${gy + 3}" text-anchor="end" font-size="9" fill="#8a90a2">${Math.round(gv)}</text>`;
+  }).join('');
+  const shortDate = s => { const dd = new Date(s + 'T12:00:00'); return dd.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }); };
+  // Show at most ~4 x labels to avoid crowding.
+  const step = Math.ceil(n / 4);
+  const xlabels = pts.map((p, i) => (i % step === 0 || i === n - 1)
+    ? `<text x="${p.px.toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#8a90a2">${shortDate(p.s.date)}</text>` : '').join('');
+  const dots = pts.map(p => `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="3" fill="#c084fc" />`).join('');
+  return `<svg class="stats-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Graphe de progression">
+    <defs><linearGradient id="statsGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(168,85,247,.28)" /><stop offset="1" stop-color="rgba(168,85,247,0)" />
+    </linearGradient></defs>
+    ${grid}
+    <path d="${area}" fill="url(#statsGrad)" />
+    <path d="${line}" fill="none" stroke="#a855f7" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+    ${dots}${xlabels}
+  </svg>`;
 }
 
 // ── Toast (stacked, shared style) ──────────────────────────
