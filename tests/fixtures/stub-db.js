@@ -46,6 +46,7 @@ function matchFilters(row, filters) {
     if (f.op === 'gte') return row[f.col] >= f.val;
     if (f.op === 'lte') return row[f.col] <= f.val;
     if (f.op === 'not_is_null') return row[f.col] != null;
+    if (f.op === 'in') return f.arr.includes(row[f.col]);
     return true;
   });
 }
@@ -67,6 +68,7 @@ class QueryBuilder {
   gte(col, val) { this.filters.push({ op: 'gte', col, val }); return this; }
   lte(col, val) { this.filters.push({ op: 'lte', col, val }); return this; }
   not(col)      { this.filters.push({ op: 'not_is_null', col }); return this; }
+  in(col, arr)  { this.filters.push({ op: 'in', col, arr: arr || [] }); return this; }
   order()  { return this; }
   limit(n) { this._limit = n; return this; }
   single()      { this._single = true; return this; }

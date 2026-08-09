@@ -15,7 +15,13 @@
       <button class="tab-btn" data-tab="stats">Stats</button>
     </div>
 
-    <div class="tab-panel active" id="panel-seances"></div>
+    <div class="tab-panel active" id="panel-seances">
+      <div id="session-list-view">
+        <button class="btn btn--primary" onclick="newSession()">+ Nouvelle séance</button>
+        <div id="session-list"></div>
+      </div>
+      <div id="session-editor-view" style="display:none;"></div>
+    </div>
 
     <div class="tab-panel" id="panel-exercices">
       <input type="text" id="ex-name" class="np-input" placeholder="Nom de l'exercice…" />

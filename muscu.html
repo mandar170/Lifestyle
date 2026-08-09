@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/main.css?v=12" />
+  <link rel="stylesheet" href="assets/css/main.css?v=13" />
   <script>try{localStorage.setItem('mandar170_last_module','muscu.html')}catch(e){}</script>
 </head>
 <body class="has-module-nav">
@@ -41,9 +41,11 @@
 
     <!-- ===== SÉANCES ===== -->
     <div class="tab-panel active" id="panel-seances">
-      <div class="section-card">
-        <p class="preset-list-empty">La saisie des séances arrive à la prochaine étape. Commence par créer tes exercices dans l'onglet 🏋️ Exercices.</p>
+      <div id="session-list-view">
+        <button class="btn btn--primary" style="width:100%;margin-bottom:16px;" onclick="newSession()">+ Nouvelle séance</button>
+        <div id="session-list"><p class="preset-list-empty">Chargement…</p></div>
       </div>
+      <div id="session-editor-view" style="display:none;"></div>
     </div>
 
     <!-- ===== EXERCICES ===== -->
@@ -93,7 +95,7 @@
 
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script defer src="assets/js/config.js?v=11"></script>
-  <script defer src="assets/js/muscu.js?v=1"></script>
+  <script defer src="assets/js/muscu.js?v=2"></script>
   <script defer src="assets/js/pwa.js?v=1"></script>
 </body>
 </html>

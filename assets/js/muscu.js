@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMuscuTabs();
   await loadMuscleGroups();
   await loadExercises();
+  await loadSessions();
 });
 
 function initMuscuTabs() {
@@ -196,6 +197,251 @@ async function deleteMuscleGroup(id) {
   showToast('Groupe supprimé', 'success');
   await loadMuscleGroups();
   await loadExercises();
+}
+
+// ══ Sessions (saisie de séance) ════════════════════════════
+let sessions     = [];
+let sessionDraft = null;   // in-memory draft while editing
+let seExSearch   = '';     // exercise-picker search term in the editor
+
+const SET_TYPES = [
+  { key: 'echauffement', label: 'É', color: '#f59e0b', title: 'Échauffement' },
+  { key: 'travail',      label: 'T', color: '#22c55e', title: 'Travail' },
+  { key: 'recup',        label: 'R', color: '#94a3b8', title: 'Récup' },
+];
+const setTypeDef = k => SET_TYPES.find(s => s.key === k) || SET_TYPES[1];
+
+function muscuToday() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function fmtDateFR(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+async function loadSessions() {
+  const { data } = await db.from('workout_sessions').select('*').eq('is_template', false).order('session_date', { ascending: false });
+  sessions = data || [];
+  renderSessionList();
+}
+
+async function renderSessionList() {
+  const el = document.getElementById('session-list');
+  if (!el) return;
+  if (!sessions.length) { el.innerHTML = '<p class="preset-list-empty">Aucune séance. Crée-en une avec « + Nouvelle séance ».</p>'; return; }
+  // Count exercises per session in one query.
+  const ids = sessions.map(s => s.id);
+  const { data: sx } = await db.from('session_exercises').select('session_id').in('session_id', ids);
+  const counts = {};
+  (sx || []).forEach(r => { counts[r.session_id] = (counts[r.session_id] || 0) + 1; });
+  el.innerHTML = sessions.map(s => `
+    <div class="wo-session-card" onclick="editSession('${s.id}')">
+      <div class="wo-session-card__head">
+        <span class="wo-session-card__name">${esc(s.name)}</span>
+        <span class="wo-session-card__date">${fmtDateFR(s.session_date)}</span>
+      </div>
+      <div class="wo-session-card__meta">${counts[s.id] || 0} exo${(counts[s.id] || 0) > 1 ? 's' : ''}${s.duration_min ? ` · ${s.duration_min} min` : ''}</div>
+    </div>`).join('');
+}
+
+function showSessionList() {
+  document.getElementById('session-editor-view').style.display = 'none';
+  document.getElementById('session-list-view').style.display = '';
+  sessionDraft = null;
+  loadSessions();
+}
+
+function newSession() {
+  sessionDraft = { id: null, name: '', session_date: muscuToday(), duration_min: null, exercises: [] };
+  seExSearch = '';
+  openEditor();
+}
+
+async function editSession(id) {
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  const { data: sx } = await db.from('session_exercises').select('*').eq('session_id', id).order('order_index');
+  const sxIds = (sx || []).map(e => e.id);
+  const { data: sets } = sxIds.length
+    ? await db.from('exercise_sets').select('*').in('session_exercise_id', sxIds)
+    : { data: [] };
+  const setsByEx = {};
+  (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
+  sessionDraft = {
+    id: s.id, name: s.name, session_date: s.session_date, duration_min: s.duration_min,
+    exercises: (sx || []).map(e => ({
+      exercise_id: e.exercise_id, exercise_name: e.exercise_name, is_cardio: e.is_cardio,
+      cardio_duration_min: e.cardio_duration_min,
+      sets: (setsByEx[e.id] || []).sort((a, b) => a.set_index - b.set_index)
+        .map(st => ({ set_type: st.set_type, reps: st.reps, weight_kg: st.weight_kg })),
+    })),
+  };
+  seExSearch = '';
+  openEditor();
+}
+
+function openEditor() {
+  document.getElementById('session-list-view').style.display = 'none';
+  const view = document.getElementById('session-editor-view');
+  view.style.display = '';
+  renderSessionEditor();
+}
+
+// ── Draft mutations ────────────────────────────────────────
+function draftSetField(field, value) { if (sessionDraft) sessionDraft[field] = value; }
+
+function addDraftExercise(exId) {
+  const ex = exercises.find(e => e.id === exId);
+  if (!ex || !sessionDraft) return;
+  sessionDraft.exercises.push({
+    exercise_id: ex.id, exercise_name: ex.name, is_cardio: ex.is_cardio,
+    cardio_duration_min: ex.is_cardio ? null : null,
+    sets: ex.is_cardio ? [] : [{ set_type: 'travail', reps: null, weight_kg: null }],
+  });
+  seExSearch = '';
+  renderSessionEditor();
+}
+
+function removeDraftExercise(i) { sessionDraft.exercises.splice(i, 1); renderSessionEditor(); }
+
+function addSet(i) {
+  const ex = sessionDraft.exercises[i];
+  const last = ex.sets[ex.sets.length - 1];
+  ex.sets.push(last ? { ...last } : { set_type: 'travail', reps: null, weight_kg: null });
+  renderSessionEditor();
+}
+function removeSet(i, j) { sessionDraft.exercises[i].sets.splice(j, 1); renderSessionEditor(); }
+function updateSet(i, j, field, value) {
+  const set = sessionDraft.exercises[i].sets[j];
+  set[field] = value === '' ? null : (field === 'reps' ? parseInt(value) : parseFloat(value));
+}
+function cycleSetType(i, j) {
+  const set = sessionDraft.exercises[i].sets[j];
+  const idx = SET_TYPES.findIndex(s => s.key === set.set_type);
+  set.set_type = SET_TYPES[(idx + 1) % SET_TYPES.length].key;
+  renderSessionEditor();
+}
+function updateCardioDuration(i, value) { sessionDraft.exercises[i].cardio_duration_min = value === '' ? null : parseInt(value); }
+
+// ── Editor rendering ───────────────────────────────────────
+function renderSessionEditor() {
+  const view = document.getElementById('session-editor-view');
+  if (!view || !sessionDraft) return;
+  const d = sessionDraft;
+  view.innerHTML = `
+    <div class="wo-editor-top">
+      <button class="btn btn--ghost btn--sm" onclick="showSessionList()">← Retour</button>
+      <button class="btn btn--primary btn--sm" onclick="saveSession()">Enregistrer</button>
+    </div>
+    <div class="section-card" style="margin-bottom:14px;">
+      <input type="text" class="np-input" placeholder="Nom de la séance (ex. Push A)…" value="${esc(d.name)}"
+        oninput="draftSetField('name', this.value)" style="width:100%;margin-bottom:8px;" />
+      <div style="display:flex;gap:8px;">
+        <input type="date" class="np-input" value="${d.session_date || ''}" oninput="draftSetField('session_date', this.value)" style="flex:1;" />
+        <input type="number" class="np-input" placeholder="Durée (min)" min="0" value="${d.duration_min ?? ''}"
+          oninput="draftSetField('duration_min', this.value === '' ? null : parseInt(this.value))" style="width:120px;" />
+      </div>
+    </div>
+
+    ${d.exercises.map((ex, i) => renderDraftExercise(ex, i)).join('')}
+
+    ${renderExercisePicker()}
+  `;
+}
+
+function renderDraftExercise(ex, i) {
+  const body = ex.is_cardio
+    ? `<div class="wo-cardio-row">
+         <span>⏱️ Durée</span>
+         <input type="number" class="np-input" placeholder="min" min="0" value="${ex.cardio_duration_min ?? ''}"
+           oninput="updateCardioDuration(${i}, this.value)" style="width:90px;text-align:center;" />
+         <span style="color:var(--text-dim);font-size:12px;">min</span>
+       </div>`
+    : `<div class="wo-sets">
+         <div class="wo-sets__head"><span></span><span>Reps</span><span>Poids</span><span></span></div>
+         ${ex.sets.map((s, j) => renderSetRow(s, i, j)).join('')}
+         <button class="btn btn--ghost btn--sm wo-add-set" onclick="addSet(${i})">+ Série</button>
+       </div>`;
+  return `<div class="wo-ex-card">
+    <div class="wo-ex-card__head">
+      <span class="wo-ex-card__name">${esc(ex.exercise_name)}${ex.is_cardio ? ' <span class="ex-cardio-badge">🏃 cardio</span>' : ''}</span>
+      <button class="preset-item__del" onclick="removeDraftExercise(${i})">✕</button>
+    </div>
+    ${body}
+  </div>`;
+}
+
+function renderSetRow(s, i, j) {
+  const td = setTypeDef(s.set_type);
+  return `<div class="wo-set-row">
+    <button type="button" class="set-type-pill" title="${td.title}" style="background:${td.color}22;color:${td.color};border-color:${td.color}66;" onclick="cycleSetType(${i},${j})">${td.label}</button>
+    <input type="number" class="np-input wo-set-input" inputmode="numeric" placeholder="—" value="${s.reps ?? ''}" oninput="updateSet(${i},${j},'reps',this.value)" />
+    <input type="number" class="np-input wo-set-input" inputmode="decimal" step="0.5" placeholder="kg" value="${s.weight_kg ?? ''}" oninput="updateSet(${i},${j},'weight_kg',this.value)" />
+    <button class="wo-set-del" onclick="removeSet(${i},${j})">✕</button>
+  </div>`;
+}
+
+function renderExercisePicker() {
+  const q = seExSearch.toLowerCase();
+  const matches = exercises.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+  const list = q
+    ? (matches.length
+        ? matches.map(e => `<div class="wo-ex-pick" onclick="addDraftExercise('${e.id}')">${esc(e.name)}${e.is_cardio ? ' 🏃' : ''}</div>`).join('')
+        : '<p class="preset-list-empty">Aucun exercice. Crée-le dans l\'onglet Exercices.</p>')
+    : '';
+  return `<div class="section-card wo-picker">
+    <input type="text" class="np-input" placeholder="+ Ajouter un exercice…" value="${esc(seExSearch)}"
+      oninput="seExSearch=this.value;renderExercisePickerResults()" style="width:100%;" />
+    <div id="wo-ex-results">${list}</div>
+  </div>`;
+}
+// Re-render only the picker results (so typing in the search doesn't rebuild the whole editor).
+function renderExercisePickerResults() {
+  const el = document.getElementById('wo-ex-results');
+  if (!el) return;
+  const q = seExSearch.toLowerCase();
+  const matches = exercises.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+  el.innerHTML = q
+    ? (matches.length
+        ? matches.map(e => `<div class="wo-ex-pick" onclick="addDraftExercise('${e.id}')">${esc(e.name)}${e.is_cardio ? ' 🏃' : ''}</div>`).join('')
+        : '<p class="preset-list-empty">Aucun exercice.</p>')
+    : '';
+}
+
+async function saveSession() {
+  const d = sessionDraft;
+  if (!d) return;
+  if (!d.name.trim()) { showToast('Nom de séance requis', 'error'); return; }
+
+  const row = { name: d.name.trim(), session_date: d.session_date || muscuToday(), duration_min: d.duration_min, is_template: false };
+  let sessionId = d.id;
+  if (sessionId) {
+    await db.from('workout_sessions').update(row).eq('id', sessionId);
+    await db.from('session_exercises').delete().eq('session_id', sessionId); // cascade removes old sets
+  } else {
+    const { data: created, error } = await db.from('workout_sessions').insert(row).select().single();
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    sessionId = created.id;
+  }
+
+  for (let i = 0; i < d.exercises.length; i++) {
+    const ex = d.exercises[i];
+    const { data: se, error } = await db.from('session_exercises').insert({
+      session_id: sessionId, exercise_id: ex.exercise_id, exercise_name: ex.exercise_name,
+      order_index: i, is_cardio: ex.is_cardio, cardio_duration_min: ex.is_cardio ? ex.cardio_duration_min : null,
+    }).select().single();
+    if (error) { showToast(`Erreur : ${error.message}`, 'error'); return; }
+    if (!ex.is_cardio && ex.sets.length) {
+      await db.from('exercise_sets').insert(ex.sets.map((s, j) => ({
+        session_exercise_id: se.id, set_index: j, set_type: s.set_type || 'travail', reps: s.reps, weight_kg: s.weight_kg,
+      })));
+    }
+  }
+  showToast('Séance enregistrée ✓', 'success');
+  showSessionList();
 }
 
 // ── Toast (stacked, shared style) ──────────────────────────
