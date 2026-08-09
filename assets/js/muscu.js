@@ -248,6 +248,7 @@ async function renderSessionList() {
         <span class="wo-session-card__date">${fmtDateFR(s.session_date)}</span>
       </div>
       <div class="wo-session-card__meta">${counts[s.id] || 0} exo${(counts[s.id] || 0) > 1 ? 's' : ''}${s.duration_min ? ` · ${s.duration_min} min` : ''}</div>
+      ${s.notes ? `<div class="wo-session-card__note">📝 ${esc(s.notes.length > 90 ? s.notes.slice(0, 90) + '…' : s.notes)}</div>` : ''}
     </div>`).join('');
 }
 
@@ -267,7 +268,7 @@ function closeEditor() {
 }
 
 function newSession() {
-  sessionDraft = { id: null, isTemplate: false, name: '', session_date: muscuToday(), duration_min: null, exercises: [] };
+  sessionDraft = { id: null, isTemplate: false, name: '', session_date: muscuToday(), duration_min: null, notes: '', exercises: [] };
   seExSearch = ''; importPickerOpen = false;
   openEditor();
 }
@@ -285,6 +286,7 @@ async function editSessionRow(id, isTemplate) {
   (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
   sessionDraft = {
     id: src.id, isTemplate, name: src.name, session_date: src.session_date, duration_min: src.duration_min,
+    notes: src.notes || '',
     exercises: (sx || []).map(e => ({
       exercise_id: e.exercise_id, exercise_name: e.exercise_name, is_cardio: e.is_cardio,
       cardio_duration_min: e.cardio_duration_min,
@@ -447,7 +449,9 @@ function renderSessionEditor() {
         <input type="date" class="np-input" value="${d.session_date || ''}" oninput="draftSetField('session_date', this.value)" style="flex:1;" />
         <input type="number" class="np-input" placeholder="Durée (min)" min="0" value="${d.duration_min ?? ''}"
           oninput="draftSetField('duration_min', this.value === '' ? null : parseInt(this.value))" style="width:120px;" />
-      </div>`}
+      </div>
+      <textarea class="np-input" placeholder="Notes : ressenti, forme du jour…" rows="2"
+        oninput="draftSetField('notes', this.value)" style="width:100%;margin-top:8px;resize:vertical;">${esc(d.notes || '')}</textarea>`}
     </div>
 
     ${canImport ? `<button class="btn btn--ghost btn--sm" style="width:100%;margin-bottom:12px;" onclick="toggleImportPicker()">📥 Importer un modèle</button>${importPickerOpen ? renderImportPicker() : ''}` : ''}
@@ -528,10 +532,12 @@ async function saveSession() {
   if (!d) return;
   if (!d.name.trim()) { showToast('Nom de séance requis', 'error'); return; }
 
+  const isNewSession = !d.id;
   const row = {
     name: d.name.trim(),
     session_date: d.isTemplate ? null : (d.session_date || muscuToday()),
     duration_min: d.isTemplate ? null : d.duration_min,
+    notes: d.isTemplate ? null : (d.notes && d.notes.trim() ? d.notes.trim() : null),
     is_template: !!d.isTemplate,
   };
   let sessionId = d.id;
@@ -558,7 +564,34 @@ async function saveSession() {
     }
   }
   showToast(d.isTemplate ? 'Modèle enregistré ✓' : 'Séance enregistrée ✓', 'success');
+
+  // Records perso : signale un nouvel exercice où tu bats ton meilleur 1RM estimé.
+  if (!d.isTemplate && isNewSession) {
+    for (const ex of d.exercises) {
+      if (ex.is_cardio || !ex.sets.length) continue;
+      let sessBest = 0;
+      ex.sets.forEach(s => { const o = epley1RM(s.weight_kg, s.reps); if (o > sessBest) sessBest = o; });
+      if (sessBest <= 0) continue;
+      const prev = await historicalBest1RM(ex.exercise_id, sessionId);
+      if (prev > 0 && sessBest > prev + 0.01) {
+        showToast(`🏆 Record ! ${ex.exercise_name} : ${Math.round(sessBest)} kg (1RM estimé)`, 'success');
+      }
+    }
+  }
   closeEditor();
+}
+
+// Best estimated 1RM for an exercise across all OTHER sessions (for PR detection).
+async function historicalBest1RM(exerciseId, excludeSessionId) {
+  if (!exerciseId) return 0;
+  const { data: sx } = await db.from('session_exercises').select('*').eq('exercise_id', exerciseId);
+  const rows = (sx || []).filter(e => e.session_id !== excludeSessionId && !e.is_cardio);
+  const ids = rows.map(r => r.id);
+  if (!ids.length) return 0;
+  const { data: sets } = await db.from('exercise_sets').select('*').in('session_exercise_id', ids);
+  let best = 0;
+  (sets || []).forEach(st => { const o = epley1RM(st.weight_kg, st.reps); if (o > best) best = o; });
+  return best;
 }
 
 // ══ Stats (tableau de bord) ════════════════════════════════
@@ -584,14 +617,13 @@ function periodCutoff() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-// Load every non-template session in range with its exercises + sets, and index it.
+// Load every non-template session with its exercises + sets. The recap and the
+// progression chart are filtered to the selected period; personal records are
+// computed all-time.
 async function loadStatsData() {
-  const cutoff = periodCutoff();
-  let q = db.from('workout_sessions').select('*').eq('is_template', false);
-  if (cutoff) q = q.gte('session_date', cutoff);
-  const { data: sess } = await q.order('session_date', { ascending: true });
-  const sessions = (sess || []).filter(s => s.session_date).sort((a, b) => (a.session_date < b.session_date ? -1 : 1));
-  const sIds = sessions.map(s => s.id);
+  const { data: allSess } = await db.from('workout_sessions').select('*').eq('is_template', false);
+  const sessionsAll = (allSess || []).filter(s => s.session_date).sort((a, b) => (a.session_date < b.session_date ? -1 : 1));
+  const sIds = sessionsAll.map(s => s.id);
   const { data: sx } = sIds.length
     ? await db.from('session_exercises').select('*').in('session_id', sIds)
     : { data: [] };
@@ -602,44 +634,58 @@ async function loadStatsData() {
   const setsByEx = {};
   (sets || []).forEach(st => { (setsByEx[st.session_exercise_id] = setsByEx[st.session_exercise_id] || []).push(st); });
   const dateById = {};
-  sessions.forEach(s => { dateById[s.id] = s.session_date; });
+  sessionsAll.forEach(s => { dateById[s.id] = s.session_date; });
 
-  // Per-exercise time series: one point per session (best 1RM + total volume).
+  const cutoff = periodCutoff();
+  const inPeriod = date => !cutoff || (date && date >= cutoff);
+  const sessions = sessionsAll.filter(s => inPeriod(s.session_date));
+
+  // Per-exercise time series (period) + all-time personal records (best 1RM).
   const byExercise = {};
+  const records = {};
   (sx || []).forEach(e => {
     if (e.is_cardio) return;
     const rows = setsByEx[e.id] || [];
     if (!rows.length) return;
-    let best = 0, vol = 0;
+    const date = dateById[e.session_id];
+    const key = e.exercise_id || ('name:' + e.exercise_name);
+    let best = 0, vol = 0, bestSet = null;
     rows.forEach(st => {
       const orm = epley1RM(st.weight_kg, st.reps);
-      if (orm > best) best = orm;
+      if (orm > best) { best = orm; bestSet = st; }
       vol += (Number(st.weight_kg) || 0) * (Number(st.reps) || 0);
     });
-    const key = e.exercise_id || ('name:' + e.exercise_name);
+    // Record (all-time): keep the best 1RM ever and the set that produced it.
+    if (best > 0) {
+      const cur = records[key];
+      if (!cur || best > cur.orm) records[key] = { name: e.exercise_name, orm: best, reps: bestSet.reps, weight: bestSet.weight_kg, date };
+    }
+    // Time series: period only, one point per session date.
+    if (!inPeriod(date)) return;
     const bucket = (byExercise[key] = byExercise[key] || { name: e.exercise_name, points: [] });
-    // Merge multiple entries of the same exercise within one session.
-    const date = dateById[e.session_id];
     const existing = bucket.points.find(p => p.date === date);
     if (existing) { existing.best = Math.max(existing.best, best); existing.vol += vol; }
     else bucket.points.push({ date, best, vol });
   });
   Object.values(byExercise).forEach(b => b.points.sort((a, b2) => (a.date < b2.date ? -1 : 1)));
 
-  // Sets per muscle group: attribute each non-cardio exercise's set count to every targeted muscle.
+  // Sets per muscle group (period): attribute each exercise's set count to every targeted muscle.
   const byMuscle = {};
   muscleGroups.forEach(m => { byMuscle[m.id] = 0; });
   (sx || []).forEach(e => {
     if (e.is_cardio) return;
+    if (!inPeriod(dateById[e.session_id])) return;
     const nSets = (setsByEx[e.id] || []).length;
     if (!nSets) return;
     const muscles = exerciseMuscles[e.exercise_id] || [];
     muscles.forEach(mid => { if (byMuscle[mid] != null) byMuscle[mid] += nSets; });
   });
 
-  statsData = { sessions, byExercise, byMuscle };
+  statsData = { sessions, byExercise, byMuscle, records };
   return statsData;
 }
+
+const fmtWeight = w => { const n = Number(w) || 0; return Number.isInteger(n) ? String(n) : n.toFixed(1); };
 
 function setStatsPeriod(d) { statsPeriod = d; renderStats(); }
 function setStatsMetric(m) { statsMetric = m; renderStatsChart(); }
@@ -677,6 +723,17 @@ async function renderStats() {
         </div>`).join('')}</div>`
     : '<p class="stats-empty">Associe des muscles à tes exercices pour voir le récap.</p>';
 
+  // Personal records (all-time).
+  const recs = Object.values(d.records).sort((a, b) => b.orm - a.orm);
+  const recordsHtml = recs.length
+    ? `<div class="pr-list">${recs.map(r => `
+        <div class="pr-row">
+          <span class="pr-row__name">${esc(r.name)}</span>
+          <span class="pr-row__meta">${fmtWeight(r.weight)} kg × ${r.reps} rep${r.reps > 1 ? 's' : ''}${r.date ? ` · ${fmtDateFR(r.date)}` : ''}</span>
+          <span class="pr-row__orm">${Math.round(r.orm)}<small>kg</small></span>
+        </div>`).join('')}</div>`
+    : '<p class="stats-empty">Renseigne des séries chiffrées pour établir tes records.</p>';
+
   panel.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <span style="font-size:12px;color:var(--text-dim);">${d.sessions.length} séance${d.sessions.length > 1 ? 's' : ''}</span>
@@ -685,6 +742,10 @@ async function renderStats() {
     <div class="section-card" style="margin-bottom:16px;">
       <div class="section-card__header"><span class="section-card__title">Séries par groupe musculaire</span></div>
       ${recap}
+    </div>
+    <div class="section-card" style="margin-bottom:16px;">
+      <div class="section-card__header"><span class="section-card__title">🏆 Records personnels</span><span style="font-size:11px;color:var(--text-dim);">1RM estimé · tous temps</span></div>
+      ${recordsHtml}
     </div>
     <div class="section-card">
       <div class="section-card__header"><span class="section-card__title">Progression par exercice</span></div>
@@ -721,7 +782,7 @@ function renderStatsChart() {
       <button class="${statsMetric === '1rm' ? 'on' : ''}" onclick="setStatsMetric('1rm')">1RM estimé</button>
       <button class="${statsMetric === 'volume' ? 'on' : ''}" onclick="setStatsMetric('volume')">Volume</button>
     </div>
-    <div class="stats-chart-wrap">${lineChartSVG(series)}</div>
+    <div class="stats-chart-wrap">${lineChartSVG(series, series.findIndex(s => s.y === peak))}</div>
     <div class="stats-kpis">
       <div class="stats-kpi"><div class="stats-kpi__v">${fmt(last)}</div><div class="stats-kpi__l">Actuel (${unit})</div></div>
       <div class="stats-kpi"><div class="stats-kpi__v">${fmt(peak)}</div><div class="stats-kpi__l">Record</div></div>
@@ -730,8 +791,8 @@ function renderStatsChart() {
     ${statsMetric === '1rm' ? '<p style="font-size:11px;color:var(--text-dim);margin-top:10px;">1RM estimé (Epley) = poids × (1 + reps/30) — compare des séries même avec des reps différentes.</p>' : ''}`;
 }
 
-// Minimal self-contained SVG line chart (no external lib).
-function lineChartSVG(series) {
+// Minimal self-contained SVG line chart (no external lib). peakIdx gets a gold marker.
+function lineChartSVG(series, peakIdx = -1) {
   const W = 320, H = 170, PL = 34, PR = 10, PT = 12, PB = 26;
   const iw = W - PL - PR, ih = H - PT - PB;
   const ys = series.map(s => s.y);
@@ -754,7 +815,9 @@ function lineChartSVG(series) {
   const step = Math.ceil(n / 4);
   const xlabels = pts.map((p, i) => (i % step === 0 || i === n - 1)
     ? `<text x="${p.px.toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#8a90a2">${shortDate(p.s.date)}</text>` : '').join('');
-  const dots = pts.map(p => `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="3" fill="#c084fc" />`).join('');
+  const dots = pts.map((p, i) => i === peakIdx
+    ? `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="5" fill="#fbbf24" stroke="#07070e" stroke-width="1.5" />`
+    : `<circle cx="${p.px.toFixed(1)}" cy="${p.py.toFixed(1)}" r="3" fill="#c084fc" />`).join('');
   return `<svg class="stats-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Graphe de progression">
     <defs><linearGradient id="statsGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="rgba(168,85,247,.28)" /><stop offset="1" stop-color="rgba(168,85,247,0)" />
